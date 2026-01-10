@@ -19,7 +19,7 @@
           
           <!-- 文本字段 -->
           <fun-input
-            v-if="field.fieldType === FormFieldType.TEXT"
+            v-if="field instanceof FormField_Text"
             :id="key"
             v-model="formData[key]"
             type="text"
@@ -28,7 +28,7 @@
           
           <!-- 文本域字段 -->
           <fun-textarea
-            v-else-if="field.fieldType === FormFieldType.TEXTAREA || field instanceof FormField_Textarea"
+            v-else-if="field instanceof FormField_Textarea"
             :id="key"
             v-model="formData[key]"
             :placeholder="getFieldPlaceholder(key, field)"
@@ -59,7 +59,7 @@
           
           <!-- 普通选择字段 -->
           <fun-select
-            v-else-if="field.fieldType === FormFieldType.SELECT"
+            v-else-if="field instanceof FormField_Select"
             :id="key"
             v-model="formData[key]"
             :options="getSelectOptions(key, field)"
@@ -68,7 +68,7 @@
 
           <!-- 标签字段 -->
           <fun-tag-input
-            v-else-if="field.fieldType === FormFieldType.TAGS"
+            v-else-if="field instanceof FormField_Tags"
             :id="key"
             v-model="formData[key]"
             :placeholder="getFieldPlaceholder(key, field)"
@@ -158,7 +158,7 @@
           </template>
           
           <!-- 文件夹选择字段 -->
-          <div v-else-if="field.fieldType === FormFieldType.SELECT_FOLDER" class="file-input-group">
+          <div v-else-if="field instanceof FormField_SelectFolder" class="file-input-group">
             <fun-input
               :id="key"
               type="text"
@@ -177,7 +177,7 @@
           </div>
           
           <!-- 文件选择字段（普通文件） -->
-          <div v-else-if="field.fieldType === FormFieldType.SELECT_FILE" class="file-input-group">
+          <div v-else-if="field instanceof FormField_SelectFile && !isCoverField(field)" class="file-input-group">
             <fun-input
               :id="key"
               type="text"
@@ -230,14 +230,16 @@ import alertService from '../utils/AlertService.ts'
 import { detectGameEngine } from '../utils/GameEngineDetector.ts'
 import {
   FormField as FormFieldType,
-  FormFieldType as FormFieldTypeEnum,
+  FormField_Text,
+  FormField_Textarea,
+  FormField_Select,
+  FormField_Tags,
   FormField_SelectEngine,
   FormField_SelectFile,
   FormField_SelectFolder,
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
-  FormField_SelectVideoThumbnail,
-  FormField_Textarea
+  FormField_SelectVideoThumbnail
 } from '../types/class/FormField.ts'
 
 export default {
@@ -355,14 +357,16 @@ export default {
     
     return {
       formFields,
-      FormFieldType: FormFieldTypeEnum,
+      FormField_Text,
+      FormField_Textarea,
+      FormField_Select,
+      FormField_Tags,
       FormField_SelectEngine,
       FormField_SelectFile,
       FormField_SelectFolder,
       FormField_SelectGameCover,
       FormField_SelectMangaCover,
-      FormField_SelectVideoThumbnail,
-      FormField_Textarea
+      FormField_SelectVideoThumbnail
     }
   },
   data() {
@@ -376,18 +380,10 @@ export default {
         const value = (resourceInstance as any)[key]
         if (value instanceof FormFieldType) {
           // 根据字段类型初始化默认值
-          switch (value.fieldType) {
-            case FormFieldTypeEnum.CHECKBOX:
-              data[key] = false
-              break
-            case FormFieldTypeEnum.NUMBER:
-              data[key] = 0
-              break
-            case FormFieldTypeEnum.TAGS:
-              data[key] = []
-              break
-            default:
-              data[key] = ''
+          if (value instanceof FormField_Tags) {
+            data[key] = []
+          } else {
+            data[key] = ''
           }
         }
       }
@@ -533,7 +529,7 @@ export default {
       const resourceInstance = new this.resourceClass()
       for (const key in resourceInstance) {
         const field = (resourceInstance as any)[key]
-        if (field instanceof FormFieldType && field.fieldType === FormFieldTypeEnum.TAGS) {
+        if (field instanceof FormField_Tags) {
           return Array.isArray(this.formData[key]) ? this.formData[key] : []
         }
       }
@@ -554,10 +550,10 @@ export default {
     },
     // 获取字段占位符
     getFieldPlaceholder(key: string, field: FormFieldType): string {
-      if (field.fieldType === FormFieldTypeEnum.SELECT) {
+      if (field instanceof FormField_Select) {
         return `请选择${field.fieldName}`
       }
-      if (field.fieldType === FormFieldTypeEnum.TEXTAREA || field instanceof FormField_Textarea) {
+      if (field instanceof FormField_Textarea) {
         return '输入简介或描述...'
       }
       if (field instanceof FormField_SelectFile) {
@@ -598,7 +594,7 @@ export default {
         if (value instanceof FormFieldType) {
           const resourceValue = (this.resourceData as any)[key]
           if (resourceValue !== undefined && resourceValue !== null) {
-            if (value.fieldType === FormFieldTypeEnum.TAGS && Array.isArray(resourceValue)) {
+            if (value instanceof FormField_Tags && Array.isArray(resourceValue)) {
               initData[key] = [...resourceValue]
             } else if (typeof resourceValue === 'string' || typeof resourceValue === 'number' || typeof resourceValue === 'boolean') {
               initData[key] = resourceValue
@@ -676,7 +672,7 @@ export default {
             const resourceInstance = new this.resourceClass()
             for (const nameKey in resourceInstance) {
               const value = (resourceInstance as any)[nameKey]
-              if (value instanceof FormFieldType && value.fieldType === FormFieldTypeEnum.TEXT && 
+              if (value instanceof FormField_Text && 
                   (this.formData[nameKey] || '').trim() === '') {
                 this.formData[nameKey] = this.extractGameNameFromPath(filePath)
                 break
@@ -689,7 +685,7 @@ export default {
             const resourceInstance = new this.resourceClass()
             for (const nameKey in resourceInstance) {
               const value = (resourceInstance as any)[nameKey]
-              if (value instanceof FormFieldType && value.fieldType === FormFieldTypeEnum.TEXT && 
+              if (value instanceof FormField_Text && 
                   (this.formData[nameKey] || '').trim() === '') {
                 // 从文件名提取名称（不含扩展名）
                 const fileName = filePath.split(/[\\/]/).pop() || ''
@@ -817,7 +813,7 @@ export default {
         let nameKey = ''
         for (const fieldKey in resourceInstance) {
           const field = (resourceInstance as any)[fieldKey]
-          if (field instanceof FormFieldType && field.fieldType === FormFieldTypeEnum.TEXT) {
+          if (field instanceof FormField_Text) {
             nameKey = fieldKey
             break
           }
@@ -1044,7 +1040,7 @@ export default {
           if (field instanceof FormFieldType) {
             let value = this.formData[key]
             
-            if (field.fieldType === FormFieldTypeEnum.TAGS) {
+            if (field instanceof FormField_Tags) {
               resource[key] = Array.isArray(value) ? [...value] : []
             } else if (typeof value === 'string') {
               resource[key] = value.trim()
@@ -1096,7 +1092,7 @@ export default {
       let tagsKey = ''
       for (const key in resourceInstance) {
         const field = (resourceInstance as any)[key]
-        if (field instanceof FormFieldType && field.fieldType === FormFieldTypeEnum.TAGS) {
+        if (field instanceof FormField_Tags) {
           tagsKey = key
           break
         }

@@ -27,14 +27,14 @@
               {{ field.fieldName }}
             </label>
             <fun-input
-              v-if="field.fieldType === FormFieldType.TEXT"
+              v-if="field instanceof FormField_Text"
               :id="key"
               v-model="formData[key]"
               type="text"
               :placeholder="`请输入${field.fieldName}`"
             />
             <fun-input
-              v-else-if="field.fieldType === FormFieldType.NUMBER"
+              v-else-if="field instanceof FormField_Number"
               :id="key"
               :modelValue="String(formData[key] || '')"
               type="number"
@@ -42,37 +42,21 @@
               @update:modelValue="formData[key] = Number($event) || 0"
             />
             <input
-              v-else-if="field.fieldType === FormFieldType.DATE"
+              v-else-if="field instanceof FormField_Date"
               :id="key"
               v-model="formData[key]"
               type="date"
               class="form-input"
             />
-            <input
-              v-else-if="field.fieldType === FormFieldType.TIME"
-              :id="key"
-              v-model="formData[key]"
-              type="time"
-              class="form-input"
-            />
             <textarea
-              v-else-if="field.fieldType === FormFieldType.TEXTAREA"
+              v-else-if="field instanceof FormField_Textarea"
               :id="key"
               v-model="formData[key]"
               class="form-textarea"
               :placeholder="`请输入${field.fieldName}`"
               rows="4"
             ></textarea>
-            <div v-else-if="field.fieldType === FormFieldType.CHECKBOX" class="form-checkbox-group">
-              <input
-                :id="key"
-                v-model="formData[key]"
-                type="checkbox"
-                class="form-checkbox"
-              />
-              <label :for="key" class="form-checkbox-label">{{ field.fieldName }}</label>
-            </div>
-            <div v-else-if="field.fieldType === FormFieldType.RADIO" class="form-radio-group">
+            <div v-else-if="field instanceof FormField_Radio" class="form-radio-group">
               <label v-for="(option, index) in getRadioOptions(key, field)" :key="index" class="form-radio-label">
                 <input
                   :id="`${key}-${index}`"
@@ -85,7 +69,7 @@
               </label>
             </div>
             <select
-              v-else-if="field.fieldType === FormFieldType.SELECT"
+              v-else-if="field instanceof FormField_Select"
               :id="key"
               v-model="formData[key]"
               class="form-select"
@@ -96,7 +80,7 @@
               </option>
             </select>
             <!-- 文件选择 -->
-            <div v-else-if="field.fieldType === FormFieldType.SELECT_FILE" class="file-input-group">
+            <div v-else-if="field instanceof FormField_SelectFile" class="file-input-group">
               <fun-input
                 :id="key"
                 type="text"
@@ -118,7 +102,7 @@
               </div>
             </div>
             <!-- 文件夹选择 -->
-            <div v-else-if="field.fieldType === FormFieldType.SELECT_FOLDER" class="file-input-group">
+            <div v-else-if="field instanceof FormField_SelectFolder" class="file-input-group">
               <fun-input
                 :id="key"
                 type="text"
@@ -137,7 +121,7 @@
             </div>
             <!-- 标签输入 -->
             <fun-tag-input
-              v-else-if="field.fieldType === FormFieldType.TAGS"
+              v-else-if="field instanceof FormField_Tags"
               :id="key"
               v-model="formData[key]"
               :placeholder="`输入${field.fieldName}后按回车或逗号添加`"
@@ -164,7 +148,18 @@ import notificationService from '../utils/NotificationService.ts'
 import alertService from '../utils/AlertService.ts'
 import confirmService from '../utils/ConfirmService.ts'
 import { Game } from '../types/class/game.ts'
-import { FormField, FormFieldType } from '../types/class/FormField.ts'
+import {
+  FormField,
+  FormField_Text,
+  FormField_Textarea,
+  FormField_Number,
+  FormField_Date,
+  FormField_Select,
+  FormField_Radio,
+  FormField_Tags,
+  FormField_SelectFile,
+  FormField_SelectFolder
+} from '../types/class/FormField.ts'
 
 export default defineComponent({
   name: 'DebugView',
@@ -194,18 +189,12 @@ export default defineComponent({
       const data: Record<string, any> = {}
       for (const key in formFields.value) {
         const field = formFields.value[key]
-        switch (field.fieldType) {
-          case FormFieldType.CHECKBOX:
-            data[key] = false
-            break
-          case FormFieldType.NUMBER:
-            data[key] = 0
-            break
-          case FormFieldType.TAGS:
-            data[key] = []
-            break
-          default:
-            data[key] = ''
+        if (field instanceof FormField_Number) {
+          data[key] = 0
+        } else if (field instanceof FormField_Tags) {
+          data[key] = []
+        } else {
+          data[key] = ''
         }
       }
       return data
@@ -218,7 +207,15 @@ export default defineComponent({
       formFields,
       formData,
       formResult,
-      FormFieldType,
+      FormField_Text,
+      FormField_Textarea,
+      FormField_Number,
+      FormField_Date,
+      FormField_Select,
+      FormField_Radio,
+      FormField_Tags,
+      FormField_SelectFile,
+      FormField_SelectFolder,
       initFormData,
       isElectronEnvironment
     }

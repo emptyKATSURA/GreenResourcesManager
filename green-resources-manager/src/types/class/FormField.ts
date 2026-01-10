@@ -1,18 +1,4 @@
 
-export enum FormFieldType {
-	TEXT = 'text', // 文本
-	NUMBER = 'number', // 数字
-	DATE = 'date', // 日期
-	TIME = 'time', // 时间
-	SELECT = 'select', // 文本的下拉框
-	SELECT_FILE = 'selectFile', // 文件选择
-	SELECT_FOLDER = 'selectFolder', // 文件夹选择
-	SELECT_COVER = 'selectCover', // 封面选择
-	CHECKBOX = 'checkbox', // 复选框
-	RADIO = 'radio', // 单选按钮
-	TEXTAREA = 'textarea', // 文本域
-	TAGS = 'tags', // 标签
-}
 
 
 
@@ -24,13 +10,11 @@ export interface FileSelectFilter {
 
 export abstract class FormField {
 	fieldName: string
-	fieldType: FormFieldType
 	required?: boolean
 
 
-	constructor(fieldName: string, fieldType: FormFieldType, required?: boolean) {
+	constructor(fieldName: string, required?: boolean) {
 		this.fieldName = fieldName
-		this.fieldType = fieldType
 		this.required = required ?? true
 	}
 }
@@ -38,32 +22,32 @@ export abstract class FormField {
 
 export class FormField_Text extends FormField {
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.TEXT, required)
+		super(fieldName, required)
 	}
 }
 
 export class FormField_Textarea extends FormField {
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.TEXTAREA, required)
+		super(fieldName, required)
 	}
 }
 
 export class FormField_Number extends FormField {
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.NUMBER, required)
+		super(fieldName, required)
 	}
 }
 
 export class FormField_Date extends FormField {
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.DATE, required)
+		super(fieldName, required)
 	}
 }
 
 export class FormField_Select extends FormField {
 	options: string[]
 	constructor(fieldName: string, options: string[], required?: boolean) {
-		super(fieldName, FormFieldType.SELECT, required)
+		super(fieldName, required)
 		this.options = options
 	}
 }
@@ -138,7 +122,7 @@ export class FormField_SelectEngine extends FormField {
 	]
 
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.SELECT, required)
+		super(fieldName, required)
 	}
 }
 
@@ -151,7 +135,7 @@ abstract class FormField_SelectCover extends FormField {
 		{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] }
 	]
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.SELECT_COVER, required)
+		super(fieldName, required)
 	}
 }
 
@@ -192,7 +176,7 @@ export class FormField_SelectVideoThumbnail extends FormField_SelectCover {
 export class FormField_Radio extends FormField {
 	options: string[]
 	constructor(fieldName: string, options: string[], required?: boolean) {
-		super(fieldName, FormFieldType.RADIO, required)
+		super(fieldName, required)
 		this.options = options
 	}
 }
@@ -203,7 +187,7 @@ export class FormField_Radio extends FormField {
 export class FormField_SelectFile extends FormField {
 	filters: FileSelectFilter[]
 	constructor(fieldName: string, filters: FileSelectFilter[], required?: boolean) {
-		super(fieldName, FormFieldType.SELECT_FILE, required)
+		super(fieldName, required)
 		this.filters = filters
 	}
 }
@@ -213,7 +197,7 @@ export class FormField_SelectFile extends FormField {
  */
 export class FormField_SelectFolder extends FormField {
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.SELECT_FOLDER, required)
+		super(fieldName, required)
 	}
 }
 
@@ -222,6 +206,6 @@ export class FormField_SelectFolder extends FormField {
  */
 export class FormField_Tags extends FormField {
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.TAGS, required)
+		super(fieldName, required)
 	}
 }
