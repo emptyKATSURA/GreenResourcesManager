@@ -49,50 +49,49 @@
     </div>
 
     <!-- 添加/编辑视频对话框 -->
-    <VideoFormDialog
+    <ResourcesEditDialog
       :visible="showAddDialog || showEditDialog"
       :mode="showAddDialog ? 'add' : 'edit'"
-      :form-data="showAddDialog ? newVideoForm : editVideoForm"
-      :actors-input="showAddDialog ? videoActorsInput : editActorsInput"
-      :tags-input="showAddDialog ? videoTagsInput : editTagsInput"
+      :resource-class="Video"
+      :resource-data="showEditDialog ? editVideoForm : null"
+      :is-electron-environment="true"
       :available-tags="allTags"
-      :get-thumbnail-url="getThumbnailUrl"
-      :handle-thumbnail-preview-error="handleThumbnailPreviewError"
-      :handle-thumbnail-preview-load="handleThumbnailPreviewLoad"
-      :extract-video-name="extractVideoName"
-      :get-video-duration="getVideoDuration"
-      :generate-thumbnail="generateThumbnail"
-      @update:visible="showAddDialog ? (showAddDialog = false) : (showEditDialog = false)"
+      :enable-randomize-thumbnail="true"
+      add-title="添加视频"
+      edit-title="编辑视频"
+      add-button-text="添加视频"
+      edit-button-text="保存"
+      :custom-validation="(formData, isEditMode) => {
+        if (isEditMode) return true
+        return formData.filePath && formData.filePath.trim() !== ''
+      }"
+      :custom-confirm-handler="handleVideoCustomConfirm"
       @close="showAddDialog ? closeAddVideoDialog() : closeEditDialog()"
-      @submit="showAddDialog ? handleAddVideo($event) : saveEditedVideo($event)"
-      @browse-video-file="showAddDialog ? selectVideoFile() : browseEditVideoFile()"
-      @browse-thumbnail-file="showAddDialog ? selectThumbnailFile() : browseEditThumbnailFile()"
-      @randomize-thumbnail="randomizeThumbnail"
-      @parse-actors="showAddDialog ? parseVideoActors() : parseEditActors()"
-      @add-tag="showAddDialog ? addVideoTag() : addEditTag()"
-      @remove-tag="showAddDialog ? removeVideoTag($event) : removeEditTag($event)"
+      @confirm="(resourceData) => showAddDialog ? handleAddVideoConfirm(resourceData) : handleEditVideoConfirm(resourceData)"
+      @randomize-thumbnail="handleRandomizeThumbnail"
+      @video-file-selected="handleVideoFileSelected"
     />
 
     <!-- 添加/编辑文件夹对话框 -->
-    <FolderFormDialog
+    <ResourcesEditDialog
       :visible="showFolderDialog || showEditFolderDialog"
       :mode="showFolderDialog ? 'add' : 'edit'"
-      :form-data="showFolderDialog ? newFolder : editFolderForm"
-      :actors-input="showFolderDialog ? folderActorsInput : editFolderActorsInput"
-      :tags-input="showFolderDialog ? folderTagsInput : editFolderTagsInput"
+      :resource-class="VideoFolder"
+      :resource-data="showEditFolderDialog ? editFolderForm : null"
+      :is-electron-environment="true"
       :available-tags="allTags"
-      :get-thumbnail-url="getThumbnailUrl"
-      :handle-thumbnail-preview-error="handleThumbnailPreviewError"
-      :handle-thumbnail-preview-load="handleThumbnailPreviewLoad"
-      @update:visible="showFolderDialog ? (showFolderDialog = false) : (showEditFolderDialog = false)"
+      :enable-select-from-folder-covers="true"
+      add-title="添加文件夹"
+      edit-title="编辑文件夹"
+      add-button-text="添加文件夹"
+      edit-button-text="保存"
+      :custom-validation="(formData, isEditMode) => {
+        if (isEditMode) return true
+        return formData.folderPath && formData.folderPath.trim() !== ''
+      }"
       @close="showFolderDialog ? closeAddFolderDialog() : closeEditFolderDialog()"
-      @submit="showFolderDialog ? addFolder($event) : saveEditedFolder($event)"
-      @browse-folder="showFolderDialog ? selectNewFolderPath() : selectEditFolderPath()"
-      @select-from-covers="showFolderDialog ? selectFromNewFolderCovers() : selectFromFolderCovers()"
-      @browse-thumbnail-file="showFolderDialog ? selectFolderThumbnailFile() : selectEditFolderThumbnailFile()"
-      @parse-actors="showFolderDialog ? parseFolderActors() : parseEditFolderActors()"
-      @add-tag="showFolderDialog ? addFolderTag() : addEditFolderTag()"
-      @remove-tag="showFolderDialog ? removeFolderTag($event) : removeEditFolderTag($event)"
+      @confirm="(resourceData) => showFolderDialog ? handleAddFolderConfirm(resourceData) : handleEditFolderConfirm(resourceData)"
+      @select-from-folder-covers="showFolderDialog ? handleSelectFromNewFolderCovers : handleSelectFromFolderCovers"
     />
 
     <!-- 视频详情对话框 -->
@@ -146,8 +145,9 @@ import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import VideoSelector from '../video/VideoSelector.vue'
-import VideoFormDialog from '../../components/video/VideoFormDialog.vue'
-import FolderFormDialog from '../../components/video/FolderFormDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { Video } from '../../types/class/video.ts'
+import { VideoFolder } from '../../types/class/videoFolder.ts'
 import FolderVideosGrid from '../../components/video/FolderVideosGrid.vue'
 
 import saveManager from '../../utils/SaveManager.ts'
@@ -177,8 +177,7 @@ export default {
     DetailPanel,
     PathUpdateDialog,
     VideoSelector,
-    VideoFormDialog,
-    FolderFormDialog,
+    ResourcesEditDialog,
     FolderVideosGrid,
   },
   emits: ['filter-data-updated'],
@@ -347,14 +346,17 @@ export default {
         description: '',
         tags: [],
         actors: [],
+        voiceActors: [],
+        productionTeam: [],
         series: '',
         folderPath: '',
         thumbnail: ''
       },
-      folderActorsInput: '',
-      folderTagsInput: '',
       // 编辑相关
       showEditDialog: false,
+      // 资源类用于 ResourcesEditDialog
+      Video: Video,
+      VideoFolder: VideoFolder,
       editVideoForm: {
         id: '',
         name: '',
@@ -376,12 +378,12 @@ export default {
         description: '',
         tags: [],
         actors: [],
+        voiceActors: [],
+        productionTeam: [],
         series: '',
         folderPath: '',
         thumbnail: ''
       },
-      editFolderActorsInput: '',
-      editFolderTagsInput: '',
       // thumbnailUrlCache 已移至 useVideoThumbnail composable
       // 排序选项
       videoSortOptions: [
@@ -876,17 +878,18 @@ export default {
     },
 
     resetNewFolder() {
+      // ResourcesEditDialog 会自动重置表单，这里保留方法以保持兼容性
       this.newFolder = {
         name: '',
         description: '',
         tags: [],
         actors: [],
+        voiceActors: [],
+        productionTeam: [],
         series: '',
         folderPath: '',
         thumbnail: ''
       }
-      this.folderActorsInput = ''
-      this.folderTagsInput = ''
     },
 
     parseFolderActors() {
@@ -943,35 +946,64 @@ export default {
       }
     },
 
-    async handleAddVideo(videoData) {
+    // 提取视频名称（从文件路径）
+    extractVideoName(filePath: string): string {
+      if (!filePath) return ''
+      const fileName = filePath.split(/[\\/]/).pop() || ''
+      const lastDotIndex = fileName.lastIndexOf('.')
+      return lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName
+    },
+    // 添加视频时的自定义确认处理（提取名称、获取时长、生成缩略图等）
+    async handleVideoCustomConfirm(formData, isEditMode) {
+      if (isEditMode) return // 编辑模式不需要特殊处理
+      
+      // 1. 如果没有名称，从文件路径提取
+      if (!formData.name && formData.filePath) {
+        formData.name = this.extractVideoName(formData.filePath)
+      }
+      
+      // 2. 自动获取视频时长（duration 不需要编辑，但可以获取用于存储）
+      if (formData.filePath && this.getVideoDuration) {
+        try {
+          const duration = await this.getVideoDuration(formData.filePath)
+          if (duration > 0) {
+            formData.duration = duration
+          }
+        } catch (e) {
+          console.warn('获取视频时长失败:', e)
+        }
+      }
+      
+      // 3. 若未设置缩略图且存在视频文件，尝试生成一张
+      if ((!formData.thumbnail || !formData.thumbnail.trim()) && formData.filePath && this.generateThumbnail) {
+        try {
+          const thumb = await this.generateThumbnail(formData.filePath, formData.name || '')
+          if (thumb) {
+            formData.thumbnail = thumb
+          }
+        } catch (e) {
+          console.warn('生成缩略图失败，跳过:', e)
+        }
+      }
+    },
+    async handleAddVideoConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
+      console.log('[VideoView] handleAddVideoConfirm 被调用，resourceData:', resourceData)
       try {
         // 如果没有名称，从文件路径提取
-        if (!videoData.name || !videoData.name.trim()) {
-          if (videoData.filePath) {
-            videoData.name = this.extractVideoName(videoData.filePath)
+        if (!resourceData.name || !resourceData.name.trim()) {
+          if (resourceData.filePath) {
+            resourceData.name = this.extractVideoName(resourceData.filePath)
           }
         }
-        if (!videoData.name || !videoData.name.trim()) {
+        if (!resourceData.name || !resourceData.name.trim()) {
           await alertService.warning('请至少选择一个视频文件或填写名称', '提示')
           return
         }
 
-        // 解析演员
-        this.parseVideoActors()
-        videoData.actors = this.newVideoForm.actors
-
-        // 若未设置缩略图且存在视频文件，尝试生成一张
-        if ((!videoData.thumbnail || !videoData.thumbnail.trim()) && videoData.filePath) {
-          try {
-            const thumb = await this.generateThumbnail(videoData.filePath, videoData.name)
-            if (thumb) videoData.thumbnail = thumb
-          } catch (e) {
-            console.warn('生成缩略图失败，跳过:', e)
-          }
-        }
-
+        console.log('[VideoView] 准备添加视频，resourceData:', resourceData)
         // 使用 composable 的 addVideo 方法
-        await this.addVideo(videoData)
+        await this.addVideo(resourceData)
         
         // 更新筛选器数据
         this.updateFilterData()
@@ -981,48 +1013,37 @@ export default {
         this.closeAddVideoDialog()
         
         // 成功时使用 toast 通知
-        notify.toast('success', '添加成功', `视频 "${videoData.name}" 已成功添加`)
+        notify.toast('success', '添加成功', `视频 "${resourceData.name}" 已成功添加`)
+        console.log('[VideoView] 视频添加成功')
       } catch (error) {
-        console.error('添加视频失败:', error)
+        console.error('[VideoView] 添加视频失败:', error)
         notify.toast('error', '添加失败', `添加视频失败: ${error.message}`)
       }
     },
 
-    async addFolder(folderData) {
-      // 如果没有传入 folderData，使用 newFolder
-      const data = folderData || this.newFolder
-      
-      if (!data.name || !data.name.trim()) {
-        await alertService.warning('请填写文件夹名称', '提示')
-        return
-      }
-      if (!data.folderPath || !data.folderPath.trim()) {
-        await alertService.warning('请先选择文件夹路径', '提示')
-        return
-      }
-
-      this.parseFolderActors()
-      if (!this.newFolder.name || !this.newFolder.name.trim()) {
-        await alertService.warning('请填写文件夹名称', '提示')
-        return
-      }
-      if (!this.newFolder.folderPath || !this.newFolder.folderPath.trim()) {
-        await alertService.warning('请先选择文件夹路径', '提示')
-        return
-      }
-
-      this.parseFolderActors()
-
+    async handleAddFolderConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
       try {
+        if (!resourceData.name || !resourceData.name.trim()) {
+          await alertService.warning('请填写文件夹名称', '提示')
+          return
+        }
+        if (!resourceData.folderPath || !resourceData.folderPath.trim()) {
+          await alertService.warning('请先选择文件夹路径', '提示')
+          return
+        }
+
         const folder = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          name: this.newFolder.name,
-          description: this.newFolder.description,
-          tags: this.newFolder.tags,
-          actors: this.newFolder.actors,
-          series: this.newFolder.series,
-          folderPath: this.newFolder.folderPath,
-          thumbnail: this.newFolder.thumbnail,
+          name: (resourceData.name || '').trim(),
+          description: (resourceData.description || '').trim(),
+          tags: Array.isArray(resourceData.tags) ? resourceData.tags : [],
+          actors: Array.isArray(resourceData.actors) ? resourceData.actors : [],
+          voiceActors: Array.isArray(resourceData.voiceActors) ? resourceData.voiceActors : [],
+          productionTeam: Array.isArray(resourceData.productionTeam) ? resourceData.productionTeam : [],
+          series: (resourceData.series || '').trim(),
+          folderPath: (resourceData.folderPath || '').trim(),
+          thumbnail: (resourceData.thumbnail || '').trim(),
           addedDate: new Date().toISOString()
         }
 
@@ -1035,7 +1056,7 @@ export default {
           this.closeAddFolderDialog()
           
           // 成功时使用 toast 通知
-          notify.toast('success', '添加成功', `文件夹 "${this.newFolder.name}" 已成功添加`)
+          notify.toast('success', '添加成功', `文件夹 "${folder.name}" 已成功添加`)
         } else {
           notify.toast('error', '添加失败', '文件夹添加失败，请重试')
         }
@@ -1285,8 +1306,7 @@ export default {
     editVideo(video) {
       if (!video) return
       this.showDetailDialog = false
-      // 参考 GameView 的方式，只在打开对话框时设置数据，不依赖双向绑定
-      // 数据会在 VideoFormDialog 的 watch 中初始化
+      // ResourcesEditDialog 会通过 resourceData prop 自动加载数据
       this.editVideoForm = {
         id: video.id,
         name: video.name || '',
@@ -1294,12 +1314,10 @@ export default {
         tags: Array.isArray(video.tags) ? [...video.tags] : [],
         actors: Array.isArray(video.actors) ? [...video.actors] : [],
         series: video.series || '',
-        duration: Number(video.duration) || 0,
+        duration: Number(video.duration) || 0, // duration 保留用于显示，但不编辑
         filePath: video.filePath || '',
         thumbnail: video.thumbnail || ''
       }
-      this.editActorsInput = (this.editVideoForm.actors || []).join(', ')
-      this.editTagsInput = ''
       // 先设置数据，再显示对话框，确保数据已准备好
       this.$nextTick(() => {
         this.showEditDialog = true
@@ -1398,31 +1416,27 @@ export default {
          notify.toast('error', '缩略图生成失败', `生成过程中发生错误: ${e.message}`)
        }
      },
-    async saveEditedVideo(videoData) {
+    async handleEditVideoConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
       try {
-        // videoData 来自 VideoFormDialog 的 submit 事件，包含所有表单数据
-        if (!videoData) {
+        if (!resourceData) {
           notify.toast('error', '保存失败', '没有接收到视频数据')
           return
         }
-        
-        // 解析演员数据（如果 videoData 中有 actors 数组，直接使用；否则从 editActorsInput 解析）
-        let actors = []
-        if (Array.isArray(videoData.actors) && videoData.actors.length > 0) {
-          actors = videoData.actors
-        } else if (this.editActorsInput && this.editActorsInput.trim()) {
-          actors = this.editActorsInput.split(',').map(s => s.trim()).filter(Boolean)
-        }
-        
+
+        // actors 现在已经是数组（tags 类型）
+        const actors = Array.isArray(resourceData.actors) ? resourceData.actors : []
+
         const payload = {
-          name: (videoData.name || '').trim(),
-          description: (videoData.description || '').trim(),
-          tags: Array.isArray(videoData.tags) ? videoData.tags : [],
+          name: (resourceData.name || '').trim(),
+          description: (resourceData.description || '').trim(),
+          tags: Array.isArray(resourceData.tags) ? resourceData.tags : [],
           actors: actors,
-          series: (videoData.series || '').trim(),
-          duration: Number(videoData.duration) || 0,
-          filePath: (videoData.filePath || '').trim(),
-          thumbnail: (videoData.thumbnail || '').trim()
+          series: (resourceData.series || '').trim(),
+          // duration 不编辑，保留原有值
+          duration: this.editVideoForm.duration || 0,
+          filePath: (resourceData.filePath || '').trim(),
+          thumbnail: (resourceData.thumbnail || '').trim()
         }
         
         // 使用 composable 的 updateVideo 方法
@@ -1436,6 +1450,83 @@ export default {
       } catch (e) {
         console.error('保存编辑失败:', e)
         notify.toast('error', '保存失败', `保存编辑失败: ${e.message}`)
+      }
+    },
+    // 处理视频文件选择后的自动处理（提取名称、获取时长、生成缩略图）
+    async handleVideoFileSelected(key: string, filePath: string, formData: any) {
+      try {
+        // 1. 如果没有名称，从文件路径提取
+        if (!formData.name && filePath) {
+          formData.name = this.extractVideoName(filePath)
+        }
+        
+        // 2. 自动获取视频时长
+        if (filePath && this.getVideoDuration) {
+          try {
+            const duration = await this.getVideoDuration(filePath)
+            if (duration > 0) {
+              formData.duration = duration
+            }
+          } catch (e) {
+            console.warn('获取视频时长失败:', e)
+          }
+        }
+        
+        // 3. 自动生成缩略图（若未手动设置）
+        if ((!formData.thumbnail || !formData.thumbnail.trim()) && filePath && this.generateThumbnail) {
+          try {
+            const thumb = await this.generateThumbnail(filePath, formData.name || '')
+            if (thumb) {
+              formData.thumbnail = thumb
+            }
+          } catch (e) {
+            console.warn('自动生成缩略图失败:', e)
+          }
+        }
+      } catch (error: any) {
+        console.error('处理视频文件选择失败:', error)
+      }
+    },
+    // 处理随机生成缩略图
+    async handleRandomizeThumbnail(key: string, formData: any, updateThumbnail: (path: string) => void) {
+      try {
+        const filePath = formData?.filePath
+        if (!filePath) {
+          await alertService.warning('请先选择视频文件', '提示')
+          return
+        }
+        
+        const videoName = formData?.name || ''
+        const currentThumbnail = formData?.thumbnail || ''
+        
+        console.log('=== 开始生成随机封面 ===')
+        console.log('视频文件路径:', filePath)
+        console.log('视频名称:', videoName)
+        console.log('当前缩略图:', currentThumbnail)
+        
+        // 使用 composable 的 generateThumbnail 方法
+        if (!this.generateThumbnail) {
+          await alertService.warning('生成缩略图功能不可用', '提示')
+          return
+        }
+        
+        const thumb = await this.generateThumbnail(filePath, videoName, currentThumbnail)
+        console.log('🔄 随机封面生成结果:', thumb)
+        
+        if (thumb) {
+          console.log('✅ 缩略图生成成功，路径:', thumb)
+          // 通过回调更新 ResourcesEditDialog 的 formData
+          if (updateThumbnail) {
+            updateThumbnail(thumb)
+          }
+          notify.native('设置成功', '已生成随机封面')
+        } else {
+          console.log('❌ 缩略图生成失败')
+          await alertService.warning('生成缩略图失败', '提示')
+        }
+      } catch (error: any) {
+        console.error('生成随机缩略图失败:', error)
+        await alertService.error(`生成缩略图失败: ${error.message || '未知错误'}`)
       }
     },
     // handleUpdateRating, handleUpdateComment, handleToggleFavorite 已移至 DetailPanel 内部统一处理
@@ -1544,19 +1635,23 @@ export default {
     editFolder(folder) {
       if (!folder) return
       this.showDetailDialog = false
+      // ResourcesEditDialog 会通过 resourceData prop 自动加载数据
       this.editFolderForm = {
         id: folder.id,
         name: folder.name || '',
         description: folder.description || '',
         tags: Array.isArray(folder.tags) ? [...folder.tags] : [],
         actors: Array.isArray(folder.actors) ? [...folder.actors] : [],
+        voiceActors: Array.isArray(folder.voiceActors) ? [...folder.voiceActors] : [],
+        productionTeam: Array.isArray(folder.productionTeam) ? [...folder.productionTeam] : [],
         series: folder.series || '',
         folderPath: folder.folderPath || '',
         thumbnail: folder.thumbnail || ''
       }
-      this.editFolderActorsInput = (this.editFolderForm.actors || []).join(', ')
-      this.editFolderTagsInput = ''
-      this.showEditFolderDialog = true
+      // 先设置数据，再显示对话框，确保数据已准备好
+      this.$nextTick(() => {
+        this.showEditFolderDialog = true
+      })
     },
 
     closeEditFolderDialog() {
@@ -1670,7 +1765,132 @@ export default {
       }
     },
 
-    // 从文件夹的 Covers 子目录选择图片作为封面（添加文件夹时）
+    // 处理从封面文件夹选择（用于 ResourcesEditDialog）
+    async handleSelectFromNewFolderCovers(key: string, formData: any, updateThumbnail: (path: string) => void) {
+      try {
+        if (!formData.folderPath) {
+          await alertService.warning('请先选择文件夹路径', '提示')
+          return
+        }
+
+        const folderName = formData.name || '未命名文件夹'
+        const cleanFolderName = folderName.replace(/[^\w\u4e00-\u9fa5\-_]/g, '_')
+        
+        // 构建文件夹的 Covers 子目录的绝对路径
+        const baseCoversPath = saveManager.thumbnailDirectories?.videos || 'SaveData/Video/Covers'
+        const coversPath = `${baseCoversPath}/${cleanFolderName}`
+        
+        console.log('=== 从文件夹 Covers 目录选择封面（新建）===')
+        console.log('文件夹名称:', folderName)
+        console.log('清理后的文件夹名:', cleanFolderName)
+        console.log('基础 Covers 路径:', baseCoversPath)
+        console.log('目标 Covers 路径:', coversPath)
+
+        // 先确保目录存在
+        let directoryReady = false
+        if (window.electronAPI && window.electronAPI.ensureDirectory) {
+          try {
+            const ensureResult = await window.electronAPI.ensureDirectory(coversPath)
+            if (ensureResult.success) {
+              console.log('✅ Covers 目录已确保存在:', coversPath)
+              directoryReady = true
+            } else {
+              console.warn('⚠️ 创建 Covers 目录失败:', ensureResult.error)
+            }
+          } catch (error) {
+            console.warn('⚠️ 确保 Covers 目录存在时出错:', error)
+          }
+        }
+
+        // 添加短暂延迟，确保目录创建完成
+        if (directoryReady) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+        if (window.electronAPI && window.electronAPI.selectImageFile) {
+          console.log('📂 调用 selectImageFile，初始路径:', coversPath)
+          const filePath = await window.electronAPI.selectImageFile(coversPath)
+          console.log('📂 selectImageFile 返回:', filePath)
+          
+          if (filePath && updateThumbnail) {
+            updateThumbnail(filePath)
+            console.log('✅ 已设置文件夹封面:', filePath)
+            notify.toast('success', '设置成功', '已选择文件夹封面')
+          } else {
+            console.log('⚠️ 用户取消了选择')
+          }
+        } else {
+          await alertService.warning('当前环境不支持选择图片功能', '提示')
+        }
+      } catch (error) {
+        console.error('❌ 从文件夹选择封面失败:', error)
+        notify.toast('error', '选择失败', `选择封面失败: ${error.message}`)
+      }
+    },
+
+    async handleSelectFromFolderCovers(key: string, formData: any, updateThumbnail: (path: string) => void) {
+      try {
+        if (!formData.folderPath) {
+          await alertService.warning('请先选择文件夹路径', '提示')
+          return
+        }
+
+        const folderName = formData.name || '未命名文件夹'
+        const cleanFolderName = folderName.replace(/[^\w\u4e00-\u9fa5\-_]/g, '_')
+        
+        // 构建文件夹的 Covers 子目录的绝对路径
+        const baseCoversPath = saveManager.thumbnailDirectories?.videos || 'SaveData/Video/Covers'
+        const coversPath = `${baseCoversPath}/${cleanFolderName}`
+        
+        console.log('=== 从文件夹 Covers 目录选择封面 ===')
+        console.log('文件夹名称:', folderName)
+        console.log('清理后的文件夹名:', cleanFolderName)
+        console.log('基础 Covers 路径:', baseCoversPath)
+        console.log('目标 Covers 路径:', coversPath)
+
+        // 先确保目录存在
+        let directoryReady = false
+        if (window.electronAPI && window.electronAPI.ensureDirectory) {
+          try {
+            const ensureResult = await window.electronAPI.ensureDirectory(coversPath)
+            if (ensureResult.success) {
+              console.log('✅ Covers 目录已确保存在:', coversPath)
+              directoryReady = true
+            } else {
+              console.warn('⚠️ 创建 Covers 目录失败:', ensureResult.error)
+            }
+          } catch (error) {
+            console.warn('⚠️ 确保 Covers 目录存在时出错:', error)
+          }
+        }
+
+        // 添加短暂延迟，确保目录创建完成
+        if (directoryReady) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+        if (window.electronAPI && window.electronAPI.selectImageFile) {
+          console.log('📂 调用 selectImageFile，初始路径:', coversPath)
+          const filePath = await window.electronAPI.selectImageFile(coversPath)
+          console.log('📂 selectImageFile 返回:', filePath)
+          
+          if (filePath && updateThumbnail) {
+            updateThumbnail(filePath)
+            console.log('✅ 已设置文件夹封面:', filePath)
+            notify.toast('success', '设置成功', '已选择文件夹封面')
+          } else {
+            console.log('⚠️ 用户取消了选择')
+          }
+        } else {
+          await alertService.warning('当前环境不支持选择图片功能', '提示')
+        }
+      } catch (error) {
+        console.error('❌ 从文件夹选择封面失败:', error)
+        notify.toast('error', '选择失败', `选择封面失败: ${error.message}`)
+      }
+    },
+
+    // 从文件夹的 Covers 子目录选择图片作为封面（添加文件夹时）- 保留作为向后兼容
     async selectFromNewFolderCovers() {
       try {
         if (!this.newFolder.folderPath) {
@@ -1733,20 +1953,26 @@ export default {
       }
     },
 
-    async saveEditedFolder(folderData) {
+    async handleEditFolderConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
       try {
-        // 如果没有传入 folderData，使用 editFolderForm
-        const data = folderData || this.editFolderForm
-        this.parseEditFolderActors()
-        const payload = {
-          name: (data.name || '').trim(),
-          description: (data.description || '').trim(),
-          tags: data.tags || this.editFolderForm.tags,
-          actors: data.actors || this.editFolderForm.actors,
-          series: (data.series || '').trim(),
-          folderPath: (data.folderPath || '').trim(),
-          thumbnail: (data.thumbnail || '').trim()
+        if (!resourceData) {
+          notify.toast('error', '保存失败', '没有接收到文件夹数据')
+          return
         }
+
+        const payload = {
+          name: (resourceData.name || '').trim(),
+          description: (resourceData.description || '').trim(),
+          tags: Array.isArray(resourceData.tags) ? resourceData.tags : [],
+          actors: Array.isArray(resourceData.actors) ? resourceData.actors : [],
+          voiceActors: Array.isArray(resourceData.voiceActors) ? resourceData.voiceActors : [],
+          productionTeam: Array.isArray(resourceData.productionTeam) ? resourceData.productionTeam : [],
+          series: (resourceData.series || '').trim(),
+          folderPath: (resourceData.folderPath || '').trim(),
+          thumbnail: (resourceData.thumbnail || '').trim()
+        }
+        
         // 使用 composable 的 updateFolder 方法
         await this.updateFolder(this.editFolderForm.id, payload)
         

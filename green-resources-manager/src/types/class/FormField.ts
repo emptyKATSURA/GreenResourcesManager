@@ -177,6 +177,16 @@ export class FormField_SelectMangaCover extends FormField_SelectCover {
 }
 
 /**
+ * 视频缩略图选择字段
+ */
+export class FormField_SelectVideoThumbnail extends FormField_SelectCover {
+
+	constructor(fieldName: string, required?: boolean) {
+		super(fieldName, required)
+	}
+}
+
+/**
  * 单选按钮字段
  */
 export class FormField_Radio extends FormField {

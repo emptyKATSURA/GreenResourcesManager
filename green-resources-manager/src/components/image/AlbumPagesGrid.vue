@@ -1,42 +1,15 @@
 <template>
   <div class="pages-section" v-if="pages.length > 0">
-    <!-- 分页导航 -->
-    <div class="pagination-nav" v-if="totalPages > 1">
-      <div class="pagination-info">
-        <span>第 {{ currentPage }} 页，共 {{ totalPages }} 页</span>
-        <span class="page-range">
-          显示第 {{ currentPageStartIndex + 1 }} - {{ Math.min(currentPageStartIndex + pageSize, pages.length) }} 张，共 {{ pages.length }} 张
-        </span>
-      </div>
-      <div class="pagination-controls">
-        <button 
-          class="btn-pagination" 
-          @click="handlePreviousPage" 
-          :disabled="currentPage <= 1"
-        >
-          ◀ 上一页
-        </button>
-        <div class="page-jump-group">
-          <input 
-            type="number" 
-            v-model.number="jumpToPageInput" 
-            :min="1" 
-            :max="totalPages"
-            @keyup.enter="handleJumpToPage"
-            class="page-input-group"
-            placeholder="页码"
-          >
-          <button class="btn-jump-group" @click="handleJumpToPage">跳转</button>
-        </div>
-        <button 
-          class="btn-pagination" 
-          @click="handleNextPage" 
-          :disabled="currentPage >= totalPages"
-        >
-          下一页 ▶
-        </button>
-      </div>
-    </div>
+    <!-- 分页导航 - 使用 FunPagination 组件 -->
+    <FunPagination
+      v-if="totalPages > 1"
+      :currentPage="currentPage"
+      :totalPages="totalPages"
+      :pageSize="pageSize"
+      :totalItems="pages.length"
+      itemType="张"
+      @page-change="handlePageChange"
+    />
     
     <!-- 图片网格 -->
     <div class="pages-grid">
@@ -60,13 +33,17 @@
 </template>
 
 <script lang="ts">
-import { computed, ref } from 'vue'
+import { computed, type PropType } from 'vue'
+import FunPagination from '../../fun-ui/navigation/Pagination/FunPagination.vue'
 
 export default {
   name: 'AlbumPagesGrid',
+  components: {
+    FunPagination
+  },
   props: {
     pages: {
-      type: Array as () => string[],
+      type: Array as PropType<string[]>,
       required: true
     },
     currentPage: {
@@ -82,18 +59,16 @@ export default {
       required: true
     },
     resolveImage: {
-      type: Function,
+      type: Function as PropType<(path: string) => string>,
       required: true
     },
     handleImageError: {
-      type: Function,
+      type: Function as PropType<(event: Event) => void>,
       required: true
     }
   },
-  emits: ['page-click', 'previous-page', 'next-page', 'jump-to-page'],
+  emits: ['page-click', 'page-change'],
   setup(props, { emit }) {
-    const jumpToPageInput = ref(1)
-
     const currentPageStartIndex = computed(() => {
       return (props.currentPage - 1) * props.pageSize
     })
@@ -109,26 +84,15 @@ export default {
       emit('page-click', index)
     }
 
-    const handlePreviousPage = () => {
-      emit('previous-page')
-    }
-
-    const handleNextPage = () => {
-      emit('next-page')
-    }
-
-    const handleJumpToPage = () => {
-      emit('jump-to-page', jumpToPageInput.value)
+    const handlePageChange = (page: number) => {
+      emit('page-change', page)
     }
 
     return {
-      jumpToPageInput,
       currentPageStartIndex,
       paginatedPages,
       handlePageClick,
-      handlePreviousPage,
-      handleNextPage,
-      handleJumpToPage
+      handlePageChange
     }
   }
 }
@@ -137,86 +101,6 @@ export default {
 <style scoped>
 .pages-section {
   margin-top: 20px;
-}
-
-.pagination-nav {
-  margin-bottom: 20px;
-  padding: 16px;
-  background: var(--bg-secondary, #f5f5f5);
-  border-radius: 8px;
-}
-
-.pagination-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-size: 14px;
-  color: var(--text-secondary, #666);
-}
-
-.page-range {
-  font-size: 12px;
-  color: var(--text-tertiary, #999);
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-.btn-pagination {
-  padding: 8px 16px;
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 6px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary, #333);
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.btn-pagination:hover:not(:disabled) {
-  background: var(--bg-hover, #f0f0f0);
-  border-color: var(--border-hover, #bbb);
-}
-
-.btn-pagination:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-jump-group {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.page-input-group {
-  width: 80px;
-  padding: 8px;
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 6px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.btn-jump-group {
-  padding: 8px 16px;
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 6px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary, #333);
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.btn-jump-group:hover {
-  background: var(--bg-hover, #f0f0f0);
-  border-color: var(--border-hover, #bbb);
 }
 
 .pages-grid {

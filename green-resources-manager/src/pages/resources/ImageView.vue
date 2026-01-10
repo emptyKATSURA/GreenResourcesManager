@@ -89,9 +89,7 @@
           :resolveImage="resolveImage"
           :handleImageError="handleImageError"
           @page-click="handlePageClick"
-          @previous-page="previousPageGroup"
-          @next-page="nextPageGroup"
-          @jump-to-page="jumpToPageGroup"
+          @page-change="jumpToPageGroup"
         />
       </template>
     </DetailPanel>

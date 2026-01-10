@@ -118,6 +118,28 @@
                   <span class="btn-icon">📂</span>
                   从文件夹选择
                 </button>
+                <!-- 视频缩略图：随机封面 -->
+                <button 
+                  v-if="field instanceof FormField_SelectVideoThumbnail && enableRandomizeThumbnail"
+                  type="button" 
+                  class="btn-cover-action" 
+                  @click="() => handleRandomizeThumbnail(key)"
+                  :disabled="!getFilePathValue()"
+                >
+                  <span class="btn-icon">🎲</span>
+                  随机封面
+                </button>
+                <!-- 视频缩略图：从封面文件夹选择（用于文件夹） -->
+                <button 
+                  v-if="field instanceof FormField_SelectVideoThumbnail && enableSelectFromFolderCovers"
+                  type="button" 
+                  class="btn-cover-action" 
+                  @click="() => handleSelectFromFolderCovers(key)"
+                  :disabled="!getFolderPathValue()"
+                >
+                  <span class="btn-icon">📂</span>
+                  从封面文件夹选择
+                </button>
                 <button type="button" class="btn-cover-action" @click="() => handleBrowseImage(key)">
                   <span class="btn-icon">📁</span>
                   选择自定义封面
@@ -183,7 +205,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" @click="handleClose">取消</button>
-        <button class="btn-confirm" @click="handleConfirm" :disabled="!canConfirm">
+        <button class="btn-confirm" @click="() => { console.log('[ResourcesEditDialog] 确认按钮被点击，canConfirm:', canConfirm); handleConfirm() }" :disabled="!canConfirm">
           {{ getConfirmButtonText() }}
         </button>
       </div>
@@ -214,6 +236,7 @@ import {
   FormField_SelectFolder,
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
+  FormField_SelectVideoThumbnail,
   FormField_Textarea
 } from '../types/class/FormField.ts'
 
@@ -289,6 +312,14 @@ export default {
       type: Boolean,
       default: false
     },
+    enableSelectFromFolderCovers: {
+      type: Boolean,
+      default: false
+    },
+    enableRandomizeThumbnail: {
+      type: Boolean,
+      default: false
+    },
     availableTags: {
       type: Array as PropType<(string | { name: string; count?: number })[]>,
       default: () => []
@@ -304,7 +335,7 @@ export default {
       default: null
     }
   },
-  emits: ['close', 'confirm'],
+  emits: ['close', 'confirm', 'use-first-image-cover', 'select-from-folder-cover', 'select-from-folder-covers', 'randomize-thumbnail', 'video-file-selected'],
   setup(props) {
     // 创建资源实例用于提取字段定义
     const resourceInstance = new props.resourceClass()
@@ -330,6 +361,7 @@ export default {
       FormField_SelectFolder,
       FormField_SelectGameCover,
       FormField_SelectMangaCover,
+      FormField_SelectVideoThumbnail,
       FormField_Textarea
     }
   },
@@ -374,7 +406,9 @@ export default {
     canConfirm() {
       // 如果有自定义验证函数，使用自定义验证
       if (this.customValidation) {
-        return this.customValidation(this.formData, this.isEditMode)
+        const result = this.customValidation(this.formData, this.isEditMode)
+        console.log('[ResourcesEditDialog] canConfirm (customValidation):', result, 'formData:', this.formData)
+        return result
       }
       
       // 默认验证：编辑模式只需要有ID即可，添加模式需要必填字段
@@ -390,6 +424,7 @@ export default {
           const value = this.formData[key]
           if (!value || (typeof value === 'string' && value.trim() === '') || 
               (Array.isArray(value) && value.length === 0)) {
+            console.log('[ResourcesEditDialog] canConfirm (required field missing):', key, value)
             return false
           }
         }
@@ -438,6 +473,7 @@ export default {
     isCoverField(field: FormFieldType): boolean {
       return field instanceof FormField_SelectGameCover || 
              field instanceof FormField_SelectMangaCover ||
+             field instanceof FormField_SelectVideoThumbnail ||
              (field instanceof FormField_SelectFile && 
               'filters' in field && 
               Array.isArray(field.filters) &&
@@ -476,6 +512,17 @@ export default {
         const value = (resourceInstance as any)[key]
         if (value instanceof FormField_SelectFolder || 
             (value instanceof FormField_SelectFile && key === 'folderPath')) {
+          return this.formData[key] || ''
+        }
+      }
+      return ''
+    },
+    // 获取文件路径的值（用于视频缩略图等功能）
+    getFilePathValue(): string {
+      const resourceInstance = new this.resourceClass()
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
+        if (value instanceof FormField_SelectFile && key === 'filePath') {
           return this.formData[key] || ''
         }
       }
@@ -545,6 +592,7 @@ export default {
       initData.id = this.resourceData.id || ''
       
       const resourceInstance = new this.resourceClass()
+      // 首先加载类中定义的字段
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
         if (value instanceof FormFieldType) {
@@ -556,6 +604,14 @@ export default {
               initData[key] = resourceValue
             }
           }
+        }
+      }
+      
+      // 然后保留其他不在类中定义但在 resourceData 中的字段（如 duration）
+      // 这些字段不会显示在表单中，但会在确认时保留
+      for (const key in this.resourceData) {
+        if (!(key in initData) && key !== 'id' && key !== 'fileExists') {
+          initData[key] = (this.resourceData as any)[key]
         }
       }
       
@@ -642,6 +698,11 @@ export default {
               }
             }
           }
+          
+          // 如果是视频文件字段，触发事件让父组件处理（提取名称、获取时长、生成缩略图等）
+          if (key === 'filePath' && this.isVideoFile(filePath)) {
+            this.$emit('video-file-selected', key, filePath, this.formData)
+          }
         }
       } catch (error: any) {
         console.error('选择文件失败:', error)
@@ -687,6 +748,12 @@ export default {
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']
       const fileExt = this.getFileExtension(filePath).toLowerCase()
       return imageExtensions.includes(fileExt) || imageExtensions.includes(`.${fileExt}`)
+    },
+    isVideoFile(filePath: string): boolean {
+      if (!filePath) return false
+      const videoExtensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', 'mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v']
+      const fileExt = this.getFileExtension(filePath).toLowerCase()
+      return videoExtensions.includes(fileExt) || videoExtensions.includes(`.${fileExt}`)
     },
     getImageUrl(filePath: string): string {
       if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
@@ -891,6 +958,24 @@ export default {
         }
       })
     },
+    async handleSelectFromFolderCovers(key: string) {
+      // 这个功能需要在父组件中实现，通过事件或插槽
+      // 父组件应该通过回调或事件更新缩略图（从文件夹的 Covers 子目录选择）
+      this.$emit('select-from-folder-covers', key, this.formData, (thumbnailPath: string) => {
+        if (thumbnailPath) {
+          this.formData[key] = thumbnailPath
+        }
+      })
+    },
+    async handleRandomizeThumbnail(key: string) {
+      // 这个功能需要在父组件中实现，通过事件或插槽
+      // 父组件应该通过回调或事件更新缩略图
+      this.$emit('randomize-thumbnail', key, this.formData, (thumbnailPath: string) => {
+        if (thumbnailPath) {
+          this.formData[key] = thumbnailPath
+        }
+      })
+    },
     handleClearCover(key: string) {
       this.formData[key] = ''
     },
@@ -931,47 +1016,67 @@ export default {
       }
     },
     async handleConfirm() {
-      if (!this.canConfirm) return
-
-      // 如果有自定义确认处理函数，先执行它
-      if (this.customConfirmHandler) {
-        const result = await this.customConfirmHandler(this.formData, this.isEditMode)
-        if (result === false) {
-          // 返回 false 表示阻止默认行为
-          return
-        }
+      if (!this.canConfirm) {
+        console.warn('[ResourcesEditDialog] 确认按钮被禁用，canConfirm:', this.canConfirm)
+        return
       }
 
-      const resourceInstance = new this.resourceClass()
-      const resource: Record<string, any> = {
-        id: this.formData.id || (this.isEditMode ? this.resourceData?.id : Date.now().toString()),
-        fileExists: true
-      }
-
-      // 遍历资源类的字段定义，从 formData 中提取对应的值
-      for (const key in resourceInstance) {
-        const field = (resourceInstance as any)[key]
-        if (field instanceof FormFieldType) {
-          let value = this.formData[key]
-          
-          if (field.fieldType === FormFieldTypeEnum.TAGS) {
-            resource[key] = Array.isArray(value) ? [...value] : []
-          } else if (typeof value === 'string') {
-            resource[key] = value.trim()
-          } else {
-            resource[key] = value
+      try {
+        // 如果有自定义确认处理函数，先执行它
+        if (this.customConfirmHandler) {
+          const result = await this.customConfirmHandler(this.formData, this.isEditMode)
+          if (result === false) {
+            // 返回 false 表示阻止默认行为
+            console.log('[ResourcesEditDialog] customConfirmHandler 返回 false，阻止默认行为')
+            return
           }
+        }
 
-          // 编辑模式的特殊处理：如果值为空，保留原有值
-          if (this.isEditMode && this.resourceData) {
-            if (typeof resource[key] === 'string' && resource[key] === '') {
-              resource[key] = (this.resourceData as any)[key] || ''
+        const resourceInstance = new this.resourceClass()
+        const resource: Record<string, any> = {
+          id: this.formData.id || (this.isEditMode ? this.resourceData?.id : Date.now().toString()),
+          fileExists: true
+        }
+
+        // 遍历资源类的字段定义，从 formData 中提取对应的值
+        for (const key in resourceInstance) {
+          const field = (resourceInstance as any)[key]
+          if (field instanceof FormFieldType) {
+            let value = this.formData[key]
+            
+            if (field.fieldType === FormFieldTypeEnum.TAGS) {
+              resource[key] = Array.isArray(value) ? [...value] : []
+            } else if (typeof value === 'string') {
+              resource[key] = value.trim()
+            } else {
+              resource[key] = value
+            }
+
+            // 编辑模式的特殊处理：如果值为空，保留原有值
+            if (this.isEditMode && this.resourceData) {
+              if (typeof resource[key] === 'string' && resource[key] === '') {
+                resource[key] = (this.resourceData as any)[key] || ''
+              }
             }
           }
         }
-      }
+        
+        // 保留不在类中定义但在 formData 中的字段（如 duration 等）
+        for (const key in this.formData) {
+          if (!(key in resource) && key !== 'id' && key !== 'fileExists') {
+            const value = this.formData[key]
+            if (value !== undefined && value !== null) {
+              resource[key] = value
+            }
+          }
+        }
 
-      this.$emit('confirm', resource)
+        console.log('[ResourcesEditDialog] 准备触发 confirm 事件，resource:', resource)
+        this.$emit('confirm', resource)
+      } catch (error) {
+        console.error('[ResourcesEditDialog] handleConfirm 执行出错:', error)
+        throw error
+      }
     },
     handleImageError(event: Event) {
       const target = event.target as HTMLImageElement

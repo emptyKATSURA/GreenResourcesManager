@@ -6,11 +6,13 @@ import {
 	FormField as FormFieldType
 } from './FormField.ts'
 
+
+import { ResourcesBase } from './ResourcesBase.ts'
 /**
  * 单图片类
  * 用于定义单图片资源的表单字段结构
  */
-export class SingleImage {
+export class SingleImage extends ResourcesBase {
 	// 文本字段
 	name: FormField_Text = new FormField_Text('图片名称', false)
 	author: FormField_Text = new FormField_Text('作者', false)
