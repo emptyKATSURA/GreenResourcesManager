@@ -163,7 +163,8 @@ import { defineComponent, reactive, computed } from 'vue'
 import notificationService from '../utils/NotificationService.ts'
 import alertService from '../utils/AlertService.ts'
 import confirmService from '../utils/ConfirmService.ts'
-import { Game, FormField, FormFieldType } from '../types/class/game.ts'
+import { Game } from '../types/class/game.ts'
+import { FormField, FormFieldType } from '../types/class/FormField.ts'
 
 export default defineComponent({
   name: 'DebugView',

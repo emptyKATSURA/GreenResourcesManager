@@ -7,6 +7,7 @@ export enum FormFieldType {
 	SELECT = 'select', // 文本的下拉框
 	SELECT_FILE = 'selectFile', // 文件选择
 	SELECT_FOLDER = 'selectFolder', // 文件夹选择
+	SELECT_COVER = 'selectCover', // 封面选择
 	CHECKBOX = 'checkbox', // 复选框
 	RADIO = 'radio', // 单选按钮
 	TEXTAREA = 'textarea', // 文本域
@@ -68,17 +69,86 @@ export class FormField_Select extends FormField {
 }
 
 export class FormField_SelectEngine extends FormField {
-	options: string[]
-	constructor(fieldName: string, options: string[], required?: boolean) {
+
+	options: string[] = [
+		// 主流通用引擎
+		'Unity',
+		'Unreal Engine',
+		'Godot',
+		'CryEngine',
+		'Source Engine',
+
+		// Web / 桌面壳 / 跨平台（独立游戏常用）
+		'Electron',
+		'NW.js',
+		'Tauri',
+
+		// 独立 / 轻量游戏引擎
+		'GameMaker Studio',
+		'Defold',
+		'Cocos2d',
+		'Cocos Creator',
+		'Phaser',
+		'Love2D',
+		'MonoGame',
+		'XNA',
+		'libGDX',
+		'Bevy',
+		'HaxeFlixel',
+		'GDevelop',
+
+		// Galgame / 视觉小说引擎
+		"Ren'Py",
+		'TyranoBuilder',
+		'TyranoScript',
+		'Kirikiri / 吉里吉里',
+		'Kirikiri Z',
+		'NScripter',
+		'ONScripter',
+		'Artemis Engine',
+		'Visual Novel Maker',
+		'MondayOFF VN Engine',
+		'Unity + VN Framework',
+		'Godot + VN Plugin',
+
+		// RPG 系
+		'RPG Maker VX Ace',
+		'RPG Maker MV',
+		'RPG Maker MZ',
+		'Wolf RPG Editor',
+
+		// 交互叙事 / 非传统游戏
+		'Twine',
+		'Ink',
+		'Yarn Spinner',
+
+		// 可视化 / 教育
+		'Scratch',
+		'Construct',
+		'Clickteam Fusion',
+
+		// 底层 / 语言级
+		'Flash / ActionScript',
+		'Java',
+		'Python / Pygame',
+		'C++ 自研引擎',
+
+		// 兜底
+		'其他'
+	]
+
+	constructor(fieldName: string, required?: boolean) {
 		super(fieldName, FormFieldType.SELECT, required)
-		this.options = options
 	}
 }
 
 
 export class FormField_SelectCover extends FormField {
+	filters: FileSelectFilter[] = [
+		{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] }
+	]
 	constructor(fieldName: string, required?: boolean) {
-		super(fieldName, FormFieldType.SELECT, required)
+		super(fieldName, FormFieldType.SELECT_COVER, required)
 	}
 }
 

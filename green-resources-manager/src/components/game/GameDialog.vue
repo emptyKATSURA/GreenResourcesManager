@@ -160,15 +160,15 @@ import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
 import alertService from '../../utils/AlertService.ts'
 import { detectGameEngine } from '../../utils/GameEngineDetector.ts'
-import { 
-  Game, 
-  FormField as FormFieldType, 
+import { Game } from '../../types/class/game.ts'
+import {
+  FormField as FormFieldType,
   FormFieldType as FormFieldTypeEnum,
   FormField_SelectEngine,
   FormField_SelectFile,
   FormField_SelectCover,
   FormField_Textarea
-} from '../../types/class/game.ts'
+} from '../../types/class/FormField.ts'
 
 export default {
   name: 'GameDialog',
@@ -429,7 +429,7 @@ export default {
     },
     async handleBrowseFile(key: string, field: FormFieldType) {
       try {
-        if (!(field instanceof FormField_SelectFile)) return
+        if (!(field instanceof FormField_SelectFile || field instanceof FormField_SelectCover)) return
         
         if (!this.isElectronEnvironment || !window.electronAPI) {
           await alertService.warning('当前环境不支持文件选择功能，请在 Electron 环境中使用')
@@ -552,7 +552,7 @@ export default {
       const gameInstance = new Game()
       for (const fieldKey in gameInstance) {
         const field = (gameInstance as any)[fieldKey]
-        if (fieldKey === key && field instanceof FormField_SelectFile) {
+        if (fieldKey === key && (field instanceof FormField_SelectFile || field instanceof FormField_SelectCover)) {
           await this.handleBrowseFile(key, field)
           break
         }
