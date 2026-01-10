@@ -304,6 +304,70 @@ function registerIpcHandlers(ipcMain, getMainWindow, dialog) {
       throw error
     }
   })
+
+  // 根据过滤器数组选择文件（统一入口）
+  // 接收过滤器数组，每个过滤器包含 name 和 extensions
+  ipcMain.handle('select-file-with-extensions', async (event, filters = [], defaultPath = null, title = '选择文件') => {
+    try {
+      // 构建对话框选项
+      const dialogOptions = {
+        title: title,
+        filters: [],
+        properties: ['openFile']
+      }
+
+      // 处理过滤器数组
+      if (Array.isArray(filters) && filters.length > 0) {
+        // 标准化每个过滤器的扩展名
+        filters.forEach(filter => {
+          if (filter && filter.name && Array.isArray(filter.extensions)) {
+            const normalizedExtensions = filter.extensions
+              .filter(ext => ext && ext !== '其他' && ext !== '*')
+              .map(ext => {
+                const cleaned = ext.startsWith('.') ? ext.substring(1) : ext
+                return cleaned.toLowerCase()
+              })
+            
+            // 如果标准化后有扩展名，添加过滤器
+            if (normalizedExtensions.length > 0) {
+              dialogOptions.filters.push({
+                name: filter.name,
+                extensions: normalizedExtensions
+              })
+            }
+            
+            // 如果原始扩展名包含通配符，添加所有文件选项（只添加一次）
+            if ((filter.extensions.includes('其他') || filter.extensions.includes('*')) && 
+                !dialogOptions.filters.some(f => f.extensions.includes('*'))) {
+              dialogOptions.filters.push({ name: '所有文件', extensions: ['*'] })
+            }
+          }
+        })
+      }
+
+      // 如果没有有效的过滤器，显示所有文件
+      if (dialogOptions.filters.length === 0) {
+        dialogOptions.filters.push({ name: '所有文件', extensions: ['*'] })
+      }
+
+      // 如果提供了默认路径，设置为默认目录
+      const processedPath = processDefaultPath(defaultPath)
+      if (processedPath) {
+        dialogOptions.defaultPath = processedPath
+      }
+
+      const mainWindow = getMainWindow()
+      const result = await dialog.showOpenDialog(mainWindow, dialogOptions)
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        return result.filePaths[0]
+      }
+      return null
+    } catch (error) {
+      console.error('根据过滤器选择文件失败:', error)
+      throw error
+    }
+  })
 }
 
 module.exports = {

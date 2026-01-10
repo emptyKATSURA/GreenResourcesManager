@@ -21,6 +21,7 @@ import FunInput from './basic/Input/FunInput.vue'
 
 // Data Input 数据录入
 import FunRate from './data-input/Rate/FunRate.vue'
+import FunTagInput from './data-input/TagInput/FunTagInput.vue'
 
 // Data Display 数据展示
 import FunBusinessCard from './data-display/BusinessCard/FunBusinessCard.vue'
@@ -46,6 +47,7 @@ const components = {
   FunInput,
   // Data Input
   FunRate,
+  FunTagInput,
   // Data Display
   FunBusinessCard,
   FunCard,
@@ -70,6 +72,7 @@ export function install(app: App) {
   app.component('fun-slider', FunSlider)
   app.component('fun-input', FunInput)
   app.component('fun-rate', FunRate)
+  app.component('fun-tag-input', FunTagInput)
   app.component('fun-business-card', FunBusinessCard)
   app.component('fun-card', FunCard)
   app.component('fun-empty-state', FunEmptyState)
@@ -90,6 +93,7 @@ export {
   FunInput,
   // Data Input
   FunRate,
+  FunTagInput,
   // Data Display
   FunBusinessCard,
   FunCard,

@@ -3,30 +3,30 @@
     <div class="modal-wrapper">
       <div class="modal-content" @mousedown.stop>
       <div class="modal-header">
-        <h3>添加游戏</h3>
+        <h3>{{ isEditMode ? '编辑游戏' : '添加游戏' }}</h3>
         <button class="btn-close" @click="handleClose">✕</button>
       </div>
       <div class="modal-body">
         <FormField 
-          label="游戏名称 (可选)" 
+          :label="isEditMode ? '游戏名称' : '游戏名称 (可选)'" 
           type="text" 
           v-model="formData.name" 
-          placeholder="留空将自动从文件名提取" 
+          :placeholder="isEditMode ? '输入游戏名称' : '留空将自动从文件名提取'" 
         />
         <FormField 
-          label="开发商 (可选)" 
+          :label="isEditMode ? '开发商' : '开发商 (可选)'" 
           type="text" 
           v-model="formData.developer" 
           placeholder="输入开发商名称" 
         />
         <FormField 
-          label="发行商 (可选)" 
+          :label="isEditMode ? '发行商' : '发行商 (可选)'" 
           type="text" 
           v-model="formData.publisher" 
           placeholder="输入发行商名称" 
         />
         <FormField 
-          label="游戏引擎 (可选)" 
+          :label="isEditMode ? '游戏引擎' : '游戏引擎 (可选)'" 
           type="select" 
           v-model="formData.engine" 
           :options="engineOptions"
@@ -45,14 +45,14 @@
           </button>
         </div>
         <FormField 
-          label="游戏简介 (可选)" 
+          :label="isEditMode ? '游戏简介' : '游戏简介 (可选)'" 
           type="textarea" 
           v-model="formData.description" 
           placeholder="输入游戏简介或描述..."
           :rows="3" 
         />
         <FormField 
-          label="游戏标签 (可选)" 
+          :label="isEditMode ? '游戏标签' : '游戏标签 (可选)'" 
           type="tags" 
           v-model="formData.tags" 
           v-model:tagInput="tagInput"
@@ -60,15 +60,15 @@
           @remove-tag="handleRemoveTag"
         />
         <FormField 
-          label="游戏文件" 
+          :label="isEditMode ? '游戏可执行文件' : '游戏文件'" 
           type="file" 
           v-model="formData.executablePath" 
-          placeholder="选择游戏可执行文件或压缩包"
+          :placeholder="isEditMode ? '选择游戏可执行文件' : '选择游戏可执行文件或压缩包'"
           @browse="handleBrowseExecutable" 
         />
         <!-- 封面图片选择区域 -->
         <div class="form-group">
-          <label class="form-label">游戏封面 (可选)</label>
+          <label class="form-label">{{ isEditMode ? '游戏封面' : '游戏封面 (可选)' }}</label>
           <div class="cover-selection-container">
             <div class="cover-preview" v-if="formData.imagePath">
               <img :src="resolveImage(formData.imagePath)" :alt="'封面预览'" @error="handleImageError">
@@ -81,7 +81,7 @@
                 type="button" 
                 class="btn-cover-action" 
                 @click="handleUseScreenshotAsCover"
-                :disabled="!formData.executablePath"
+                :disabled="isEditMode ? false : !formData.executablePath"
               >
                 <span class="btn-icon">📸</span>
                 使用截图作为封面
@@ -105,7 +105,9 @@
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" @click="handleClose">取消</button>
-        <button class="btn-confirm" @click="handleConfirm" :disabled="!canAdd">添加游戏</button>
+        <button class="btn-confirm" @click="handleConfirm" :disabled="!canConfirm">
+          {{ isEditMode ? '保存修改' : '添加游戏' }}
+        </button>
       </div>
       </div>
       <!-- Tag 选择面板 -->
@@ -128,7 +130,7 @@ import alertService from '../../utils/AlertService.ts'
 import { detectGameEngine } from '../../utils/GameEngineDetector.ts'
 
 export default {
-  name: 'AddGameDialog',
+  name: 'GameDialog',
   components: {
     FormField,
     TagSelectionPanel
@@ -137,6 +139,15 @@ export default {
     visible: {
       type: Boolean,
       default: false
+    },
+    mode: {
+      type: String as () => 'add' | 'edit',
+      default: 'add',
+      validator: (value: string) => ['add', 'edit'].includes(value)
+    },
+    game: {
+      type: Object,
+      default: null
     },
     isElectronEnvironment: {
       type: Boolean,
@@ -151,6 +162,7 @@ export default {
   data() {
     return {
       formData: {
+        id: '',
         name: '',
         developer: '',
         publisher: '',
@@ -191,20 +203,40 @@ export default {
     }
   },
   computed: {
-    canAdd() {
+    isEditMode() {
+      return this.mode === 'edit'
+    },
+    canConfirm() {
+      // 编辑模式只需要有游戏ID即可，添加模式需要可执行文件路径
+      if (this.isEditMode) {
+        return true
+      }
       return this.formData.executablePath && this.formData.executablePath.trim()
     }
   },
   watch: {
     visible(newVal) {
       if (newVal) {
-        this.resetForm()
+        if (this.isEditMode && this.game) {
+          this.loadGameData()
+        } else {
+          this.resetForm()
+        }
       }
+    },
+    game: {
+      handler(newVal) {
+        if (newVal && this.visible && this.isEditMode) {
+          this.loadGameData()
+        }
+      },
+      immediate: true
     }
   },
   methods: {
     resetForm() {
       this.formData = {
+        id: '',
         name: '',
         developer: '',
         publisher: '',
@@ -213,6 +245,21 @@ export default {
         tags: [],
         executablePath: '',
         imagePath: ''
+      }
+      this.tagInput = ''
+    },
+    loadGameData() {
+      if (!this.game) return
+      this.formData = {
+        id: this.game.id || '',
+        name: this.game.name || '',
+        developer: this.game.developer || '',
+        publisher: this.game.publisher || '',
+        engine: this.game.engine || '',
+        description: this.game.description || '',
+        tags: Array.isArray(this.game.tags) ? [...this.game.tags] : [],
+        executablePath: this.game.executablePath || '',
+        imagePath: this.game.image || ''
       }
       this.tagInput = ''
     },
@@ -328,73 +375,124 @@ export default {
     },
     async handleUseScreenshotAsCover() {
       try {
-        if (!this.formData.name && !this.formData.executablePath) {
-          await alertService.warning('请先输入游戏名称或选择可执行文件')
-          return
-        }
-
-        let gameName = this.formData.name.trim()
-        if (!gameName && this.formData.executablePath) {
-          gameName = this.extractGameNameFromPath(this.formData.executablePath)
-        }
-
-        if (!gameName) {
-          await alertService.error('无法确定游戏名称')
-          return
-        }
-
-        const settings = await saveManager.loadSettings()
-
-        let baseScreenshotsPath = ''
-        if (settings.screenshotLocation === 'default') {
-          baseScreenshotsPath = `${saveManager.dataDirectory}/Game/Screenshots`
-        } else if (settings.screenshotLocation === 'custom') {
-          baseScreenshotsPath = settings.screenshotsPath || ''
-        } else {
-          baseScreenshotsPath = settings.screenshotsPath || `${saveManager.dataDirectory}/Game/Screenshots`
-        }
-
-        if (!baseScreenshotsPath || baseScreenshotsPath.trim() === '') {
-          baseScreenshotsPath = `${saveManager.dataDirectory}/Game/Screenshots`
-        }
-
-        let gameFolderName = 'Screenshots'
-        if (gameName && gameName !== 'Screenshot') {
-          gameFolderName = gameName.replace(/[<>:"/\\|?*]/g, '_').trim()
-          if (!gameFolderName) {
-            gameFolderName = 'Screenshots'
+        if (this.isEditMode) {
+          // 编辑模式：使用游戏ID和名称
+          if (!this.formData.name) {
+            await alertService.warning('请先输入游戏名称', '提示')
+            return
           }
-        }
 
-        const gameScreenshotPath = `${baseScreenshotsPath}/${gameFolderName}`.replace(/\\/g, '/')
-
-        if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.ensureDirectory) {
-          try {
-            const ensureResult = await window.electronAPI.ensureDirectory(gameScreenshotPath)
-            if (ensureResult.success) {
-              console.log('截图文件夹已确保存在:', gameScreenshotPath)
-            }
-          } catch (error) {
-            console.warn('确保截图文件夹存在时出错:', error)
+          if (!this.formData.id) {
+            await alertService.warning('游戏ID不存在，无法打开截图文件夹', '提示')
+            return
           }
-        }
 
-        if (this.isElectronEnvironment && window.electronAPI) {
-          if (window.electronAPI.selectScreenshotImage) {
-            const filePath = await window.electronAPI.selectScreenshotImage(gameScreenshotPath)
-            if (filePath) {
-              this.formData.imagePath = filePath
-              notify.native('设置成功', '已选择截图作为封面')
+          // 使用公共函数获取截图文件夹路径
+          const { getGameScreenshotFolderPath } = await import('../../composables/game/useGameScreenshot')
+          const gameScreenshotPath = await getGameScreenshotFolderPath(
+            this.formData.id,
+            this.formData.name,
+            this.isElectronEnvironment
+          )
+
+          if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.ensureDirectory) {
+            try {
+              const ensureResult = await window.electronAPI.ensureDirectory(gameScreenshotPath)
+              if (ensureResult.success) {
+                console.log('截图文件夹已确保存在:', gameScreenshotPath)
+              }
+            } catch (error) {
+              console.warn('确保截图文件夹存在时出错:', error)
             }
-          } else if (window.electronAPI.selectImageFile) {
-            const filePath = await window.electronAPI.selectImageFile(gameScreenshotPath)
-            if (filePath) {
-              this.formData.imagePath = filePath
-              notify.native('设置成功', '已选择截图作为封面')
+          }
+
+          if (this.isElectronEnvironment && window.electronAPI) {
+            if (window.electronAPI.selectScreenshotImage) {
+              const filePath = await window.electronAPI.selectScreenshotImage(gameScreenshotPath)
+              if (filePath) {
+                this.formData.imagePath = filePath
+                notify.native('设置成功', '已选择截图作为封面')
+              }
+            } else if (window.electronAPI.selectImageFile) {
+              const filePath = await window.electronAPI.selectImageFile(gameScreenshotPath)
+              if (filePath) {
+                this.formData.imagePath = filePath
+                notify.native('设置成功', '已选择截图作为封面')
+              }
             }
+          } else {
+            await alertService.warning('当前环境不支持选择图片功能', '提示')
           }
         } else {
-          await alertService.warning('当前环境不支持选择图片功能')
+          // 添加模式：使用游戏名称或文件路径
+          if (!this.formData.name && !this.formData.executablePath) {
+            await alertService.warning('请先输入游戏名称或选择可执行文件')
+            return
+          }
+
+          let gameName = this.formData.name.trim()
+          if (!gameName && this.formData.executablePath) {
+            gameName = this.extractGameNameFromPath(this.formData.executablePath)
+          }
+
+          if (!gameName) {
+            await alertService.error('无法确定游戏名称')
+            return
+          }
+
+          const settings = await saveManager.loadSettings()
+
+          let baseScreenshotsPath = ''
+          if (settings.screenshotLocation === 'default') {
+            baseScreenshotsPath = `${saveManager.dataDirectory}/Game/Screenshots`
+          } else if (settings.screenshotLocation === 'custom') {
+            baseScreenshotsPath = settings.screenshotsPath || ''
+          } else {
+            baseScreenshotsPath = settings.screenshotsPath || `${saveManager.dataDirectory}/Game/Screenshots`
+          }
+
+          if (!baseScreenshotsPath || baseScreenshotsPath.trim() === '') {
+            baseScreenshotsPath = `${saveManager.dataDirectory}/Game/Screenshots`
+          }
+
+          let gameFolderName = 'Screenshots'
+          if (gameName && gameName !== 'Screenshot') {
+            gameFolderName = gameName.replace(/[<>:"/\\|?*]/g, '_').trim()
+            if (!gameFolderName) {
+              gameFolderName = 'Screenshots'
+            }
+          }
+
+          const gameScreenshotPath = `${baseScreenshotsPath}/${gameFolderName}`.replace(/\\/g, '/')
+
+          if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.ensureDirectory) {
+            try {
+              const ensureResult = await window.electronAPI.ensureDirectory(gameScreenshotPath)
+              if (ensureResult.success) {
+                console.log('截图文件夹已确保存在:', gameScreenshotPath)
+              }
+            } catch (error) {
+              console.warn('确保截图文件夹存在时出错:', error)
+            }
+          }
+
+          if (this.isElectronEnvironment && window.electronAPI) {
+            if (window.electronAPI.selectScreenshotImage) {
+              const filePath = await window.electronAPI.selectScreenshotImage(gameScreenshotPath)
+              if (filePath) {
+                this.formData.imagePath = filePath
+                notify.native('设置成功', '已选择截图作为封面')
+              }
+            } else if (window.electronAPI.selectImageFile) {
+              const filePath = await window.electronAPI.selectImageFile(gameScreenshotPath)
+              if (filePath) {
+                this.formData.imagePath = filePath
+                notify.native('设置成功', '已选择截图作为封面')
+              }
+            }
+          } else {
+            await alertService.warning('当前环境不支持选择图片功能')
+          }
         }
       } catch (error) {
         console.error('选择截图作为封面失败:', error)
@@ -433,62 +531,80 @@ export default {
       }
     },
     async handleConfirm() {
-      if (!this.canAdd) return
+      if (!this.canConfirm) return
 
-      let gameName = this.formData.name.trim()
-      if (!gameName) {
-        gameName = this.extractGameNameFromPath(this.formData.executablePath)
-      }
-
-      let folderSize = 0
-      const filePath = this.formData.executablePath.trim()
-      const isArchive = this.isArchiveFile(filePath)
-      
-      // 只有非压缩包文件才尝试获取文件夹大小（压缩包本身就是文件）
-      if (!isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
-        try {
-          const result = await window.electronAPI.getFolderSize(filePath)
-          if (result.success) {
-            folderSize = result.size
-          }
-        } catch (error) {
-          console.error('获取文件夹大小失败:', error)
+      if (this.isEditMode) {
+        // 编辑模式：返回更新的游戏对象
+        const updatedGame = {
+          id: this.formData.id,
+          name: this.formData.name.trim() || this.game.name,
+          developer: (this.formData.developer || '').trim(),
+          publisher: (this.formData.publisher || '').trim(),
+          engine: (this.formData.engine || '').trim(),
+          description: (this.formData.description || '').trim(),
+          tags: [...this.formData.tags],
+          executablePath: this.formData.executablePath.trim() || this.game.executablePath,
+          image: (this.formData.imagePath || '').trim()
         }
-      } else if (isArchive) {
-        // 对于压缩包，尝试获取文件大小
-        if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFileStats) {
+
+        this.$emit('confirm', updatedGame)
+      } else {
+        // 添加模式：创建新的游戏对象
+        let gameName = this.formData.name.trim()
+        if (!gameName) {
+          gameName = this.extractGameNameFromPath(this.formData.executablePath)
+        }
+
+        let folderSize = 0
+        const filePath = this.formData.executablePath.trim()
+        const isArchive = this.isArchiveFile(filePath)
+        
+        // 只有非压缩包文件才尝试获取文件夹大小（压缩包本身就是文件）
+        if (!isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
           try {
-            const result = await window.electronAPI.getFileStats(filePath)
-            if (result.success && result.size) {
+            const result = await window.electronAPI.getFolderSize(filePath)
+            if (result.success) {
               folderSize = result.size
             }
           } catch (error) {
-            console.error('获取压缩包文件大小失败:', error)
+            console.error('获取文件夹大小失败:', error)
+          }
+        } else if (isArchive) {
+          // 对于压缩包，尝试获取文件大小
+          if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFileStats) {
+            try {
+              const result = await window.electronAPI.getFileStats(filePath)
+              if (result.success && result.size) {
+                folderSize = result.size
+              }
+            } catch (error) {
+              console.error('获取压缩包文件大小失败:', error)
+            }
           }
         }
-      }
 
-      const game = {
-        id: Date.now().toString(),
-        name: gameName,
-        developer: (this.formData.developer || '').trim(),
-        publisher: (this.formData.publisher || '').trim(),
-        engine: (this.formData.engine || '').trim(),
-        description: (this.formData.description || '').trim(),
-        tags: [...this.formData.tags],
-        executablePath: filePath,
-        image: this.formData.imagePath.trim(),
-        folderSize: folderSize,
-        playTime: 0,
-        playCount: 0,
-        lastPlayed: null,
-        firstPlayed: null,
-        addedDate: new Date().toISOString(),
-        fileExists: true,
-        isArchive: isArchive
-      }
+        const game = {
+          id: Date.now().toString(),
+          name: gameName,
+          developer: (this.formData.developer || '').trim(),
+          publisher: (this.formData.publisher || '').trim(),
+          engine: (this.formData.engine || '').trim(),
+          description: (this.formData.description || '').trim(),
+          tags: [...this.formData.tags],
+          executablePath: filePath,
+          image: this.formData.imagePath.trim(),
+          folderSize: folderSize,
+          playTime: 0,
+          playCount: 0,
+          lastPlayed: null,
+          firstPlayed: null,
+          addedDate: new Date().toISOString(),
+          fileExists: true,
+          isArchive: isArchive
+        }
 
-      this.$emit('confirm', game)
+        this.$emit('confirm', game)
+      }
     },
     resolveImage(imagePath) {
       if (!imagePath || (typeof imagePath === 'string' && imagePath.trim() === '')) {
@@ -822,4 +938,3 @@ export default {
   }
 }
 </style>
-

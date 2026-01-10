@@ -26,21 +26,20 @@
             <label :for="key" class="form-label">
               {{ field.fieldName }}
             </label>
-            <input
+            <fun-input
               v-if="field.fieldType === FormFieldType.TEXT"
               :id="key"
               v-model="formData[key]"
               type="text"
-              class="form-input"
               :placeholder="`请输入${field.fieldName}`"
             />
-            <input
+            <fun-input
               v-else-if="field.fieldType === FormFieldType.NUMBER"
               :id="key"
-              v-model.number="formData[key]"
+              :modelValue="String(formData[key] || '')"
               type="number"
-              class="form-input"
               :placeholder="`请输入${field.fieldName}`"
+              @update:modelValue="formData[key] = Number($event) || 0"
             />
             <input
               v-else-if="field.fieldType === FormFieldType.DATE"
@@ -98,13 +97,12 @@
             </select>
             <!-- 文件选择 -->
             <div v-else-if="field.fieldType === FormFieldType.SELECT_FILE" class="file-input-group">
-              <input
+              <fun-input
                 :id="key"
                 type="text"
                 v-model="formData[key]"
-                class="form-input"
                 :placeholder="`请选择${field.fieldName}`"
-                readonly
+                :readonly="true"
               />
               <button 
                 type="button" 
@@ -121,13 +119,12 @@
             </div>
             <!-- 文件夹选择 -->
             <div v-else-if="field.fieldType === FormFieldType.SELECT_FOLDER" class="file-input-group">
-              <input
+              <fun-input
                 :id="key"
                 type="text"
                 v-model="formData[key]"
-                class="form-input"
                 :placeholder="`请选择${field.fieldName}`"
-                readonly
+                :readonly="true"
               />
               <button 
                 type="button" 
@@ -138,6 +135,14 @@
                 浏览
               </button>
             </div>
+            <!-- 标签输入 -->
+            <fun-tag-input
+              v-else-if="field.fieldType === FormFieldType.TAGS"
+              :id="key"
+              v-model="formData[key]"
+              :placeholder="`输入${field.fieldName}后按回车或逗号添加`"
+              :allowDuplicate="false"
+            />
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">提交表单</button>
@@ -195,6 +200,9 @@ export default defineComponent({
           case FormFieldType.NUMBER:
             data[key] = 0
             break
+          case FormFieldType.TAGS:
+            data[key] = []
+            break
           default:
             data[key] = ''
         }
@@ -243,20 +251,22 @@ export default defineComponent({
       this.formResult = null
     },
     getRadioOptions(key: string, field: FormField): string[] {
-      // 如果 field 有 options 属性（FormField_Radio 或 FormField_Select），直接使用
+      // 必须配置 options 属性（FormField_Radio）
       if ('options' in field && Array.isArray((field as any).options)) {
         return (field as any).options
       }
-      // 降级：返回示例选项
-      return ['选项1', '选项2', '选项3']
+      // 如果没有配置，返回空数组
+      console.warn(`字段 ${key} (${field.fieldName}) 没有配置选项列表`)
+      return []
     },
     getSelectOptions(key: string, field: FormField): string[] {
-      // 如果 field 有 options 属性（FormField_Select），直接使用
+      // 必须配置 options 属性（FormField_Select）
       if ('options' in field && Array.isArray((field as any).options)) {
         return (field as any).options
       }
-      // 降级：返回示例选项
-      return ['选项A', '选项B', '选项C']
+      // 如果没有配置，返回空数组
+      console.warn(`字段 ${key} (${field.fieldName}) 没有配置选项列表`)
+      return []
     },
     async handleBrowseFile(key: string, field: FormField) {
       try {
@@ -269,48 +279,50 @@ export default defineComponent({
         }
 
         const electronAPI = (window as any).electronAPI
-        let filePath: string | null = null
 
-        // 获取允许的文件扩展名（如果 field 是 FormField_SelectFile）
-        const allowedExtensions = ('allowedExtensions' in field && Array.isArray((field as any).allowedExtensions)) 
-          ? (field as any).allowedExtensions 
-          : null
+        // 获取过滤器数组（如果 field 是 FormField_SelectFile）
+        const filters = ('filters' in field && Array.isArray((field as any).filters)) 
+          ? (field as any).filters 
+          : []
 
-        // 根据字段名和配置判断选择什么类型的文件
-        if (key === 'image' || field.fieldName.includes('封面') || field.fieldName.includes('图片')) {
-          // 选择图片文件
-          if (electronAPI.selectImageFile) {
-            filePath = await electronAPI.selectImageFile()
-          } else if (electronAPI.selectFile) {
-            filePath = await electronAPI.selectFile()
-          }
-        } else if (key === 'executablePath' || field.fieldName.includes('可执行') || field.fieldName.includes('执行文件')) {
-          // 选择可执行文件
-          if (electronAPI.selectExecutableFile) {
-            filePath = await electronAPI.selectExecutableFile()
-          } else if (electronAPI.selectFile) {
-            filePath = await electronAPI.selectFile()
-          }
-        } else {
-          // 默认选择文件
-          if (electronAPI.selectFile) {
-            filePath = await electronAPI.selectFile()
-          }
+        // 使用统一的 API，直接传递过滤器数组
+        if (!electronAPI.selectFileWithExtensions) {
+          await alertService.show({ 
+            title: '错误', 
+            message: '当前环境不支持根据扩展名选择文件功能' 
+          })
+          return
         }
 
+        const filePath = await electronAPI.selectFileWithExtensions(filters, null, `选择${field.fieldName}`)
+
         if (filePath) {
-          // 如果配置了允许的扩展名，验证文件扩展名
-          if (allowedExtensions && allowedExtensions.length > 0) {
+          // 如果配置了过滤器，验证文件扩展名（双重验证，确保符合要求）
+          if (filters && filters.length > 0) {
             const fileExt = this.getFileExtension(filePath).toLowerCase()
-            const normalizedExtensions = allowedExtensions.map(ext => 
-              ext.startsWith('.') ? ext.substring(1).toLowerCase() : ext.toLowerCase()
-            )
             
-            // 检查扩展名是否在允许列表中（支持 '其他' 作为通配符）
-            if (!normalizedExtensions.includes('其他') && !normalizedExtensions.includes(fileExt)) {
+            // 收集所有允许的扩展名（从所有过滤器中）
+            const allAllowedExtensions: string[] = []
+            let hasWildcard = false
+            
+            filters.forEach((filter: { name: string; extensions: string[] }) => {
+              if (filter.extensions) {
+                filter.extensions.forEach(ext => {
+                  const normalized = ext.startsWith('.') ? ext.substring(1).toLowerCase() : ext.toLowerCase()
+                  if (normalized === '*' || normalized === '其他') {
+                    hasWildcard = true
+                  } else {
+                    allAllowedExtensions.push(normalized)
+                  }
+                })
+              }
+            })
+            
+            // 检查扩展名是否在允许列表中（支持 '其他' 和 '*' 作为通配符）
+            if (!hasWildcard && !allAllowedExtensions.includes(fileExt)) {
               await alertService.show({ 
                 title: '文件类型错误', 
-                message: `文件扩展名 .${fileExt} 不在允许的列表中。允许的扩展名: ${normalizedExtensions.map(e => `.${e}`).join(', ')}` 
+                message: `文件扩展名 .${fileExt} 不在允许的列表中。允许的扩展名: ${allAllowedExtensions.map(e => `.${e}`).join(', ')}` 
               })
               return
             }
@@ -318,8 +330,8 @@ export default defineComponent({
 
           this.formData[key] = filePath
           console.log(`已选择文件 (${key}):`, filePath)
-          if (allowedExtensions) {
-            console.log(`允许的扩展名:`, allowedExtensions)
+          if (filters && filters.length > 0) {
+            console.log(`过滤器配置:`, filters)
           }
         }
       } catch (error: any) {
@@ -348,16 +360,22 @@ export default defineComponent({
         }
 
         const electronAPI = (window as any).electronAPI
-        if (electronAPI.selectFolder) {
-          const folderPath = await electronAPI.selectFolder()
-          if (folderPath) {
-            this.formData[key] = folderPath
-            console.log(`已选择文件夹 (${key}):`, folderPath)
-          }
-        } else {
+        if (!electronAPI.selectFolder) {
           await alertService.show({ 
             title: '错误', 
             message: '当前环境不支持文件夹选择功能' 
+          })
+          return
+        }
+        
+        const result = await electronAPI.selectFolder()
+        if (result && result.success && result.path) {
+          this.formData[key] = result.path
+          console.log(`已选择文件夹 (${key}):`, result.path)
+        } else if (result && !result.success) {
+          await alertService.show({ 
+            title: '错误', 
+            message: result.error || '未选择文件夹' 
           })
         }
       } catch (error: any) {
@@ -634,4 +652,5 @@ export default defineComponent({
   object-fit: contain;
   border-radius: var(--radius-sm);
 }
+
 </style>

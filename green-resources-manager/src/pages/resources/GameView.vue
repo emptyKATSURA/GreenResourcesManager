@@ -24,18 +24,19 @@
       />
 
 
-      <!-- 添加游戏对话框 -->
-      <AddGameDialog 
+      <!-- 游戏对话框（添加/编辑） -->
+      <GameDialog 
         :visible="showAddDialog" 
+        mode="add"
         :is-electron-environment="isElectronEnvironment"
         :available-tags="allTags"
         @close="closeAddDialog"
         @confirm="handleAddGameConfirm"
       />
 
-      <!-- 编辑游戏对话框 -->
-      <EditGameDialog 
+      <GameDialog 
         :visible="showEditDialog" 
+        mode="edit"
         :game="editForm"
         :is-electron-environment="isElectronEnvironment"
         :available-tags="allTags"
@@ -101,8 +102,7 @@ import MediaCard from '../../components/MediaCard.vue'
 import FormField from '../../components/FormField.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
-import AddGameDialog from '../../components/game/AddGameDialog.vue'
-import EditGameDialog from '../../components/game/EditGameDialog.vue'
+import GameDialog from '../../components/game/GameDialog.vue'
 import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
 
@@ -131,8 +131,7 @@ export default {
     MediaCard,
     FormField,
     PathUpdateDialog,
-    AddGameDialog,
-    EditGameDialog,
+    GameDialog,
     GameDetailPanel,
     GameGrid
   },

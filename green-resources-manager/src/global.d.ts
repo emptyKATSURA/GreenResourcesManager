@@ -4,6 +4,9 @@ declare module '*.vue' {
   export default component
 }
 
+// 导入文件选择过滤器类型
+import type { FileSelectFilter } from './types/class/game'
+
 // Electron 环境中的 File 扩展
 // 注意：path 属性已被 Electron 官方弃用，建议未来使用 webUtils.getPathForFile
 declare global {
@@ -60,6 +63,8 @@ declare global {
       selectAudioFile: () => Promise<string | null>
       selectNovelFile: () => Promise<string | null>
       selectFolder: () => Promise<{ success: boolean; path?: string; error?: string }>
+      // 根据过滤器数组选择文件（统一入口）
+      selectFileWithExtensions: (filters?: FileSelectFilter[], defaultPath?: string | null, title?: string) => Promise<string | null>
       
       // 文件系统操作
       checkFileExists: (filePath: string) => Promise<{ success: boolean; exists?: boolean; error?: string }>
