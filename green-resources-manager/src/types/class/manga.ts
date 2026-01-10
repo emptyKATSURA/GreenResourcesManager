@@ -21,7 +21,7 @@ export class Manga {
 	// 标签字段
 	tags: FormField_Tags = new FormField_Tags('漫画标签', false)
 	
-	folderPath: FormField_SelectFolder = new FormField_SelectFolder('漫画文件夹路径', false)
+	folderPath: FormField_SelectFolder = new FormField_SelectFolder('漫画文件夹路径', true)
 	
 	// 封面选择字段
 	cover: FormField_SelectMangaCover = new FormField_SelectMangaCover('封面图片', false)

@@ -1,5 +1,15 @@
 <template>
-  <div class="games-grid" v-if="games.length > 0" :style="layoutStyles">
+  <FunGrid
+    v-if="games.length > 0"
+    mode="auto-fill"
+    :scale="scale"
+    :baseWidth="baseWidth"
+    :minScaledWidth="100"
+    gap="20px"
+    padding="10px 20px"
+    :singleColumnOnMobile="true"
+    :customStyle="customLayoutStyle"
+  >
     <MediaCard 
       v-for="game in games" 
       :key="game.id" 
@@ -13,18 +23,20 @@
       @contextmenu="$emit('game-contextmenu', $event, game)" 
       @action="$emit('game-action', game)" 
     />
-  </div>
+  </FunGrid>
 </template>
 
 <script lang="ts">
 import { defineComponent, type PropType, computed } from 'vue'
 import MediaCard from '../MediaCard.vue'
+import FunGrid from '../../fun-ui/layout/Grid/FunGrid.vue'
 import type { Game } from '../../types/game'
 
 export default defineComponent({
   name: 'GameGrid',
   components: {
-    MediaCard
+    MediaCard,
+    FunGrid
   },
   props: {
     games: {
@@ -46,30 +58,34 @@ export default defineComponent({
     },
     layoutStyles: {
       type: Object,
-      required: true
+      required: false
+    },
+    baseWidth: {
+      type: Number,
+      default: 400
     }
   },
   emits: ['game-click', 'game-contextmenu', 'game-action'],
   setup(props) {
-    return {}
+    // 从 layoutStyles 中提取额外的样式（如 justifyContent）
+    const customLayoutStyle = computed(() => {
+      if (!props.layoutStyles) return undefined
+      
+      const custom: Record<string, string> = {}
+      if (props.layoutStyles.justifyContent) {
+        custom.justifyContent = props.layoutStyles.justifyContent
+      }
+      return Object.keys(custom).length > 0 ? custom : undefined
+    })
+    
+    return {
+      customLayoutStyle
+    }
   }
 })
 </script>
 
 <style scoped>
-.games-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 20px;
-  padding: 10px 20px;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .games-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 15px;
-  }
-}
+/* 样式已迁移到 FunGrid 组件 */
 </style>
 

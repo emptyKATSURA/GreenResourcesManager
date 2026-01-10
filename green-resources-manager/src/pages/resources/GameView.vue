@@ -17,6 +17,7 @@
         :is-game-running="isGameRunning"
         :is-electron-environment="isElectronEnvironment"
         :scale="scale"
+        :base-width="400"
         :layout-styles="layoutStyles"
         @game-click="showGameDetail"
         @game-contextmenu="handleGameContextMenu"

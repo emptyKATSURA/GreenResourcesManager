@@ -8,7 +8,9 @@ import {
 	FormField as FormFieldType
 } from './FormField.ts'
 
-export class Game  {
+import { ResourcesBase } from './ResourcesBase.ts'
+
+export class Game extends ResourcesBase {
 	// 文本字段
 	name :FormField_Text = new FormField_Text('游戏名', true)
 	description :FormField_Textarea = new FormField_Textarea('游戏简介', false)

@@ -11,8 +11,14 @@
       @page-change="handlePageChange"
     />
     
-    <!-- 图片网格 -->
-    <div class="pages-grid">
+    <!-- 图片网格 - 使用 FunGrid 组件 -->
+    <FunGrid
+      mode="auto-fill"
+      :minWidth="150"
+      gap="var(--spacing-md, 16px)"
+      padding="16px 0"
+      :singleColumnOnMobile="true"
+    >
       <div 
         v-for="(page, idx) in paginatedPages" 
         :key="page" 
@@ -28,18 +34,20 @@
         >
         <div class="page-index">{{ currentPageStartIndex + idx + 1 }}</div>
       </div>
-    </div>
+    </FunGrid>
   </div>
 </template>
 
 <script lang="ts">
 import { computed, type PropType } from 'vue'
 import FunPagination from '../../fun-ui/navigation/Pagination/FunPagination.vue'
+import FunGrid from '../../fun-ui/layout/Grid/FunGrid.vue'
 
 export default {
   name: 'AlbumPagesGrid',
   components: {
-    FunPagination
+    FunPagination,
+    FunGrid
   },
   props: {
     pages: {
@@ -101,13 +109,6 @@ export default {
 <style scoped>
 .pages-section {
   margin-top: 20px;
-}
-
-.pages-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
-  padding: 16px 0;
 }
 
 .page-item {

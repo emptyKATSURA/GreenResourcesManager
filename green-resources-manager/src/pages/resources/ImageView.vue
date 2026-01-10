@@ -30,8 +30,18 @@
       :class="{ 'drag-over': isDragOver || false }"
     >
 
-    <!-- 专辑网格 -->
-    <div class="albums-grid" v-if="paginatedAlbums.length > 0" :style="layoutStyles">
+    <!-- 专辑网格 - 使用 FunGrid 组件 -->
+    <FunGrid
+      v-if="paginatedAlbums.length > 0"
+      mode="auto-fill"
+      :scale="scale"
+      :baseWidth="280"
+      :minScaledWidth="150"
+      gap="var(--spacing-xl)"
+      padding="10px 0"
+      :singleColumnOnMobile="false"
+      :customStyle="{ justifyContent: 'stretch' }"
+    >
       <MediaCard
         v-for="album in paginatedAlbums" 
         :key="album.id"
@@ -44,7 +54,7 @@
         @contextmenu="(event) => ($refs.baseView as any).showContextMenuHandler(event, album)"
         @action="openAlbum"
       />
-    </div>
+    </FunGrid>
 
 
     <!-- 添加专辑对话框 -->
@@ -158,6 +168,7 @@ import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Manga } from '../../types/class/manga.ts'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
+import FunGrid from '../../fun-ui/layout/Grid/FunGrid.vue'
 
 import notify from '../../utils/NotificationService.ts'
 import alertService from '../../utils/AlertService.ts'
@@ -192,7 +203,8 @@ export default {
     ComicViewer,
     PathUpdateDialog,
     ResourcesEditDialog,
-    AlbumPagesGrid
+    AlbumPagesGrid,
+    FunGrid
   },
   emits: ['filter-data-updated'],
   props: {
@@ -1572,14 +1584,7 @@ export default {
   }
 }
 
-// 网格（图片类型使用更大的最小宽度，适合竖向图片）
-.albums-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--spacing-xl);
-  padding: 10px 0;
-  justify-content: stretch;
-}
+// 网格样式已迁移到 FunGrid 组件
 
 .album-card {
   background: var(--bg-secondary);
@@ -2238,10 +2243,7 @@ export default {
 
 // 响应式
 @media (max-width: 768px) {
-  .albums-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: var(--spacing-lg);
-  }
+  // 网格响应式已由 FunGrid 组件处理（singleColumnOnMobile）
 
   .album-image {
     height: 200px;
