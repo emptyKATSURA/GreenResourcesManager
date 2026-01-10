@@ -25,21 +25,41 @@
 
 
       <!-- 游戏对话框（添加/编辑） -->
-      <GameDialog 
+      <ResourcesEditDialog 
         :visible="showAddDialog" 
         mode="add"
+        :resource-class="Game"
         :is-electron-environment="isElectronEnvironment"
         :available-tags="allTags"
+        :enable-engine-auto-detect="true"
+        :enable-screenshot-cover="true"
+        add-title="添加游戏"
+        edit-title="编辑游戏"
+        add-button-text="添加游戏"
+        edit-button-text="保存修改"
+        :custom-confirm-handler="handleAddGameCustomConfirm"
+        :custom-validation="(formData, isEditMode) => {
+          if (isEditMode) return true
+          const executablePath = formData.executablePath
+          return executablePath && executablePath.trim() !== ''
+        }"
         @close="closeAddDialog"
         @confirm="handleAddGameConfirm"
       />
 
-      <GameDialog 
+      <ResourcesEditDialog 
         :visible="showEditDialog" 
         mode="edit"
-        :game="editForm"
+        :resource-class="Game"
+        :resource-data="editForm"
         :is-electron-environment="isElectronEnvironment"
         :available-tags="allTags"
+        :enable-engine-auto-detect="true"
+        :enable-screenshot-cover="true"
+        add-title="添加游戏"
+        edit-title="编辑游戏"
+        add-button-text="添加游戏"
+        edit-button-text="保存修改"
         @close="closeEdit"
         @confirm="handleEditGameConfirm"
       />
@@ -102,7 +122,8 @@ import MediaCard from '../../components/MediaCard.vue'
 import FormField from '../../components/FormField.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
-import GameDialog from '../../components/game/GameDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { Game } from '../../types/class/game.ts'
 import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
 
@@ -131,7 +152,7 @@ export default {
     MediaCard,
     FormField,
     PathUpdateDialog,
-    GameDialog,
+    ResourcesEditDialog,
     GameDetailPanel,
     GameGrid
   },
@@ -491,7 +512,9 @@ export default {
       passwordDialogTriedPasswords: [], // 存储已尝试的密码
       // 强制结束游戏确认对话框
       showTerminateConfirmDialog: false,
-      gameToTerminate: null
+      gameToTerminate: null,
+      // Game 类用于 ResourcesEditDialog
+      Game: Game
       // 路径更新对话框已移至工厂函数（showPathUpdateDialog, pathUpdateInfo）
       // 空状态配置已移至工厂函数（emptyStateConfig）
       // 工具栏配置已移至工厂函数（toolbarConfig）
@@ -512,6 +535,67 @@ export default {
   methods: {
     // checkGameCollectionAchievements 和 checkGameTimeAchievements 已移至 useGameManagement composable
     // showAddGameDialog 和 closeAddGameDialog 已移至工厂函数（showAddDialogHandler, closeAddDialog）
+    // 添加游戏时的自定义确认处理（处理文件夹大小、默认值等）
+    async handleAddGameCustomConfirm(formData, isEditMode) {
+      if (isEditMode) return // 编辑模式不需要特殊处理
+      
+      // 1. 如果名称为空，从可执行文件路径提取
+      const executablePathValue = formData.executablePath || ''
+      if (!formData.name && executablePathValue) {
+        const fileName = executablePathValue.split(/[\\/]/).pop() || ''
+        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
+        let cleanName = nameWithoutExt
+          .replace(/\.exe$/i, '')
+          .replace(/\.swf$/i, '')
+          .replace(/\.bat$/i, '')
+          .replace(/\.zip$/i, '')
+          .replace(/\.rar$/i, '')
+          .replace(/\.7z$/i, '')
+          .replace(/\.tar$/i, '')
+          .replace(/\.gz$/i, '')
+          .replace(/\.bz2$/i, '')
+          .replace(/\.xz$/i, '')
+          .replace(/^game[-_\s]*/i, '')
+          .replace(/[-_\s]+/g, ' ')
+          .trim()
+        if (!cleanName) cleanName = nameWithoutExt
+        formData.name = cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
+      }
+
+      // 2. 获取文件夹大小
+      let folderSize = 0
+      const filePath = executablePathValue.trim()
+      const isArchive = isArchiveFile(filePath)
+      
+      if (!isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
+        try {
+          const result = await window.electronAPI.getFolderSize(filePath)
+          if (result.success) {
+            folderSize = result.size
+          }
+        } catch (error) {
+          console.error('获取文件夹大小失败:', error)
+        }
+      } else if (isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFileStats) {
+        try {
+          const result = await window.electronAPI.getFileStats(filePath)
+          if (result.success && result.size) {
+            folderSize = result.size
+          }
+        } catch (error) {
+          console.error('获取压缩包文件大小失败:', error)
+        }
+      }
+
+      // 3. 设置默认值
+      formData.folderSize = folderSize
+      formData.playTime = 0
+      formData.playCount = 0
+      formData.lastPlayed = null
+      formData.firstPlayed = null
+      formData.addedDate = new Date().toISOString()
+      formData.isArchive = isArchive
+    },
     async handleAddGameConfirm(game) {
       await this.handleAddConfirm(game)
     },

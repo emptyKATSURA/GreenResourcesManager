@@ -3,11 +3,11 @@
     <div class="modal-wrapper">
       <div class="modal-content" @mousedown.stop>
       <div class="modal-header">
-        <h3>{{ isEditMode ? '编辑游戏' : '添加游戏' }}</h3>
+        <h3>{{ getTitle() }}</h3>
         <button class="btn-close" @click="handleClose">✕</button>
       </div>
       <div class="modal-body">
-        <!-- 根据 Game 类自动生成表单字段 -->
+        <!-- 根据资源类自动生成表单字段 -->
         <div 
           v-for="(field, key) in formFields" 
           :key="key" 
@@ -43,7 +43,7 @@
               :options="getSelectOptions(key, field)"
               :placeholder="getFieldPlaceholder(key, field)"
             />
-            <div class="engine-auto-detect">
+            <div class="engine-auto-detect" v-if="enableEngineAutoDetect">
               <button 
                 type="button" 
                 class="btn-auto-detect" 
@@ -65,7 +65,7 @@
             :options="getSelectOptions(key, field)"
             :placeholder="getFieldPlaceholder(key, field)"
           />
-          
+
           <!-- 标签字段 -->
           <fun-tag-input
             v-else-if="field.fieldType === FormFieldType.TAGS"
@@ -76,7 +76,7 @@
           />
           
           <!-- 文件选择字段（封面类型，需要特殊处理） -->
-          <template v-else-if="field instanceof FormField_SelectCover || isImageFileField(field)">
+          <template v-else-if="isCoverField(field)">
             <div class="cover-selection-container">
               <div class="cover-preview" v-if="formData[key]">
                 <img :src="getImageUrl(formData[key])" :alt="'封面预览'" @error="handleImageError">
@@ -85,7 +85,9 @@
                 </div>
               </div>
               <div class="cover-actions">
+                <!-- 游戏封面：使用截图作为封面 -->
                 <button 
+                  v-if="field instanceof FormField_SelectGameCover && enableScreenshotCover"
                   type="button" 
                   class="btn-cover-action" 
                   @click="() => handleUseScreenshotAsCover(key)"
@@ -93,6 +95,28 @@
                 >
                   <span class="btn-icon">📸</span>
                   使用截图作为封面
+                </button>
+                <!-- 漫画封面：使用第一张图片 -->
+                <button 
+                  v-if="field instanceof FormField_SelectMangaCover && enableFirstImageCover"
+                  type="button" 
+                  class="btn-cover-action" 
+                  @click="() => handleUseFirstImageAsCover(key)"
+                  :disabled="!getFolderPathValue()"
+                >
+                  <span class="btn-icon">🖼️</span>
+                  使用第一张图片
+                </button>
+                <!-- 漫画封面：从文件夹选择 -->
+                <button 
+                  v-if="field instanceof FormField_SelectMangaCover && enableSelectFromFolder"
+                  type="button" 
+                  class="btn-cover-action" 
+                  @click="() => handleSelectFromFolder(key)"
+                  :disabled="!getFolderPathValue()"
+                >
+                  <span class="btn-icon">📂</span>
+                  从文件夹选择
                 </button>
                 <button type="button" class="btn-cover-action" @click="() => handleBrowseImage(key)">
                   <span class="btn-icon">📁</span>
@@ -110,6 +134,25 @@
               </div>
             </div>
           </template>
+          
+          <!-- 文件夹选择字段 -->
+          <div v-else-if="field.fieldType === FormFieldType.SELECT_FOLDER" class="file-input-group">
+            <fun-input
+              :id="key"
+              type="text"
+              v-model="formData[key]"
+              :placeholder="getFieldPlaceholder(key, field)"
+              :readonly="true"
+            />
+            <button 
+              type="button" 
+              class="btn-browse" 
+              @click="() => handleBrowseFolder(key, field)"
+              :disabled="!isElectronEnvironment"
+            >
+              浏览
+            </button>
+          </div>
           
           <!-- 文件选择字段（普通文件） -->
           <div v-else-if="field.fieldType === FormFieldType.SELECT_FILE" class="file-input-group">
@@ -134,11 +177,14 @@
             </div>
           </div>
         </div>
+        
+        <!-- 自定义插槽，用于添加额外的表单字段 -->
+        <slot name="extra-fields" :formData="formData" :isEditMode="isEditMode"></slot>
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" @click="handleClose">取消</button>
         <button class="btn-confirm" @click="handleConfirm" :disabled="!canConfirm">
-          {{ isEditMode ? '保存修改' : '添加游戏' }}
+          {{ getConfirmButtonText() }}
         </button>
       </div>
       </div>
@@ -154,24 +200,25 @@
 </template>
 
 <script lang="ts">
-import { computed } from 'vue'
-import TagSelectionPanel from '../TagSelectionPanel.vue'
-import saveManager from '../../utils/SaveManager.ts'
-import notify from '../../utils/NotificationService.ts'
-import alertService from '../../utils/AlertService.ts'
-import { detectGameEngine } from '../../utils/GameEngineDetector.ts'
-import { Game } from '../../types/class/game.ts'
+import { computed, PropType } from 'vue'
+import TagSelectionPanel from './TagSelectionPanel.vue'
+import saveManager from '../utils/SaveManager.ts'
+import notify from '../utils/NotificationService.ts'
+import alertService from '../utils/AlertService.ts'
+import { detectGameEngine } from '../utils/GameEngineDetector.ts'
 import {
   FormField as FormFieldType,
   FormFieldType as FormFieldTypeEnum,
   FormField_SelectEngine,
   FormField_SelectFile,
-  FormField_SelectCover,
+  FormField_SelectFolder,
+  FormField_SelectGameCover,
+  FormField_SelectMangaCover,
   FormField_Textarea
-} from '../../types/class/FormField.ts'
+} from '../types/class/FormField.ts'
 
 export default {
-  name: 'GameDialog',
+  name: 'ResourcesEditDialog',
   components: {
     TagSelectionPanel
   },
@@ -185,30 +232,89 @@ export default {
       default: 'add',
       validator: (value: string) => ['add', 'edit'].includes(value)
     },
-    game: {
+    // 资源类构造函数
+    resourceClass: {
+      type: Object,
+      required: true
+    } as any,
+    // 资源数据（编辑模式）
+    resourceData: {
       type: Object,
       default: null
     },
+    // 标题配置
+    title: {
+      type: String,
+      default: ''
+    },
+    addTitle: {
+      type: String,
+      default: ''
+    },
+    editTitle: {
+      type: String,
+      default: ''
+    },
+    // 确认按钮文本配置
+    confirmButtonText: {
+      type: String,
+      default: ''
+    },
+    addButtonText: {
+      type: String,
+      default: '添加'
+    },
+    editButtonText: {
+      type: String,
+      default: '保存修改'
+    },
+    // 功能开关
     isElectronEnvironment: {
       type: Boolean,
       default: false
     },
+    enableEngineAutoDetect: {
+      type: Boolean,
+      default: false
+    },
+    enableScreenshotCover: {
+      type: Boolean,
+      default: false
+    },
+    enableFirstImageCover: {
+      type: Boolean,
+      default: false
+    },
+    enableSelectFromFolder: {
+      type: Boolean,
+      default: false
+    },
     availableTags: {
-      type: Array as () => (string | { name: string; count?: number })[],
+      type: Array as PropType<(string | { name: string; count?: number })[]>,
       default: () => []
+    },
+    // 自定义验证函数
+    customValidation: {
+      type: Function as PropType<(formData: Record<string, any>, isEditMode: boolean) => boolean>,
+      default: null
+    },
+    // 自定义确认处理函数（返回 false 可以阻止默认行为）
+    customConfirmHandler: {
+      type: Function as PropType<(formData: Record<string, any>, isEditMode: boolean) => Promise<boolean | void>>,
+      default: null
     }
   },
   emits: ['close', 'confirm'],
-  setup() {
-    // 创建 Game 实例用于提取字段定义
-    const gameInstance = new Game()
+  setup(props) {
+    // 创建资源实例用于提取字段定义
+    const resourceInstance = new props.resourceClass()
     
     // 提取所有 FormField 类型的字段，保持类中定义的顺序
     const formFields = computed(() => {
       const fields: Record<string, FormFieldType> = {}
-      // 遍历 Game 实例的所有属性，保持定义顺序
-      for (const key in gameInstance) {
-        const value = (gameInstance as any)[key]
+      // 遍历资源实例的所有属性，保持定义顺序
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
         if (value instanceof FormFieldType) {
           fields[key] = value
         }
@@ -221,19 +327,21 @@ export default {
       FormFieldType: FormFieldTypeEnum,
       FormField_SelectEngine,
       FormField_SelectFile,
-      FormField_SelectCover,
+      FormField_SelectFolder,
+      FormField_SelectGameCover,
+      FormField_SelectMangaCover,
       FormField_Textarea
     }
   },
   data() {
     // 初始化表单数据的函数（根据字段类型自动生成）
     const initFormData = () => {
-      const gameInstance = new Game()
+      const resourceInstance = new this.resourceClass()
       const data: Record<string, any> = { id: '' }
       
-      // 遍历 Game 实例的所有属性
-      for (const key in gameInstance) {
-        const value = (gameInstance as any)[key]
+      // 遍历资源实例的所有属性
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
         if (value instanceof FormFieldType) {
           // 根据字段类型初始化默认值
           switch (value.fieldType) {
@@ -254,47 +362,82 @@ export default {
       return data
     }
     
-      return {
-        formData: initFormData(),
-        initFormData
-      }
+    return {
+      formData: initFormData(),
+      initFormData
+    }
   },
   computed: {
     isEditMode() {
       return this.mode === 'edit'
     },
     canConfirm() {
-      // 编辑模式只需要有游戏ID即可，添加模式需要可执行文件路径
+      // 如果有自定义验证函数，使用自定义验证
+      if (this.customValidation) {
+        return this.customValidation(this.formData, this.isEditMode)
+      }
+      
+      // 默认验证：编辑模式只需要有ID即可，添加模式需要必填字段
       if (this.isEditMode) {
         return true
       }
-      const executablePath = this.getExecutablePathValue()
-      return executablePath && executablePath.trim() !== ''
+      
+      // 检查必填字段
+      const resourceInstance = new this.resourceClass()
+      for (const key in resourceInstance) {
+        const field = (resourceInstance as any)[key]
+        if (field instanceof FormFieldType && field.required) {
+          const value = this.formData[key]
+          if (!value || (typeof value === 'string' && value.trim() === '') || 
+              (Array.isArray(value) && value.length === 0)) {
+            return false
+          }
+        }
+      }
+      return true
     }
   },
   watch: {
     visible(newVal) {
       if (newVal) {
-        if (this.isEditMode && this.game) {
-          this.loadGameData()
+        if (this.isEditMode && this.resourceData) {
+          this.loadResourceData()
         } else {
           this.resetForm()
         }
       }
     },
-    game: {
+    resourceData: {
       handler(newVal) {
         if (newVal && this.visible && this.isEditMode) {
-          this.loadGameData()
+          this.loadResourceData()
         }
       },
       immediate: true
+    },
+    resourceClass: {
+      handler() {
+        // 资源类变化时重新初始化表单
+        this.formData = this.initFormData()
+      }
     }
   },
   methods: {
-    // 判断是否是图片文件字段（封面字段）
-    isImageFileField(field: FormFieldType): boolean {
-      return field instanceof FormField_SelectCover || 
+    getTitle() {
+      if (this.title) return this.title
+      if (this.isEditMode) {
+        return this.editTitle || '编辑资源'
+      }
+      return this.addTitle || '添加资源'
+    },
+    getConfirmButtonText() {
+      if (this.confirmButtonText) return this.confirmButtonText
+      return this.isEditMode ? this.editButtonText : this.addButtonText
+    },
+    // 判断是否是封面字段
+    isCoverField(field: FormFieldType): boolean {
+      return field instanceof FormField_SelectGameCover || 
+             field instanceof FormField_SelectMangaCover ||
              (field instanceof FormField_SelectFile && 
               'filters' in field && 
               Array.isArray(field.filters) &&
@@ -317,10 +460,22 @@ export default {
     },
     // 获取可执行文件路径的值（用于引擎自动识别等功能）
     getExecutablePathValue(): string {
-      const gameInstance = new Game()
-      for (const key in gameInstance) {
-        const value = (gameInstance as any)[key]
+      const resourceInstance = new this.resourceClass()
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
         if (value instanceof FormField_SelectFile && this.isExecutableFileField(value)) {
+          return this.formData[key] || ''
+        }
+      }
+      return ''
+    },
+    // 获取文件夹路径的值（用于漫画封面选择等功能）
+    getFolderPathValue(): string {
+      const resourceInstance = new this.resourceClass()
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
+        if (value instanceof FormField_SelectFolder || 
+            (value instanceof FormField_SelectFile && key === 'folderPath')) {
           return this.formData[key] || ''
         }
       }
@@ -328,9 +483,9 @@ export default {
     },
     // 获取标签字段的值（用于 TagSelectionPanel）
     getTagsFieldValue(): string[] {
-      const gameInstance = new Game()
-      for (const key in gameInstance) {
-        const field = (gameInstance as any)[key]
+      const resourceInstance = new this.resourceClass()
+      for (const key in resourceInstance) {
+        const field = (resourceInstance as any)[key]
         if (field instanceof FormFieldType && field.fieldType === FormFieldTypeEnum.TAGS) {
           return Array.isArray(this.formData[key]) ? this.formData[key] : []
         }
@@ -340,38 +495,36 @@ export default {
     // 获取字段标签（必填字段加 *，非必填字段不加标识）
     getFieldLabel(key: string, field: FormFieldType): string {
       const fieldName = field.fieldName
-      // 根据字段的 required 属性判断是否必填
       const isRequired = field.required === true
       
-      // 特殊字段的标签处理（可执行文件字段）
+      // 特殊字段的标签处理
       if (this.isExecutableFileField(field)) {
         const label = this.isEditMode ? '游戏可执行文件' : '游戏文件'
         return isRequired ? `${label} *` : label
       }
       
-      // 其他字段：必填字段加 *，非必填字段不加标识
       return isRequired ? `${fieldName} *` : fieldName
     },
     // 获取字段占位符
     getFieldPlaceholder(key: string, field: FormFieldType): string {
-      // 根据字段类型返回占位符
       if (field.fieldType === FormFieldTypeEnum.SELECT) {
         return `请选择${field.fieldName}`
       }
       if (field.fieldType === FormFieldTypeEnum.TEXTAREA || field instanceof FormField_Textarea) {
-        return '输入游戏简介或描述...'
+        return '输入简介或描述...'
       }
       if (field instanceof FormField_SelectFile) {
         if (this.isExecutableFileField(field)) {
           return this.isEditMode ? '选择游戏可执行文件' : '选择游戏可执行文件或压缩包'
         }
       }
-      // 默认占位符
+      if (field instanceof FormField_SelectFolder) {
+        return `选择${field.fieldName}`
+      }
       return `请输入${field.fieldName}`
     },
     // 获取选择字段的选项（用于 SELECT 类型）
     getSelectOptions(key: string, field: FormFieldType): Array<{ value: string; label: string }> {
-      // 检查字段是否有 options 属性
       if ('options' in field && Array.isArray((field as any).options)) {
         return (field as any).options.map((option: string) => ({
           value: option,
@@ -382,29 +535,25 @@ export default {
     },
     resetForm() {
       const initData = this.initFormData()
-      // 保留 id 字段（如果有）
       initData.id = this.formData.id || ''
       this.formData = initData
     },
-    loadGameData() {
-      if (!this.game) return
+    loadResourceData() {
+      if (!this.resourceData) return
       
-      // 先初始化表单数据
       const initData = this.initFormData()
-      initData.id = this.game.id || ''
+      initData.id = this.resourceData.id || ''
       
-      // 从 game 对象中加载数据
-      const gameInstance = new Game()
-      for (const key in gameInstance) {
-        const value = (gameInstance as any)[key]
+      const resourceInstance = new this.resourceClass()
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
         if (value instanceof FormFieldType) {
-          // 从 game 对象中获取对应的值
-          const gameValue = (this.game as any)[key]
-          if (gameValue !== undefined && gameValue !== null) {
-            if (value.fieldType === FormFieldTypeEnum.TAGS && Array.isArray(gameValue)) {
-              initData[key] = [...gameValue]
-            } else if (typeof gameValue === 'string' || typeof gameValue === 'number' || typeof gameValue === 'boolean') {
-              initData[key] = gameValue
+          const resourceValue = (this.resourceData as any)[key]
+          if (resourceValue !== undefined && resourceValue !== null) {
+            if (value.fieldType === FormFieldTypeEnum.TAGS && Array.isArray(resourceValue)) {
+              initData[key] = [...resourceValue]
+            } else if (typeof resourceValue === 'string' || typeof resourceValue === 'number' || typeof resourceValue === 'boolean') {
+              initData[key] = resourceValue
             }
           }
         }
@@ -415,21 +564,14 @@ export default {
     handleClose() {
       this.$emit('close')
     },
-    /**
-     * 处理 overlay 区域的 mousedown 事件
-     * 使用 mousedown 而不是 click，避免在复制文字时（鼠标在外部区域释放）误关闭
-     * 这样只有在外部区域按下鼠标时才会关闭，符合常见软件的交互习惯
-     */
-    handleOverlayMouseDown(event) {
-      // 只在 overlay 背景上按下鼠标时才关闭（不是 content 区域）
-      // event.target 是 overlay 本身，而不是 content
+    handleOverlayMouseDown(event: MouseEvent) {
       if (event.target === event.currentTarget) {
         this.handleClose()
       }
     },
     async handleBrowseFile(key: string, field: FormFieldType) {
       try {
-        if (!(field instanceof FormField_SelectFile || field instanceof FormField_SelectCover)) return
+        if (!(field instanceof FormField_SelectFile)) return
         
         if (!this.isElectronEnvironment || !window.electronAPI) {
           await alertService.warning('当前环境不支持文件选择功能，请在 Electron 环境中使用')
@@ -439,7 +581,6 @@ export default {
         const electronAPI = window.electronAPI
         const filters = field.filters || []
 
-        // 使用统一的 API，直接传递过滤器数组
         if (!electronAPI.selectFileWithExtensions) {
           await alertService.error('当前环境不支持根据扩展名选择文件功能')
           return
@@ -448,7 +589,6 @@ export default {
         const filePath = await electronAPI.selectFileWithExtensions(filters, null, `选择${field.fieldName}`)
 
         if (filePath) {
-          // 验证文件扩展名
           if (filters && filters.length > 0) {
             const fileExt = this.getFileExtension(filePath).toLowerCase()
             const allAllowedExtensions: string[] = []
@@ -474,16 +614,30 @@ export default {
           }
 
           this.formData[key] = filePath
-          console.log(`已选择文件 (${key}):`, filePath)
           
           // 如果是可执行文件字段，自动提取游戏名称（如果名称字段为空）
           if (this.isExecutableFileField(field)) {
-            const gameInstance = new Game()
-            for (const nameKey in gameInstance) {
-              const value = (gameInstance as any)[nameKey]
+            const resourceInstance = new this.resourceClass()
+            for (const nameKey in resourceInstance) {
+              const value = (resourceInstance as any)[nameKey]
               if (value instanceof FormFieldType && value.fieldType === FormFieldTypeEnum.TEXT && 
                   (this.formData[nameKey] || '').trim() === '') {
                 this.formData[nameKey] = this.extractGameNameFromPath(filePath)
+                break
+              }
+            }
+          }
+          
+          // 如果是图片文件字段（单图片模式），自动提取图片名称（如果名称字段为空）
+          if (this.isImageFile(filePath) && key === 'folderPath') {
+            const resourceInstance = new this.resourceClass()
+            for (const nameKey in resourceInstance) {
+              const value = (resourceInstance as any)[nameKey]
+              if (value instanceof FormFieldType && value.fieldType === FormFieldTypeEnum.TEXT && 
+                  (this.formData[nameKey] || '').trim() === '') {
+                // 从文件名提取名称（不含扩展名）
+                const fileName = filePath.split(/[\\/]/).pop() || ''
+                this.formData[nameKey] = fileName.replace(/\.[^/.]+$/, '')
                 break
               }
             }
@@ -492,6 +646,33 @@ export default {
       } catch (error: any) {
         console.error('选择文件失败:', error)
         await alertService.error(`选择文件失败: ${error.message || '未知错误'}`)
+      }
+    },
+    async handleBrowseFolder(key: string, field: FormFieldType) {
+      try {
+        if (!(field instanceof FormField_SelectFolder)) return
+        
+        if (!this.isElectronEnvironment || !window.electronAPI) {
+          await alertService.warning('当前环境不支持文件夹选择功能，请在 Electron 环境中使用')
+          return
+        }
+
+        const electronAPI = window.electronAPI
+        if (!electronAPI.selectFolder) {
+          await alertService.error('当前环境不支持文件夹选择功能')
+          return
+        }
+
+        const result = await electronAPI.selectFolder()
+
+        if (result && result.success && result.path) {
+          this.formData[key] = result.path
+        } else if (result && !result.success) {
+          await alertService.warning(result.error || '未选择文件夹')
+        }
+      } catch (error: any) {
+        console.error('选择文件夹失败:', error)
+        await alertService.error(`选择文件夹失败: ${error.message || '未知错误'}`)
       }
     },
     getFileExtension(filePath: string): string {
@@ -511,19 +692,16 @@ export default {
       if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
         return '/default-game.png'
       }
-      // 如果是 HTTP/HTTPS URL，直接返回
       if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
         return filePath
       }
-      // 如果是 data URL，直接返回
       if (filePath.startsWith('data:') || filePath.startsWith('file:')) {
         return filePath
       }
-      // 对于本地文件路径，转换为 file:// URL
       const normalizedPath = String(filePath).replace(/\\/g, '/')
       return `file:///${normalizedPath}`
     },
-    extractGameNameFromPath(filePath) {
+    extractGameNameFromPath(filePath: string) {
       const fileName = filePath.split(/[\\/]/).pop() || ''
       const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
 
@@ -549,32 +727,38 @@ export default {
       return cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
     },
     async handleBrowseImage(key: string) {
-      const gameInstance = new Game()
-      for (const fieldKey in gameInstance) {
-        const field = (gameInstance as any)[fieldKey]
-        if (fieldKey === key && (field instanceof FormField_SelectFile || field instanceof FormField_SelectCover)) {
-          await this.handleBrowseFile(key, field)
+      const resourceInstance = new this.resourceClass()
+      for (const fieldKey in resourceInstance) {
+        const field = (resourceInstance as any)[fieldKey]
+        if (fieldKey === key && (field instanceof FormField_SelectFile || this.isCoverField(field))) {
+          if (field instanceof FormField_SelectFile) {
+            await this.handleBrowseFile(key, field)
+          } else {
+            // 封面字段使用图片文件选择
+            const coverField = new FormField_SelectFile('封面', [
+              { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] }
+            ])
+            await this.handleBrowseFile(key, coverField)
+          }
           break
         }
       }
     },
     async handleUseScreenshotAsCover(key: string) {
       try {
-        // 获取游戏名称字段的值
-        const gameInstance = new Game()
-        let gameNameKey = ''
-        for (const nameKey in gameInstance) {
-          const field = (gameInstance as any)[nameKey]
+        const resourceInstance = new this.resourceClass()
+        let nameKey = ''
+        for (const fieldKey in resourceInstance) {
+          const field = (resourceInstance as any)[fieldKey]
           if (field instanceof FormFieldType && field.fieldType === FormFieldTypeEnum.TEXT) {
-            gameNameKey = nameKey
+            nameKey = fieldKey
             break
           }
         }
-        const gameName = gameNameKey ? (this.formData[gameNameKey] || '').trim() : ''
+        const resourceName = nameKey ? (this.formData[nameKey] || '').trim() : ''
 
         if (this.isEditMode) {
-          // 编辑模式：使用游戏ID和名称
-          if (!gameName) {
+          if (!resourceName) {
             await alertService.warning('请先输入游戏名称', '提示')
             return
           }
@@ -584,20 +768,16 @@ export default {
             return
           }
 
-          // 使用公共函数获取截图文件夹路径
-          const { getGameScreenshotFolderPath } = await import('../../composables/game/useGameScreenshot')
+          const { getGameScreenshotFolderPath } = await import('../composables/game/useGameScreenshot')
           const gameScreenshotPath = await getGameScreenshotFolderPath(
             this.formData.id,
-            gameName,
+            resourceName,
             this.isElectronEnvironment
           )
 
           if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.ensureDirectory) {
             try {
-              const ensureResult = await window.electronAPI.ensureDirectory(gameScreenshotPath)
-              if (ensureResult.success) {
-                console.log('截图文件夹已确保存在:', gameScreenshotPath)
-              }
+              await window.electronAPI.ensureDirectory(gameScreenshotPath)
             } catch (error) {
               console.warn('确保截图文件夹存在时出错:', error)
             }
@@ -621,19 +801,18 @@ export default {
             await alertService.warning('当前环境不支持选择图片功能', '提示')
           }
         } else {
-          // 添加模式：使用游戏名称或文件路径
           const executablePath = this.getExecutablePathValue()
-          if (!gameName && !executablePath) {
+          if (!resourceName && !executablePath) {
             await alertService.warning('请先输入游戏名称或选择可执行文件')
             return
           }
 
-          let finalGameName = gameName
-          if (!finalGameName && executablePath) {
-            finalGameName = this.extractGameNameFromPath(executablePath)
+          let finalName = resourceName
+          if (!finalName && executablePath) {
+            finalName = this.extractGameNameFromPath(executablePath)
           }
 
-          if (!finalGameName) {
+          if (!finalName) {
             await alertService.error('无法确定游戏名称')
             return
           }
@@ -653,22 +832,19 @@ export default {
             baseScreenshotsPath = `${saveManager.dataDirectory}/Game/Screenshots`
           }
 
-          let gameFolderName = 'Screenshots'
-          if (finalGameName && finalGameName !== 'Screenshot') {
-            gameFolderName = finalGameName.replace(/[<>:"/\\|?*]/g, '_').trim()
-            if (!gameFolderName) {
-              gameFolderName = 'Screenshots'
+          let folderName = 'Screenshots'
+          if (finalName && finalName !== 'Screenshot') {
+            folderName = finalName.replace(/[<>:"/\\|?*]/g, '_').trim()
+            if (!folderName) {
+              folderName = 'Screenshots'
             }
           }
 
-          const gameScreenshotPath = `${baseScreenshotsPath}/${gameFolderName}`.replace(/\\/g, '/')
+          const gameScreenshotPath = `${baseScreenshotsPath}/${folderName}`.replace(/\\/g, '/')
 
           if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.ensureDirectory) {
             try {
-              const ensureResult = await window.electronAPI.ensureDirectory(gameScreenshotPath)
-              if (ensureResult.success) {
-                console.log('截图文件夹已确保存在:', gameScreenshotPath)
-              }
+              await window.electronAPI.ensureDirectory(gameScreenshotPath)
             } catch (error) {
               console.warn('确保截图文件夹存在时出错:', error)
             }
@@ -697,6 +873,24 @@ export default {
         await alertService.error(`选择截图失败: ${error.message}`)
       }
     },
+    async handleUseFirstImageAsCover(key: string) {
+      // 这个功能需要在父组件中实现，通过事件或插槽
+      // 父组件应该通过回调或事件更新封面
+      this.$emit('use-first-image-cover', key, this.formData, (coverPath: string) => {
+        if (coverPath) {
+          this.formData[key] = coverPath
+        }
+      })
+    },
+    async handleSelectFromFolder(key: string) {
+      // 这个功能需要在父组件中实现，通过事件或插槽
+      // 父组件应该通过回调或事件更新封面
+      this.$emit('select-from-folder-cover', key, this.formData, (coverPath: string) => {
+        if (coverPath) {
+          this.formData[key] = coverPath
+        }
+      })
+    },
     handleClearCover(key: string) {
       this.formData[key] = ''
     },
@@ -719,10 +913,9 @@ export default {
         const detectedEngine = await detectGameEngine(gamePath)
         
         if (detectedEngine) {
-          // 找到引擎字段并设置值
-          const gameInstance = new Game()
-          for (const key in gameInstance) {
-            const field = (gameInstance as any)[key]
+          const resourceInstance = new this.resourceClass()
+          for (const key in resourceInstance) {
+            const field = (resourceInstance as any)[key]
             if (field instanceof FormField_SelectEngine) {
               this.formData[key] = detectedEngine
               notify.toast('success', '识别成功', `已识别为 ${detectedEngine}`)
@@ -740,104 +933,64 @@ export default {
     async handleConfirm() {
       if (!this.canConfirm) return
 
-      const gameInstance = new Game()
-      const game: Record<string, any> = {
-        id: this.formData.id || (this.isEditMode ? this.game.id : Date.now().toString()),
+      // 如果有自定义确认处理函数，先执行它
+      if (this.customConfirmHandler) {
+        const result = await this.customConfirmHandler(this.formData, this.isEditMode)
+        if (result === false) {
+          // 返回 false 表示阻止默认行为
+          return
+        }
+      }
+
+      const resourceInstance = new this.resourceClass()
+      const resource: Record<string, any> = {
+        id: this.formData.id || (this.isEditMode ? this.resourceData?.id : Date.now().toString()),
         fileExists: true
       }
 
-      // 遍历 Game 类的字段定义，从 formData 中提取对应的值
-      for (const key in gameInstance) {
-        const field = (gameInstance as any)[key]
+      // 遍历资源类的字段定义，从 formData 中提取对应的值
+      for (const key in resourceInstance) {
+        const field = (resourceInstance as any)[key]
         if (field instanceof FormFieldType) {
           let value = this.formData[key]
           
-          // 根据字段类型处理值
           if (field.fieldType === FormFieldTypeEnum.TAGS) {
-            game[key] = Array.isArray(value) ? [...value] : []
+            resource[key] = Array.isArray(value) ? [...value] : []
           } else if (typeof value === 'string') {
-            game[key] = value.trim()
+            resource[key] = value.trim()
           } else {
-            game[key] = value
+            resource[key] = value
           }
 
           // 编辑模式的特殊处理：如果值为空，保留原有值
-          if (this.isEditMode && this.game) {
-            if (typeof game[key] === 'string' && game[key] === '') {
-              game[key] = (this.game as any)[key] || ''
+          if (this.isEditMode && this.resourceData) {
+            if (typeof resource[key] === 'string' && resource[key] === '') {
+              resource[key] = (this.resourceData as any)[key] || ''
             }
           }
         }
       }
 
-      if (this.isEditMode) {
-        // 编辑模式：返回更新的游戏对象
-        this.$emit('confirm', game)
-      } else {
-        // 添加模式：特殊处理
-        // 1. 如果名称为空，从可执行文件路径提取
-        const executablePathValue = this.getExecutablePathValue()
-        if (!game.name && executablePathValue) {
-          game.name = this.extractGameNameFromPath(executablePathValue)
-        }
-
-        // 2. 获取文件夹大小
-        let folderSize = 0
-        const filePath = executablePathValue.trim()
-        const isArchive = this.isArchiveFile(filePath)
-        
-        if (!isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
-          try {
-            const result = await window.electronAPI.getFolderSize(filePath)
-            if (result.success) {
-              folderSize = result.size
-            }
-          } catch (error) {
-            console.error('获取文件夹大小失败:', error)
-          }
-        } else if (isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFileStats) {
-          try {
-            const result = await window.electronAPI.getFileStats(filePath)
-            if (result.success && result.size) {
-              folderSize = result.size
-            }
-          } catch (error) {
-            console.error('获取压缩包文件大小失败:', error)
-          }
-        }
-
-        game.folderSize = folderSize
-        game.playTime = 0
-        game.playCount = 0
-        game.lastPlayed = null
-        game.firstPlayed = null
-        game.addedDate = new Date().toISOString()
-        game.isArchive = isArchive
-
-        this.$emit('confirm', game)
+      this.$emit('confirm', resource)
+    },
+    handleImageError(event: Event) {
+      const target = event.target as HTMLImageElement
+      if (target) {
+        target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjI4MCIgdmlld0JveD0iMCAwIDIwMCAyODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgMTIwSDgwVjE2MEgxMjBWMTIwWiIgZmlsbD0iIzlDQTNBRiIvPgo8cGF0aCBkPSJNODAgMTIwTDEwMCAxMDBMMTIwIDEyMEwxMDAgMTQwTDgwIDEyMFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+'
       }
     },
-    handleImageError(event) {
-      event.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjI4MCIgdmlld0JveD0iMCAwIDIwMCAyODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgMTIwSDgwVjE2MEgxMjBWMTIwWiIgZmlsbD0iIzlDQTNBRiIvPgo8cGF0aCBkPSJNODAgMTIwTDEwMCAxMDBMMTIwIDEyMEwxMDAgMTQwTDgwIDEyMFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+'
-    },
-    getImageFileName(imagePath) {
+    getImageFileName(imagePath: string) {
       if (!imagePath) return ''
       const fileName = imagePath.split(/[\\/]/).pop()
       return fileName || imagePath
     },
-    isArchiveFile(filePath) {
-      const fileName = filePath.toLowerCase()
-      const archiveExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz', '.bz2', '.tar.bz2', '.xz', '.tar.xz']
-      return archiveExtensions.some(ext => fileName.endsWith(ext))
-    },
     handleSelectTag(tag: string) {
       if (!tag) return
       
-      // 动态查找 tags 字段
-      const gameInstance = new Game()
+      const resourceInstance = new this.resourceClass()
       let tagsKey = ''
-      for (const key in gameInstance) {
-        const field = (gameInstance as any)[key]
+      for (const key in resourceInstance) {
+        const field = (resourceInstance as any)[key]
         if (field instanceof FormFieldType && field.fieldType === FormFieldTypeEnum.TAGS) {
           tagsKey = key
           break
@@ -847,10 +1000,8 @@ export default {
       if (tagsKey && Array.isArray(this.formData[tagsKey])) {
         const index = this.formData[tagsKey].indexOf(tag)
         if (index > -1) {
-          // 如果标签已存在，则移除
           this.formData[tagsKey].splice(index, 1)
         } else {
-          // 如果标签不存在，则添加
           this.formData[tagsKey].push(tag)
         }
       }
@@ -907,20 +1058,14 @@ export default {
   transition: color 0.3s ease;
 }
 
-
 .modal-body {
   padding: 20px;
-}
-
-.form-group {
-  margin-bottom: 20px;
 }
 
 .form-field-wrapper {
   margin-bottom: 20px;
 }
 
-.form-group label,
 .form-label {
   display: block;
   color: var(--text-primary);
@@ -1169,23 +1314,6 @@ export default {
     opacity: 1;
     transform: translateX(0);
   }
-}
-
-.tag-panel-header {
-  padding: 20px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.tag-panel-header h4 {
-  color: var(--text-primary);
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  transition: color 0.3s ease;
-}
-
-.tag-panel-body {
-  padding: 20px;
 }
 
 /* 响应式设计 */

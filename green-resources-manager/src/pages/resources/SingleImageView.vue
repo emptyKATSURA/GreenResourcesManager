@@ -48,32 +48,23 @@
     </div>
 
 
-    <!-- 添加专辑对话框 -->
-    <AlbumFormDialog
+    <!-- 添加图片对话框 -->
+    <ResourcesEditDialog
       :visible="showAddDialog"
       mode="add"
-      :formData="newAlbum"
-      :cover="newAlbumCover"
-      :tagInput="tagInput"
+      :resource-class="SingleImage"
+      :is-electron-environment="true"
       :available-tags="allTags"
-      :resolveCoverImage="resolveCoverImage"
-      :getImageFileName="getImageFileName"
-      :handleImageError="handleImageError"
-      :useFirstImageAsCover="useFirstImageAsCover"
-      :selectImageFromFolder="selectImageFromFolder"
-      :browseForImage="browseForImage"
-      :clearCover="clearCover"
-      :allowSingleImage="true"
-      :singleImageOnly="true"
-      @update:visible="showAddDialog = $event"
-      @update:formData="newAlbum = $event"
-      @update:cover="newAlbumCover = $event"
-      @update:tagInput="tagInput = $event"
-      @submit="handleAddAlbumSubmit"
+      add-title="添加图片"
+      edit-title="编辑图片"
+      add-button-text="添加"
+      edit-button-text="保存修改"
+      :custom-validation="(formData, isEditMode) => {
+        return formData.folderPath && formData.folderPath.trim() !== ''
+      }"
+      :custom-confirm-handler="handleAddImageCustomConfirm"
       @close="closeAddAlbumDialog"
-      @browse-image-file="browseForImageFile"
-      @add-tag="addTag"
-      @remove-tag="removeTag"
+      @confirm="handleAddAlbumConfirm"
     />
 
     <!-- 图片详情 -->
@@ -104,32 +95,20 @@
     </DetailPanel>
 
     <!-- 编辑图片对话框 -->
-    <AlbumFormDialog
+    <ResourcesEditDialog
       :key="'edit-dialog-' + (editAlbumForm.id || 'new')"
       :visible="showEditDialog"
       mode="edit"
-      :formData="editAlbumForm"
-      :cover="editAlbumCover"
-      :tagInput="editTagInput"
+      :resource-class="SingleImage"
+      :resource-data="editAlbumForm"
+      :is-electron-environment="true"
       :available-tags="allTags"
-      :resolveCoverImage="resolveCoverImage"
-      :getImageFileName="getImageFileName"
-      :handleImageError="handleImageError"
-      :useFirstImageAsCover="useFirstImageAsCoverEdit"
-      :selectImageFromFolder="selectImageFromFolderEdit"
-      :browseForImage="browseForImageEdit"
-      :clearCover="clearCoverEdit"
-      :allowSingleImage="true"
-      :singleImageOnly="true"
-      @update:visible="(val) => { showEditDialog = val }"
-      @update:formData="editAlbumForm = $event"
-      @update:cover="editAlbumCover = $event"
-      @update:tagInput="editTagInput = $event"
-      @submit="handleEditAlbumSubmit"
+      add-title="添加图片"
+      edit-title="编辑图片"
+      add-button-text="添加"
+      edit-button-text="保存修改"
       @close="closeEditAlbumDialog"
-      @browse-image-file="browseForImageFileEdit"
-      @add-tag="addEditTag"
-      @remove-tag="removeEditTag"
+      @confirm="handleEditAlbumConfirm"
     />
 
     <!-- 图片查看器 -->
@@ -172,7 +151,8 @@ import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 import ComicViewer from '../../components/ComicViewer.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
-import AlbumFormDialog from '../../components/image/AlbumFormDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { SingleImage } from '../../types/class/singleImage.ts'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 
 import notify from '../../utils/NotificationService.ts'
@@ -207,7 +187,7 @@ export default {
     DetailPanel,
     ComicViewer,
     PathUpdateDialog,
-    AlbumFormDialog,
+    ResourcesEditDialog,
     AlbumPagesGrid
   },
   emits: ['filter-data-updated'],
@@ -392,6 +372,8 @@ export default {
       renderQuality: 'high', // 渲染质量
       // 编辑相关
       showEditDialog: false,
+      // SingleImage 类用于 ResourcesEditDialog
+      SingleImage: SingleImage,
       editAlbumForm: {
         id: '',
         name: '',
@@ -775,18 +757,33 @@ export default {
         alertService.error('选择图片文件失败: ' + e.message)
       }
     },
-    handleAddAlbumSubmit(formData) {
-      // 同步 cover 从 composable ref
-      formData.cover = this.newAlbumCover
-      this.addAlbumInternal(formData)
+    // 添加图片时的自定义确认处理（单图片模式：封面就是文件本身）
+    async handleAddImageCustomConfirm(formData, isEditMode) {
+      if (isEditMode) return // 编辑模式不需要特殊处理
+      
+      // 单图片模式：封面就是图片文件本身
+      if (formData.folderPath && !formData.cover) {
+        formData.cover = formData.folderPath
+      }
+      
+      // 如果名称为空，从文件名提取
+      if (!formData.name && formData.folderPath) {
+        const parts = formData.folderPath.replace(/\\/g, '/').split('/')
+        const fileName = parts[parts.length - 1]
+        formData.name = fileName.replace(/\.[^/.]+$/, '')
+      }
+    },
+    handleAddAlbumConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
+      this.addAlbumInternal(resourceData)
     },
     
     async addAlbumInternal(formData) {
       if (!formData || !formData.folderPath || !formData.folderPath.trim()) return
       try {
         console.log('开始添加图片，文件路径:', formData.folderPath)
-        
-        // 单图模式：封面就是图片文件本身
+
+        // 单图模式：封面就是图片文件本身（已在 handleAddImageCustomConfirm 中处理）
         const cover = formData.cover || formData.folderPath
         
         const album = await this.addAlbum({
@@ -1029,10 +1026,13 @@ export default {
     // 封面管理方法已移至 useImageCover composable
     // browseForImageEdit, useFirstImageAsCover, selectImageFromFolder, clearCover (编辑)
     // browseForImageNew, useFirstImageAsCoverNew, selectImageFromFolderNew, clearCoverNew (新建)
-    handleEditAlbumSubmit(formData) {
-      // 同步 cover 从 composable ref
-      formData.cover = this.editAlbumCover
-      this.saveEditedAlbum(formData)
+    handleEditAlbumConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
+      // 单图片模式：封面就是图片文件本身
+      if (resourceData.folderPath && !resourceData.cover) {
+        resourceData.cover = resourceData.folderPath
+      }
+      this.saveEditedAlbum(resourceData)
     },
     
     // handleUpdateRating, handleUpdateComment, handleToggleFavorite 已移至 DetailPanel 内部统一处理

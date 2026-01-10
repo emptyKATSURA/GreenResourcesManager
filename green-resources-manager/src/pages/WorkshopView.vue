@@ -20,10 +20,7 @@
 
     <!-- 插件列表 -->
     <div class="plugins-container">
-      <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>正在加载插件...</p>
-      </div>
+      <FunLoading v-if="isLoading" text="正在加载插件..." />
 
       <div v-else-if="plugins.length === 0" class="empty-state">
         <div class="empty-icon">📦</div>
@@ -92,9 +89,13 @@
 
 <script lang="ts">
 import pluginManager from '../utils/PluginManager'
+import FunLoading from '../fun-ui/feedback/Loading/FunLoading.vue'
 
 export default {
   name: 'WorkshopView',
+  components: {
+    FunLoading
+  },
   data() {
     return {
       plugins: [],
@@ -303,31 +304,6 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 0 4px;
-}
-
-/* 加载状态 */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: var(--text-secondary);
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border-color);
-  border-top: 4px solid var(--accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* 空状态 */

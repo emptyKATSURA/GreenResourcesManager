@@ -7,9 +7,7 @@
       </div>
 
       <div class="resources-container">
-        <div v-if="isLoading" class="loading-state">
-          <p>加载中...</p>
-        </div>
+        <FunLoading v-if="isLoading" text="加载中..." />
         <div v-else-if="recentResources.length > 0" class="resources-grid">
           <ResourceCard
             v-for="resource in recentResources"
@@ -29,6 +27,7 @@
 <script lang="ts">
 import saveManager from '../utils/SaveManager.ts'
 import ResourceCard from '../components/home/ResourceCard.vue'
+import FunLoading from '../fun-ui/feedback/Loading/FunLoading.vue'
 
 interface UnifiedResource {
   id: string
@@ -49,7 +48,8 @@ interface UnifiedResource {
 export default {
   name: 'RecentView',
   components: {
-    ResourceCard
+    ResourceCard,
+    FunLoading
   },
   data() {
     return {
@@ -340,7 +340,6 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.loading-state,
 .empty-state {
   text-align: center;
   padding: 3rem;

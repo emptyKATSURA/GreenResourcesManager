@@ -3,9 +3,8 @@
     <!-- 加载中提示 -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-content">
-        <div class="loading-spinner"></div>
         <h2>Butter Manager</h2>
-        <p>正在初始化应用...</p>
+        <FunLoading text="正在初始化应用..." />
       </div>
     </div>
 
@@ -178,6 +177,7 @@
 <script lang="ts">
 import GlobalAudioPlayer from './components/GlobalAudioPlayer.vue'
 import FilterSidebar from './components/FilterSidebar.vue'
+import FunLoading from './fun-ui/feedback/Loading/FunLoading.vue'
 import { updateDynamicRoutes } from './router/index'
 
 
@@ -196,7 +196,8 @@ export default {
   name: 'App',
   components: {
     GlobalAudioPlayer,
-    FilterSidebar
+    FilterSidebar,
+    FunLoading
   },
   data() {
     return {
@@ -1545,33 +1546,11 @@ export default {
   color: var(--text-primary);
 }
 
-.loading-spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid var(--border-color);
-  border-top: 4px solid var(--accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-
 .loading-content h2 {
-  margin: 0 0 10px 0;
+  margin: 0 0 20px 0;
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.loading-content p {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--text-secondary);
-  opacity: 0.8;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* 插件视图样式 */

@@ -143,7 +143,10 @@ export class FormField_SelectEngine extends FormField {
 }
 
 
-export class FormField_SelectCover extends FormField {
+/**
+ * 封面选择字段
+ */
+abstract class FormField_SelectCover extends FormField {
 	filters: FileSelectFilter[] = [
 		{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] }
 	]
@@ -153,6 +156,29 @@ export class FormField_SelectCover extends FormField {
 }
 
 
+/**
+ * 游戏封面选择字段
+ */
+export class FormField_SelectGameCover extends FormField_SelectCover {
+	
+	constructor(fieldName: string, required?: boolean) {
+		super(fieldName, required)
+	}
+}
+
+/**
+ * 漫画封面选择字段
+ */
+export class FormField_SelectMangaCover extends FormField_SelectCover {
+
+	constructor(fieldName: string, required?: boolean) {
+		super(fieldName, required)
+	}
+}
+
+/**
+ * 单选按钮字段
+ */
 export class FormField_Radio extends FormField {
 	options: string[]
 	constructor(fieldName: string, options: string[], required?: boolean) {
@@ -161,6 +187,9 @@ export class FormField_Radio extends FormField {
 	}
 }
 
+/**
+ * 文件选择字段
+ */
 export class FormField_SelectFile extends FormField {
 	filters: FileSelectFilter[]
 	constructor(fieldName: string, filters: FileSelectFilter[], required?: boolean) {
@@ -168,12 +197,19 @@ export class FormField_SelectFile extends FormField {
 		this.filters = filters
 	}
 }
+
+/**
+ * 文件夹选择字段
+ */
 export class FormField_SelectFolder extends FormField {
 	constructor(fieldName: string, required?: boolean) {
 		super(fieldName, FormFieldType.SELECT_FOLDER, required)
 	}
 }
 
+/**
+ * 标签字段
+ */
 export class FormField_Tags extends FormField {
 	constructor(fieldName: string, required?: boolean) {
 		super(fieldName, FormFieldType.TAGS, required)

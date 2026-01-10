@@ -48,29 +48,25 @@
 
 
     <!-- 添加专辑对话框 -->
-    <AlbumFormDialog
+    <ResourcesEditDialog
       :visible="showAddDialog"
       mode="add"
-      :formData="newAlbum"
-      :cover="newAlbumCover"
-      :tagInput="tagInput"
+      :resource-class="Manga"
+      :is-electron-environment="true"
       :available-tags="allTags"
-      :resolveCoverImage="resolveCoverImage"
-      :getImageFileName="getImageFileName"
-      :handleImageError="handleImageError"
-      :useFirstImageAsCover="useFirstImageAsCover"
-      :selectImageFromFolder="selectImageFromFolder"
-      :browseForImage="browseForImage"
-      :clearCover="clearCover"
-      @update:visible="showAddDialog = $event"
-      @update:formData="newAlbum = $event"
-      @update:cover="newAlbumCover = $event"
-      @update:tagInput="tagInput = $event"
-      @submit="handleAddAlbumSubmit"
+      :enable-first-image-cover="true"
+      :enable-select-from-folder="true"
+      add-title="添加漫画"
+      edit-title="编辑漫画"
+      add-button-text="添加"
+      edit-button-text="保存修改"
+      :custom-validation="(formData, isEditMode) => {
+        return formData.folderPath && formData.folderPath.trim() !== ''
+      }"
       @close="closeAddAlbumDialog"
-      @browse-folder="browseForFolder"
-      @add-tag="addTag"
-      @remove-tag="removeTag"
+      @confirm="handleAddAlbumConfirm"
+      @use-first-image-cover="handleUseFirstImageAsCover"
+      @select-from-folder-cover="handleSelectFromFolderCover"
     />
 
     <!-- 漫画专辑详情 -->
@@ -101,30 +97,24 @@
     </DetailPanel>
 
     <!-- 编辑漫画对话框 -->
-    <AlbumFormDialog
+    <ResourcesEditDialog
       :key="'edit-dialog-' + (editAlbumForm.id || 'new')"
       :visible="showEditDialog"
       mode="edit"
-      :formData="editAlbumForm"
-      :cover="editAlbumCover"
-      :tagInput="editTagInput"
+      :resource-class="Manga"
+      :resource-data="editAlbumForm"
+      :is-electron-environment="true"
       :available-tags="allTags"
-      :resolveCoverImage="resolveCoverImage"
-      :getImageFileName="getImageFileName"
-      :handleImageError="handleImageError"
-      :useFirstImageAsCover="useFirstImageAsCoverEdit"
-      :selectImageFromFolder="selectImageFromFolderEdit"
-      :browseForImage="browseForImageEdit"
-      :clearCover="clearCoverEdit"
-      @update:visible="(val) => { showEditDialog = val }"
-      @update:formData="editAlbumForm = $event"
-      @update:cover="editAlbumCover = $event"
-      @update:tagInput="editTagInput = $event"
-      @submit="handleEditAlbumSubmit"
+      :enable-first-image-cover="true"
+      :enable-select-from-folder="true"
+      add-title="添加漫画"
+      edit-title="编辑漫画"
+      add-button-text="添加"
+      edit-button-text="保存修改"
       @close="closeEditAlbumDialog"
-      @browse-folder="browseForFolderEdit"
-      @add-tag="addEditTag"
-      @remove-tag="removeEditTag"
+      @confirm="handleEditAlbumConfirm"
+      @use-first-image-cover="handleUseFirstImageAsCoverEdit"
+      @select-from-folder-cover="handleSelectFromFolderCoverEdit"
     />
 
     <!-- 漫画阅读器 -->
@@ -167,7 +157,8 @@ import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 import ComicViewer from '../../components/ComicViewer.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
-import AlbumFormDialog from '../../components/image/AlbumFormDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { Manga } from '../../types/class/manga.ts'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 
 import notify from '../../utils/NotificationService.ts'
@@ -202,7 +193,7 @@ export default {
     DetailPanel,
     ComicViewer,
     PathUpdateDialog,
-    AlbumFormDialog,
+    ResourcesEditDialog,
     AlbumPagesGrid
   },
   emits: ['filter-data-updated'],
@@ -398,6 +389,8 @@ export default {
       renderQuality: 'high', // 渲染质量
       // 编辑相关
       showEditDialog: false,
+      // Manga 类用于 ResourcesEditDialog
+      Manga: Manga,
       editAlbumForm: {
         id: '',
         name: '',
@@ -752,10 +745,9 @@ export default {
         alertService.error('选择文件夹失败: ' + e.message)
       }
     },
-    handleAddAlbumSubmit(formData) {
-      // 同步 cover 从 composable ref
-      formData.cover = this.newAlbumCover
-      this.addAlbumInternal(formData)
+    handleAddAlbumConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
+      this.addAlbumInternal(resourceData)
     },
     
     async addAlbumInternal(formData) {
@@ -990,12 +982,78 @@ export default {
     // 封面管理方法已移至 useImageCover composable
     // browseForImageEdit, useFirstImageAsCover, selectImageFromFolder, clearCover (编辑)
     // browseForImageNew, useFirstImageAsCoverNew, selectImageFromFolderNew, clearCoverNew (新建)
-    handleEditAlbumSubmit(formData) {
-      // 同步 cover 从 composable ref
-      formData.cover = this.editAlbumCover
-      this.saveEditedAlbum(formData)
+    handleEditAlbumConfirm(resourceData) {
+      // ResourcesEditDialog 返回的资源数据
+      this.saveEditedAlbum(resourceData)
     },
-    
+    // 处理使用第一张图片作为封面（添加模式）
+    async handleUseFirstImageAsCover(key: string, formData: any, updateCover: (path: string) => void) {
+      const folderPath = formData?.folderPath || this.newAlbumFolderPath
+      if (!folderPath) {
+        notify.toast('error', '设置失败', '请先选择漫画文件夹')
+        return
+      }
+      // 更新 folderPath ref 以便 composable 使用
+      if (formData?.folderPath && formData.folderPath !== this.newAlbumFolderPath) {
+        this.newAlbumFolderPath = formData.folderPath
+      }
+      await this.useFirstImageAsCover()
+      // 通过回调更新 ResourcesEditDialog 的 formData
+      if (updateCover && this.newAlbumCover) {
+        updateCover(this.newAlbumCover)
+      }
+    },
+    // 处理从文件夹选择封面（添加模式）
+    async handleSelectFromFolderCover(key: string, formData: any, updateCover: (path: string) => void) {
+      const folderPath = formData?.folderPath || this.newAlbumFolderPath
+      if (!folderPath) {
+        notify.toast('error', '设置失败', '请先选择漫画文件夹')
+        return
+      }
+      // 更新 folderPath ref 以便 composable 使用
+      if (formData?.folderPath && formData.folderPath !== this.newAlbumFolderPath) {
+        this.newAlbumFolderPath = formData.folderPath
+      }
+      await this.selectImageFromFolder()
+      // 通过回调更新 ResourcesEditDialog 的 formData
+      if (updateCover && this.newAlbumCover) {
+        updateCover(this.newAlbumCover)
+      }
+    },
+    // 处理使用第一张图片作为封面（编辑模式）
+    async handleUseFirstImageAsCoverEdit(key: string, formData: any, updateCover: (path: string) => void) {
+      const folderPath = formData?.folderPath || this.editAlbumFolderPath
+      if (!folderPath) {
+        notify.toast('error', '设置失败', '请先选择漫画文件夹')
+        return
+      }
+      // 更新 folderPath ref 以便 composable 使用
+      if (formData?.folderPath && formData.folderPath !== this.editAlbumFolderPath) {
+        this.editAlbumFolderPath = formData.folderPath
+      }
+      await this.useFirstImageAsCoverEdit()
+      // 通过回调更新 ResourcesEditDialog 的 formData
+      if (updateCover && this.editAlbumCover) {
+        updateCover(this.editAlbumCover)
+      }
+    },
+    // 处理从文件夹选择封面（编辑模式）
+    async handleSelectFromFolderCoverEdit(key: string, formData: any, updateCover: (path: string) => void) {
+      const folderPath = formData?.folderPath || this.editAlbumFolderPath
+      if (!folderPath) {
+        notify.toast('error', '设置失败', '请先选择漫画文件夹')
+        return
+      }
+      // 更新 folderPath ref 以便 composable 使用
+      if (formData?.folderPath && formData.folderPath !== this.editAlbumFolderPath) {
+        this.editAlbumFolderPath = formData.folderPath
+      }
+      await this.selectImageFromFolderEdit()
+      // 通过回调更新 ResourcesEditDialog 的 formData
+      if (updateCover && this.editAlbumCover) {
+        updateCover(this.editAlbumCover)
+      }
+    },
     // handleUpdateRating, handleUpdateComment, handleToggleFavorite 已移至 DetailPanel 内部统一处理
     // 保留这些方法作为向后兼容（如果 DetailPanel 没有提供 onUpdateResource prop）
     async handleUpdateRating(rating, album) {

@@ -4,7 +4,7 @@ import {
 	FormField_Tags, 
 	FormField_SelectEngine, 
 	FormField_SelectFile, 
-	FormField_SelectCover,
+	FormField_SelectGameCover,
 	FormField as FormFieldType
 } from './FormField.ts'
 
@@ -27,7 +27,7 @@ export class Game  {
 		{ name: '可执行文件', extensions: ['exe', 'dll'] },
 		{ name: "所有文件", extensions: ["*"] }
 	], true)
-	image :FormField_SelectCover = new FormField_SelectCover('游戏封面', false)
+	image :FormField_SelectGameCover = new FormField_SelectGameCover('游戏封面', false)
 	
 	
 	

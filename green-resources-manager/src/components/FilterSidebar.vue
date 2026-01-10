@@ -2,10 +2,7 @@
 <template>
   <div class="filter-sidebar">
     <!-- 加载状态 -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="loading-spinner"></div>
-      <p class="loading-text">正在加载筛选器...</p>
-    </div>
+    <FunLoading v-if="isLoading" text="正在加载筛选器..." />
     
     <!-- 动态筛选器列表 -->
     <div 
@@ -58,9 +55,13 @@
 <script>
 import disguiseManager from '../utils/DisguiseManager'
 import { isDisguiseModeEnabled } from '../utils/disguiseMode'
+import FunLoading from '../fun-ui/feedback/Loading/FunLoading.vue'
 
 export default {
   name: 'FilterSidebar',
+  components: {
+    FunLoading
+  },
   props: {
     filters: {
       type: Array,
@@ -312,38 +313,6 @@ export default {
   text-align: center;
   color: var(--text-tertiary);
   font-style: italic;
-}
-
-/* 加载状态样式 */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top: 3px solid var(--accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  margin: 0;
-  transition: color 0.3s ease;
 }
 
 /* 空状态样式 */
