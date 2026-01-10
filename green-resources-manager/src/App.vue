@@ -76,6 +76,21 @@
           </div>
         </li>
         
+        <!-- Debug（一级菜单） -->
+        <li 
+          class="nav-item-wrapper"
+          :class="{ active: $route.name === 'debug' }"
+        >
+          <div 
+            class="nav-item"
+            :class="{ active: $route.name === 'debug' }"
+            @click="navigateTo('debug')"
+          >
+            <span class="nav-icon">{{ viewConfig.debug?.icon || '🐛' }}</span>
+            <span class="nav-text">{{ viewConfig.debug?.name || 'Debug' }}</span>
+          </div>
+        </li>
+        
         <!-- 插件注册的导航项 -->
         <li 
           v-for="navItem in pluginNavigationItems" 
@@ -251,6 +266,11 @@ export default {
           icon: '🔍',
           description: '在所有资源中搜索内容'
         },
+        debug: {
+          name: 'Debug',
+          icon: '🐛',
+          description: '用于各种调试和测试'
+        },
         workshop: {
           name: '创意工坊',
           icon: '🎨',
@@ -298,8 +318,8 @@ export default {
     },
     // 主导航页面ID列表（一级菜单）
     mainNavViewIds() {
-      // 主页和搜索是一级菜单，资源页面是主页的子菜单
-      return ['home', 'search']
+      // 主页、搜索和debug是一级菜单，资源页面是主页的子菜单
+      return ['home', 'search', 'debug']
     },
     // 资源页面列表（主页的子菜单）
     resourcePages() {

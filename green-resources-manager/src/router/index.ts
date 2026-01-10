@@ -27,6 +27,17 @@ const fixedRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/debug',
+    name: 'debug',
+    component: () => import('../pages/DebugView.vue'),
+    meta: {
+      title: 'Debug',
+      icon: '🐛',
+      description: '用于各种调试和测试',
+      requiresFilter: false
+    }
+  },
+  {
     path: '/workshop',
     name: 'workshop',
     component: () => import('../pages/WorkshopView.vue'),

@@ -2,11 +2,13 @@
  * 图片/漫画专辑相关类型定义
  */
 
-export interface Album {
-  id: string
-  name: string
+import type { BaseResource } from './abstract/BaseResource'
+
+export interface Album extends BaseResource {
   author: string
+  // description 在 BaseResource 中是可选的，这里覆盖为必需的
   description: string
+  // tags 在 BaseResource 中是可选的，这里覆盖为必需的
   tags: string[]
   folderPath: string
   cover: string

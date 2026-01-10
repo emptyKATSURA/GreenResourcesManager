@@ -2,12 +2,12 @@
  * 音频相关类型定义
  */
 
+import type { BaseResource } from './abstract/BaseResource'
+
 /**
  * 音频基本信息接口
  */
-export interface Audio {
-  id: string
-  name: string
+export interface Audio extends BaseResource {
   artist?: string
   album?: string
   genre?: string
@@ -15,7 +15,6 @@ export interface Audio {
   filePath?: string
   thumbnailPath?: string
   actors?: string[]
-  tags?: string[]
   notes?: string
   playCount?: number
   addedDate?: string

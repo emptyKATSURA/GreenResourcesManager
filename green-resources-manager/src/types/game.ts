@@ -2,17 +2,15 @@
  * 游戏相关类型定义
  */
 
+import type { BaseResource } from './abstract/BaseResource'
+
 /**
  * 游戏基本信息接口
  */
-export interface Game {
-  id: string
-  name: string
+export interface Game extends BaseResource {
   developer?: string
   publisher?: string
   engine?: string
-  description?: string
-  tags?: string[]
   executablePath?: string
   image?: string
   folderSize?: number
@@ -21,7 +19,6 @@ export interface Game {
   lastPlayed?: string | null
   firstPlayed?: string | null
   addedDate?: string
-  fileExists?: boolean
   [key: string]: any
 }
 

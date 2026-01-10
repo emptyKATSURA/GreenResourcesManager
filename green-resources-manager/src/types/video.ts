@@ -2,14 +2,12 @@
  * 视频相关类型定义
  */
 
+import type { BaseResource } from './abstract/BaseResource'
+
 /**
  * 视频基本信息接口
  */
-export interface Video {
-  id: string
-  name: string
-  description?: string
-  tags?: string[]
+export interface Video extends BaseResource {
   actors?: string[]
   series?: string
   duration?: number
@@ -30,11 +28,7 @@ export interface Video {
 /**
  * 视频文件夹接口
  */
-export interface VideoFolder {
-  id: string
-  name: string
-  description?: string
-  tags?: string[]
+export interface VideoFolder extends BaseResource {
   actors?: string[]
   series?: string
   voiceActors?: string[] // 声优

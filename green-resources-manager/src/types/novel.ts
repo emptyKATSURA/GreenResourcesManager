@@ -2,14 +2,13 @@
  * 小说相关类型定义
  */
 
+import type { BaseResource } from './abstract/BaseResource'
+
 /**
  * 小说基本信息接口
  */
-export interface Novel {
-  id: string
-  name: string
+export interface Novel extends BaseResource {
   author?: string
-  description?: string
   genre?: string
   language?: string
   filePath?: string
@@ -27,7 +26,6 @@ export interface Novel {
   rating?: number
   comment?: string // 新增评论字段（与 notes 并存，comment 用于用户评价，notes 用于其他备注）
   notes?: string
-  tags?: string[]
   status?: 'unread' | 'reading' | 'completed' | 'paused'
   isFavorite?: boolean
   isPrivate?: boolean
