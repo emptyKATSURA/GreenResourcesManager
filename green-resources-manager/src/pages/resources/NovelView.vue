@@ -88,21 +88,37 @@
       </div>
     </div>
 
-    <!-- 添加小说对话框 -->
-    <AddNovelDialog
-      ref="addNovelDialog"
-      :visible="showAddDialog"
+    <!-- 小说对话框（添加/编辑） -->
+    <ResourcesEditDialog 
+      :visible="showAddDialog" 
+      mode="add"
+      :resource-class="Novel"
       :is-electron-environment="true"
+      :available-tags="allTags"
+      add-title="添加小说"
+      edit-title="编辑小说"
+      add-button-text="添加小说"
+      edit-button-text="保存修改"
+      :custom-confirm-handler="handleAddNovelCustomConfirm"
+      :custom-validation="(formData, isEditMode) => {
+        if (isEditMode) return true
+        const filePath = formData.filePath
+        return filePath && filePath.trim() !== ''
+      }"
       @close="closeAddNovelDialog"
       @confirm="handleAddNovelConfirm"
-      @browse-novel-file="browseForNovelFile"
-      @browse-cover-image="browseForCoverImage"
     />
 
-    <!-- 编辑小说对话框 -->
-    <EditNovelDialog
-      :visible="showEditDialog"
-      :novel="editNovelForm"
+    <ResourcesEditDialog 
+      :visible="showEditDialog" 
+      mode="edit"
+      :resource-class="Novel"
+      :resource-data="editNovelForm"
+      :available-tags="allTags"
+      add-title="添加小说"
+      edit-title="编辑小说"
+      add-button-text="添加小说"
+      edit-button-text="保存修改"
       @close="closeEditNovelDialog"
       @confirm="handleEditNovelConfirm"
     />
@@ -189,8 +205,8 @@ import PdfReader from '../../components/PdfReader.vue'
 import TextReader from '../../components/TextReader.vue'
 import EbookReader from '../../components/epub-reader-v2/EbookReader.vue'
 import ContentView from '../../components/epub-reader-v2/ContentView.vue'
-import AddNovelDialog from '../../components/novel/AddNovelDialog.vue'
-import EditNovelDialog from '../../components/novel/EditNovelDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { Novel } from '../../types/class/novel.ts'
 import saveManager from '../../utils/SaveManager.ts'
 import { useNovelManagement } from '../../composables/novel/useNovelManagement'
 import { useNovelFilter } from '../../composables/novel/useNovelFilter'
@@ -216,8 +232,7 @@ export default {
     TextReader,
     EbookReader,
     ContentView,
-    AddNovelDialog,
-    EditNovelDialog
+    ResourcesEditDialog
   },
   emits: ['filter-data-updated'],
   props: {
@@ -303,28 +318,12 @@ export default {
       selectedNovel: null,
       showDetailModal: false,
       currentNovel: null,
-      newNovel: {
-        name: '',
-        author: '',
-        genre: '',
-        description: '',
-        tags: [],
-        filePath: '',
-        coverImage: ''
-      },
-      tagInput: '',
+      // newNovel 和 tagInput 已不需要，ResourcesEditDialog 会自动处理
       // 编辑相关状态
       showEditDialog: false,
-      editNovelForm: {
-        id: '',
-        name: '',
-        author: '',
-        genre: '',
-        description: '',
-        tags: [],
-        readProgress: 0
-      },
-      editTagInput: '',
+      editNovelForm: null,  // ResourcesEditDialog 会自动处理数据加载
+      // Novel 类用于 ResourcesEditDialog
+      Novel: Novel.EditableNovelProperties,
       // 图片缓存
       imageCache: {},
       // 阅读器相关状态
@@ -400,9 +399,7 @@ export default {
     currentNovelPageStartIndex() {
       return (this.currentNovelPage - 1) * this.novelPageSize
     },
-    canAddNovel() {
-      return this.newNovel.filePath.trim()
-    },
+    // canAddNovel 现在由 ResourcesEditDialog 的 customValidation 处理
     novelStats() {
       if (!this.currentNovel) return []
       
@@ -442,93 +439,12 @@ export default {
   methods: {
     showAddNovelDialog() {
       this.showAddDialog = true
-      this.newNovel = {
-        name: '',
-        author: '',
-        genre: '',
-        description: '',
-        tags: [],
-        filePath: '',
-        coverImage: ''
-      }
-      this.tagInput = ''
+      // ResourcesEditDialog 会自动重置表单
     },
     closeAddNovelDialog() {
       this.showAddDialog = false
     },
-    addTag() {
-      const tag = this.tagInput.trim()
-      if (tag && !this.newNovel.tags.includes(tag)) {
-        this.newNovel.tags.push(tag)
-        this.tagInput = ''
-      }
-    },
-    removeTag(index) {
-      this.newNovel.tags.splice(index, 1)
-    },
-    async browseForNovelFile() {
-      try {
-        if (window.electronAPI && window.electronAPI.selectNovelFile) {
-          console.log('使用Electron API选择小说文件')
-          const filePath = await window.electronAPI.selectNovelFile()
-          if (filePath) {
-            this.newNovel.filePath = filePath
-            console.log('选择的文件路径:', filePath)
-            
-            // 自动提取小说名称（如果名称字段为空）
-            if (!this.newNovel.name.trim()) {
-              this.newNovel.name = this.extractNovelNameFromPath(filePath)
-            }
-            
-            // 尝试读取文件信息
-            await this.analyzeNovelFile(filePath)
-          }
-        } else {
-          console.log('Electron API不可用，使用HTML5文件选择器')
-          this.showFileInput('novel')
-        }
-      } catch (error) {
-        console.error('选择小说文件失败:', error)
-        alertService.error(`选择文件失败: ${error.message}`)
-      }
-    },
-    async browseForCoverImage() {
-      try {
-        if (window.electronAPI && window.electronAPI.selectImageFile) {
-          console.log('使用Electron API选择图片文件')
-          const filePath = await window.electronAPI.selectImageFile()
-          if (filePath) {
-            this.newNovel.coverImage = filePath
-            console.log('选择的图片路径:', filePath)
-          }
-        } else {
-          console.log('Electron API不可用，使用HTML5文件选择器')
-          this.showFileInput('cover')
-        }
-      } catch (error) {
-        console.error('选择图片文件失败:', error)
-        alertService.error(`选择文件失败: ${error.message}`)
-      }
-    },
-    showFileInput(type) {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = type === 'novel' ? '.txt,.epub,.mobi,.pdf' : 'image/*'
-      input.onchange = (e) => {
-        const file = (e.target as HTMLInputElement).files[0]
-        if (file) {
-          if (type === 'novel') {
-            this.newNovel.filePath = file.path || file.name
-            if (!this.newNovel.name.trim()) {
-              this.newNovel.name = this.extractNovelNameFromPath(file.path || file.name)
-            }
-          } else {
-            this.newNovel.coverImage = file.path || file.name
-          }
-        }
-      }
-      input.click()
-    },
+    // 文件选择功能已由 ResourcesEditDialog 处理，不需要单独的方法
     extractNovelNameFromPath(filePath) {
       const fileName = filePath.split(/[\\/]/).pop()
       const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
@@ -554,7 +470,8 @@ export default {
       if (ext === '.pdf') return 'pdf'
       return 'txt'
     },
-    async analyzeNovelFile(filePath) {
+    // 分析小说文件（用于 customConfirmHandler）
+    async analyzeNovelFile(filePath: string, formData: any) {
       try {
         const fileType = this.getFileType(filePath)
         
@@ -575,26 +492,27 @@ export default {
               }
             }
             
-            // 更新新小说信息
-            this.newNovel.totalWords = metadata.totalWords || 0
-            this.newNovel.fileSize = fileSize
-            this.newNovel.encoding = 'utf-8'
+            // 更新表单数据
+            formData.totalWords = metadata.totalWords || 0
+            formData.fileSize = fileSize
+            formData.encoding = 'utf-8'
+            formData.totalChapters = chapters.length
             
             // 如果名称或作者为空，使用 EPUB 元数据填充
-            if (!this.newNovel.name.trim() && metadata.title) {
-              this.newNovel.name = metadata.title
+            if (!formData.name || !formData.name.trim()) {
+              formData.name = metadata.title || formData.name
             }
-            if (!this.newNovel.author.trim() && metadata.author) {
-              this.newNovel.author = metadata.author
+            if (!formData.author || !formData.author.trim()) {
+              formData.author = metadata.author || formData.author
             }
-            if (!this.newNovel.description.trim() && metadata.description) {
-              this.newNovel.description = metadata.description
+            if (!formData.description || !formData.description.trim()) {
+              formData.description = metadata.description || formData.description
             }
             
             // 获取封面
             const cover = await parser.getCover()
-            if (cover && !this.newNovel.coverImage) {
-              this.newNovel.coverImage = cover
+            if (cover && (!formData.coverImage || !formData.coverImage.trim())) {
+              formData.coverImage = cover
             }
             
             parser.destroy()
@@ -611,19 +529,19 @@ export default {
             notify.toast('error', '分析失败', `无法分析 EPUB 文件: ${error.message}`)
           }
         } else {
-          // TXT 文件分析（原有逻辑）
-        if (window.electronAPI && window.electronAPI.readTextFile) {
-          const result = await window.electronAPI.readTextFile(filePath)
-          if (result.success && result.content) {
-            // 使用API返回的字数统计
-            this.newNovel.totalWords = result.wordCount || 0
-            this.newNovel.fileSize = result.fileSize || 0
-            this.newNovel.encoding = result.encoding || 'utf-8'
-            console.log('文件分析结果:', { 
-              wordCount: result.wordCount, 
-              fileSize: result.fileSize, 
-              encoding: result.encoding 
-            })
+          // TXT 文件分析
+          if (window.electronAPI && window.electronAPI.readTextFile) {
+            const result = await window.electronAPI.readTextFile(filePath)
+            if (result.success && result.content) {
+              // 使用API返回的字数统计
+              formData.totalWords = result.wordCount || 0
+              formData.fileSize = result.fileSize || 0
+              formData.encoding = result.encoding || 'utf-8'
+              console.log('文件分析结果:', { 
+                wordCount: result.wordCount, 
+                fileSize: result.fileSize, 
+                encoding: result.encoding 
+              })
             }
           }
         }
@@ -631,32 +549,50 @@ export default {
         console.error('分析文件失败:', error)
       }
     },
+    // 添加小说时的自定义确认处理（处理文件名提取、文件分析等）
+    async handleAddNovelCustomConfirm(formData, isEditMode) {
+      if (isEditMode) return // 编辑模式不需要特殊处理
+      
+      const filePath = formData.filePath || ''
+      if (!filePath || !filePath.trim()) {
+        return // 文件路径为空，跳过
+      }
+      
+      // 1. 如果名称为空，从文件路径提取
+      if (!formData.name || !formData.name.trim()) {
+        formData.name = this.extractNovelNameFromPath(filePath)
+      }
+      
+      // 2. 分析文件（提取 EPUB 元数据或 TXT 字数统计）
+      await this.analyzeNovelFile(filePath, formData)
+      
+      // 3. 设置默认值
+      formData.readProgress = formData.readProgress || 0
+      formData.readTime = 0
+      formData.addedDate = new Date().toISOString()
+    },
     async handleAddNovelConfirm(novelData) {
       try {
-        if (!novelData.filePath || !novelData.filePath.trim()) {
-          notify.toast('error', '添加失败', '请选择小说文件')
-          return
-        }
-        
-        let novelName = novelData.name.trim()
-        if (!novelName) {
-          novelName = this.extractNovelNameFromPath(novelData.filePath)
-        }
-        
+        // ResourcesEditDialog 已经通过 customValidation 验证了 filePath，这里只需要处理数据
         const fileType = this.getFileType(novelData.filePath)
         
         const finalNovelData = {
-          name: novelName,
-          author: novelData.author.trim() || '未知作者',
-          genre: novelData.genre.trim() || '',
-          description: novelData.description.trim() || '',
-          tags: [...novelData.tags],
-          filePath: novelData.filePath.trim(),
+          name: (novelData.name || '').trim() || this.extractNovelNameFromPath(novelData.filePath),
+          author: (novelData.author || '').trim() || '未知作者',
+          genre: (novelData.genre || '').trim() || '',
+          description: (novelData.description || '').trim() || '',
+          tags: Array.isArray(novelData.tags) ? novelData.tags : [],
+          filePath: (novelData.filePath || '').trim(),
           fileType: fileType,
-          coverImage: novelData.coverImage.trim(),
-          readProgress: 0,
-          readTime: 0,
-          addedDate: new Date().toISOString()
+          coverImage: (novelData.coverImage || '').trim() || '',
+          readProgress: novelData.readProgress || 0,
+          readTime: novelData.readTime || 0,
+          addedDate: novelData.addedDate || new Date().toISOString(),
+          // 从文件分析中获取的数据
+          totalWords: novelData.totalWords || 0,
+          fileSize: novelData.fileSize || 0,
+          encoding: novelData.encoding || 'utf-8',
+          totalChapters: novelData.totalChapters || 0
         }
         
         const novel = await this.addNovelToManager(finalNovelData)
@@ -744,15 +680,8 @@ export default {
       this.showContextMenu = false
       this.showDetailModal = false
       if (!novel) return
-      this.editNovelForm = {
-        id: novel.id,
-        name: novel.name || '',
-        author: novel.author || '',
-        genre: novel.genre || '',
-        description: novel.description || '',
-        tags: Array.isArray(novel.tags) ? [...novel.tags] : [],
-        readProgress: novel.readProgress || 0
-      }
+      // ResourcesEditDialog 会自动从 resourceData 加载数据
+      this.editNovelForm = novel
       this.showEditDialog = true
     },
     closeEditNovelDialog() {
@@ -762,12 +691,12 @@ export default {
     async handleEditNovelConfirm(updatedNovel) {
       try {
         const updateData = {
-          name: updatedNovel.name.trim(),
-          author: updatedNovel.author.trim(),
-          genre: updatedNovel.genre.trim(),
-          description: updatedNovel.description.trim(),
-          tags: [...updatedNovel.tags],
-          readProgress: Math.max(0, Math.min(100, updatedNovel.readProgress))
+          name: (updatedNovel.name || '').trim(),
+          author: (updatedNovel.author || '').trim(),
+          genre: (updatedNovel.genre || '').trim(),
+          description: (updatedNovel.description || '').trim() || '',
+          tags: Array.isArray(updatedNovel.tags) ? updatedNovel.tags : [],
+          readProgress: Math.max(0, Math.min(100, Number(updatedNovel.readProgress) || 0))
         }
         
         await this.updateNovelInManager(updatedNovel.id, updateData)
@@ -1404,7 +1333,8 @@ export default {
         existingNovel.fileExists = true
         
         // 重新分析文件信息
-        await this.analyzeNovelFile(newPath)
+        const analysisData: any = {}
+        await this.analyzeNovelFile(newPath, analysisData)
         
         // 检测文件类型
         const fileType = this.getFileType(newPath)
@@ -1414,9 +1344,10 @@ export default {
           filePath: newPath,
           fileExists: true,
           fileType: fileType,
-          totalWords: this.newNovel.totalWords,
-          fileSize: this.newNovel.fileSize,
-          encoding: this.newNovel.encoding
+          totalWords: analysisData.totalWords || existingNovel.totalWords || 0,
+          fileSize: analysisData.fileSize || existingNovel.fileSize || 0,
+          encoding: analysisData.encoding || existingNovel.encoding || 'utf-8',
+          totalChapters: analysisData.totalChapters || existingNovel.totalChapters || 0
         })
         
         // 关闭对话框

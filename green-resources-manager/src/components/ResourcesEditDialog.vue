@@ -35,6 +35,15 @@
             :rows="3"
           />
           
+          <!-- 数字字段 -->
+          <fun-input
+            v-else-if="field instanceof FormField_Number"
+            :id="key"
+            v-model.number="formData[key]"
+            type="number"
+            :placeholder="getFieldPlaceholder(key, field)"
+          />
+          
           <!-- 选择字段（引擎类型，需要特殊处理） -->
           <template v-else-if="field instanceof FormField_SelectEngine">
             <fun-select
@@ -242,6 +251,7 @@ import {
   FormField as FormFieldType,
   FormField_Text,
   FormField_Textarea,
+  FormField_Number,
   FormField_Select,
   FormField_Tags,
   FormField_Checkbox,
@@ -370,6 +380,7 @@ export default {
       formFields,
       FormField_Text,
       FormField_Textarea,
+      FormField_Number,
       FormField_Select,
       FormField_Tags,
       FormField_Checkbox,
@@ -396,6 +407,8 @@ export default {
             data[key] = []
           } else if (value instanceof FormField_Checkbox) {
             data[key] = false
+          } else if (value instanceof FormField_Number) {
+            data[key] = 0
           } else {
             data[key] = ''
           }
@@ -618,6 +631,8 @@ export default {
               initData[key] = [...resourceValue]
             } else if (value instanceof FormField_Checkbox && typeof resourceValue === 'boolean') {
               initData[key] = resourceValue
+            } else if (value instanceof FormField_Number && (typeof resourceValue === 'number' || typeof resourceValue === 'string')) {
+              initData[key] = typeof resourceValue === 'number' ? resourceValue : Number(resourceValue) || 0
             } else if (typeof resourceValue === 'string' || typeof resourceValue === 'number' || typeof resourceValue === 'boolean') {
               initData[key] = resourceValue
             }
@@ -1066,6 +1081,8 @@ export default {
               resource[key] = Array.isArray(value) ? [...value] : []
             } else if (field instanceof FormField_Checkbox) {
               resource[key] = Boolean(value)
+            } else if (field instanceof FormField_Number) {
+              resource[key] = typeof value === 'number' ? value : (typeof value === 'string' ? Number(value) || 0 : 0)
             } else if (typeof value === 'string') {
               resource[key] = value.trim()
             } else {
