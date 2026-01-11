@@ -7,8 +7,9 @@ import {
 	FormField_SelectGameCover,
 	FormField as FormFieldType
 } from './FormField.ts'
-import { EditableProperties } from './EditableProperties.ts'
-import { SaveableProperties } from './SaveableProperties.ts'
+import { EditableProperties } from '../abstract/EditableProperties.ts'
+import { SaveableProperties } from '../abstract/SaveableProperties.ts'
+import { ResourcesDataBase } from '../abstract/ResourcesDataBase.ts'
 
 
 export namespace Game{
@@ -16,7 +17,7 @@ export namespace Game{
 	/**
 	 * 游戏基本信息接口
 	 */
-	export class GameData  {
+	export class GameData extends ResourcesDataBase {
 		developer?: string
 		publisher?: string
 		engine?: string
@@ -27,7 +28,7 @@ export namespace Game{
 		playCount?: number
 		lastPlayed?: string | null
 		firstPlayed?: string | null
-		addedDate?: string
+
 		[key: string]: any
 	}
 

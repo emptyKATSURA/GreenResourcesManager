@@ -18,6 +18,8 @@ export abstract class SaveableProperties {
 			'comment',// 评论
 			'isFavorite',// 是否收藏
 			'isArchive',// 是否为压缩包
+			'addedDate',// 添加日期
+			'fileExists',// 是否存在
 		]
 	}
 

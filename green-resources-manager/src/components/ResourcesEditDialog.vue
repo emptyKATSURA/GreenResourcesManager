@@ -75,6 +75,16 @@
             :allowDuplicate="false"
           />
           
+          <!-- 复选框字段 -->
+          <label v-else-if="field instanceof FormField_Checkbox" class="checkbox-label">
+            <input 
+              type="checkbox" 
+              :id="key"
+              v-model="formData[key]"
+            />
+            <span class="checkbox-text">{{ field.fieldName }}</span>
+          </label>
+          
           <!-- 文件选择字段（封面类型，需要特殊处理） -->
           <template v-else-if="isCoverField(field)">
             <div class="cover-selection-container">
@@ -234,6 +244,7 @@ import {
   FormField_Textarea,
   FormField_Select,
   FormField_Tags,
+  FormField_Checkbox,
   FormField_SelectEngine,
   FormField_SelectFile,
   FormField_SelectFolder,
@@ -361,6 +372,7 @@ export default {
       FormField_Textarea,
       FormField_Select,
       FormField_Tags,
+      FormField_Checkbox,
       FormField_SelectEngine,
       FormField_SelectFile,
       FormField_SelectFolder,
@@ -382,6 +394,8 @@ export default {
           // 根据字段类型初始化默认值
           if (value instanceof FormField_Tags) {
             data[key] = []
+          } else if (value instanceof FormField_Checkbox) {
+            data[key] = false
           } else {
             data[key] = ''
           }
@@ -602,6 +616,8 @@ export default {
           if (resourceValue !== undefined && resourceValue !== null) {
             if (value instanceof FormField_Tags && Array.isArray(resourceValue)) {
               initData[key] = [...resourceValue]
+            } else if (value instanceof FormField_Checkbox && typeof resourceValue === 'boolean') {
+              initData[key] = resourceValue
             } else if (typeof resourceValue === 'string' || typeof resourceValue === 'number' || typeof resourceValue === 'boolean') {
               initData[key] = resourceValue
             }
@@ -1048,6 +1064,8 @@ export default {
             
             if (field instanceof FormField_Tags) {
               resource[key] = Array.isArray(value) ? [...value] : []
+            } else if (field instanceof FormField_Checkbox) {
+              resource[key] = Boolean(value)
             } else if (typeof value === 'string') {
               resource[key] = value.trim()
             } else {
@@ -1179,6 +1197,28 @@ export default {
   font-weight: 600;
   margin-bottom: 8px;
   transition: color 0.3s ease;
+}
+
+/* 复选框字段样式 */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-color);
+}
+
+.checkbox-text {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  user-select: none;
 }
 
 /* 文件输入组样式 */

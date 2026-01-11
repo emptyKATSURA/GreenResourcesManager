@@ -7,7 +7,7 @@ import {
 	FormField as FormFieldType
 } from './FormField.ts'
 
-import { EditableProperties } from './EditableProperties.ts'
+import { EditableProperties } from '../abstract/EditableProperties.ts'
 
 /**
  * 视频文件夹类

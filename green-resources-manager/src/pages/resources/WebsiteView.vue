@@ -53,9 +53,16 @@
       </div>
     </div>
 
-    <!-- 添加网站对话框 -->
-    <AddWebsiteDialog
-      :visible="showAddDialog"
+    <!-- 网站对话框（添加/编辑） -->
+    <ResourcesEditDialog 
+      :visible="showAddDialog" 
+      mode="add"
+      :resource-class="Website"
+      add-title="添加网站收藏"
+      edit-title="编辑网站信息"
+      add-button-text="添加"
+      edit-button-text="保存"
+      :custom-validation="validateWebsiteForm"
       @close="closeAddDialog"
       @confirm="handleAddWebsiteConfirm"
     />
@@ -72,11 +79,17 @@
       @action="handleDetailAction"
     />
 
-    <!-- 编辑网站对话框 -->
-    <EditWebsiteDialog
-      :visible="showEditDialog"
-      :website="editWebsiteData"
+    <ResourcesEditDialog 
+      :visible="showEditDialog" 
+      mode="edit"
+      :resource-class="Website"
+      :resource-data="editWebsiteData"
       :available-tags="allTags"
+      add-title="添加网站收藏"
+      edit-title="编辑网站信息"
+      add-button-text="添加"
+      edit-button-text="保存"
+      :custom-validation="validateWebsiteForm"
       @close="closeEditDialog"
       @confirm="handleEditWebsiteConfirm"
     />
@@ -87,8 +100,8 @@
 <script lang="ts">
 import BaseView from '../../components/BaseView.vue'
 import FormField from '../../components/FormField.vue'
-import AddWebsiteDialog from '../../components/website/AddWebsiteDialog.vue'
-import EditWebsiteDialog from '../../components/website/EditWebsiteDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { Website } from '../../types/class/website.ts'
 import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 
@@ -111,8 +124,7 @@ export default {
     FormField,
     MediaCard,
     DetailPanel,
-    AddWebsiteDialog,
-    EditWebsiteDialog
+    ResourcesEditDialog
   },
   props: {
     pageConfig: {
@@ -187,26 +199,10 @@ export default {
       showAddDialog: false,
       showEditDialog: false,
       selectedWebsite: null,
-      newWebsite: {
-        name: '',
-        url: '',
-        description: ''
-      },
-      editWebsiteData: {
-        id: '',
-        name: '',
-        url: '',
-        description: '',
-        tags: [],
-        isBookmark: false,
-        isPrivate: false,
-        notes: ''
-      },
-      newTag: '',
-      editTagInput: '',
-      urlError: '',
-      editUrlError: '',
+      editWebsiteData: null,  // ResourcesEditDialog 会自动处理数据加载
       isElectronEnvironment: false,
+      // Website 类用于 ResourcesEditDialog
+      Website: Website.EditableWebsiteProperties,
       // 拖拽相关
       isDragOver: false,
       isImporting: false,
@@ -297,20 +293,7 @@ export default {
         this.resetToFirstPage()
       }
     },
-    'newWebsite.url'(newUrl) {
-      if (newUrl && !this.websiteManager.validateUrl(newUrl)) {
-        this.urlError = '请输入有效的URL格式'
-      } else {
-        this.urlError = ''
-      }
-    },
-    'editWebsiteData.url'(newUrl) {
-      if (newUrl && !this.websiteManager.validateUrl(newUrl)) {
-        this.editUrlError = '请输入有效的URL格式'
-      } else {
-        this.editUrlError = ''
-      }
-    }
+    // URL 验证现在由 ResourcesEditDialog 的 customValidation 处理
   },
   methods: {
     async loadWebsites() {
@@ -361,18 +344,31 @@ export default {
       this.$emit('filter-data-updated', filterData)
     },
     
+    // URL 验证函数（用于 ResourcesEditDialog 的 customValidation）
+    validateWebsiteForm(formData, isEditMode) {
+      const url = formData.url || ''
+      if (!url || !url.trim()) {
+        return false
+      }
+      // 验证 URL 格式
+      try {
+        new URL(url)
+        return true
+      } catch {
+        return false
+      }
+    },
     async handleAddWebsiteConfirm(websiteData) {
       try {
-        if (!websiteData.url || !websiteData.url.trim()) {
-          alertService.warning('请填写有效的URL')
-          return
-        }
-        
+        // ResourcesEditDialog 已经通过 customValidation 验证了 URL，这里只需要处理数据
         const finalWebsiteData = {
           ...websiteData,
           // 如果没有填写名称，从URL中提取域名作为名称
-          name: websiteData.name.trim() || this.websiteManager.getDomain(websiteData.url),
-          tags: [],
+          name: (websiteData.name || '').trim() || this.websiteManager.getDomain(websiteData.url),
+          url: (websiteData.url || '').trim(),
+          description: (websiteData.description || '').trim() || '',
+          tags: Array.isArray(websiteData.tags) ? websiteData.tags : [],
+          // isFavorite 可以通过详情页的收藏按钮操作，不需要在表单中编辑
           favicon: await this.websiteManager.getBestFaviconUrl(websiteData.url)
         }
         
@@ -579,17 +575,8 @@ export default {
       // 关闭详情面板
       this.closeWebsiteDetail()
       
-      // 填充编辑数据
-      this.editWebsiteData = {
-        id: originalWebsite.id,
-        name: originalWebsite.name || '',
-        url: originalWebsite.url || '',
-        description: originalWebsite.description || '',
-        tags: [...(originalWebsite.tags || [])],
-        isBookmark: originalWebsite.isBookmark || false,
-        isFavorite: originalWebsite.isFavorite || false
-      }
-      
+      // ResourcesEditDialog 会自动从 resourceData 加载数据
+      this.editWebsiteData = originalWebsite
       this.showEditDialog = true
     },
     
@@ -602,18 +589,13 @@ export default {
     // 保存网站编辑
     async handleEditWebsiteConfirm(updatedWebsite) {
       try {
-        if (!updatedWebsite.url || !updatedWebsite.url.trim()) {
-          alertService.warning('请填写有效的URL')
-          return
-        }
-        
+        // ResourcesEditDialog 已经通过 customValidation 验证了 URL，这里只需要处理数据
         const updateData = {
-          name: updatedWebsite.name.trim() || this.websiteManager.getDomain(updatedWebsite.url),
-          url: updatedWebsite.url.trim(),
-          description: updatedWebsite.description.trim(),
-          tags: updatedWebsite.tags,
-          isBookmark: updatedWebsite.isBookmark,
-          isFavorite: updatedWebsite.isFavorite
+          name: (updatedWebsite.name || '').trim() || this.websiteManager.getDomain(updatedWebsite.url),
+          url: (updatedWebsite.url || '').trim(),
+          description: (updatedWebsite.description || '').trim() || '',
+          tags: Array.isArray(updatedWebsite.tags) ? updatedWebsite.tags : [],
+          // isFavorite 可以通过详情页的收藏按钮操作，不需要在表单中编辑（已在 ResourcesDataBase 中定义）
         }
         
         await this.updateWebsiteInManager(updatedWebsite.id, updateData)

@@ -24,21 +24,40 @@
       />
 
 
-      <!-- 添加软件对话框 -->
-      <AddSoftwareDialog 
+      <!-- 软件对话框（添加/编辑） -->
+      <ResourcesEditDialog 
         :visible="showAddDialog" 
+        mode="add"
+        :resource-class="Software"
         :is-electron-environment="isElectronEnvironment"
         :available-tags="allTags"
+        :enable-screenshot-cover="true"
+        add-title="添加软件"
+        edit-title="编辑软件"
+        add-button-text="添加软件"
+        edit-button-text="保存修改"
+        :custom-confirm-handler="handleAddSoftwareCustomConfirm"
+        :custom-validation="(formData, isEditMode) => {
+          if (isEditMode) return true
+          const executablePath = formData.executablePath
+          return executablePath && executablePath.trim() !== ''
+        }"
         @close="closeAddGameDialog"
         @confirm="handleAddGameConfirm"
       />
 
-      <!-- 编辑软件对话框 -->
-      <EditSoftwareDialog 
+      <ResourcesEditDialog 
         :visible="showEditDialog" 
-        :software="currentGame"
+        mode="edit"
+        :resource-class="Software"
+        :resource-data="currentGame"
         :is-electron-environment="isElectronEnvironment"
         :available-tags="allTags"
+        :enable-screenshot-cover="true"
+        add-title="添加软件"
+        edit-title="编辑软件"
+        add-button-text="添加软件"
+        edit-button-text="保存修改"
         @close="closeEditGameDialog"
         @confirm="handleEditGameConfirm"
       />
@@ -101,9 +120,9 @@ import MediaCard from '../../components/MediaCard.vue'
 import FormField from '../../components/FormField.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
-import AddSoftwareDialog from '../../components/software/AddSoftwareDialog.vue'
-import EditSoftwareDialog from '../../components/software/EditSoftwareDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import SoftwareDetailPanel from '../../components/software/SoftwareDetailPanel.vue'
+import { Software } from '../../types/class/soft.ts'
 import GameGrid from '../../components/game/GameGrid.vue'
 import { formatPlayTime, formatLastPlayed, formatDateTime, formatDate, formatFirstPlayed } from '../../utils/formatters'
 
@@ -131,8 +150,7 @@ export default {
     MediaCard,
     FormField,
     PathUpdateDialog,
-    AddSoftwareDialog,
-    EditSoftwareDialog,
+    ResourcesEditDialog,
     SoftwareDetailPanel,
     GameGrid
   },
@@ -358,6 +376,8 @@ export default {
       // 强制结束游戏确认对话框
       showTerminateConfirmDialog: false,
       gameToTerminate: null,
+      // Software 类用于 ResourcesEditDialog
+      Software: Software.EditableSoftwareProperties,
       // 分页相关已移至 useGamePagination composable
       // 空状态配置
       gameEmptyStateConfig: {
@@ -424,6 +444,66 @@ export default {
     },
     closeAddGameDialog() {
       this.showAddDialog = false
+    },
+    // 添加软件时的自定义确认处理（处理文件夹大小、默认值等）
+    async handleAddSoftwareCustomConfirm(formData, isEditMode) {
+      if (isEditMode) return // 编辑模式不需要特殊处理
+      
+      // 1. 如果名称为空，从可执行文件路径提取
+      const executablePathValue = formData.executablePath || ''
+      if (!formData.name && executablePathValue) {
+        const fileName = executablePathValue.split(/[\\/]/).pop() || ''
+        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
+        let cleanName = nameWithoutExt
+          .replace(/\.exe$/i, '')
+          .replace(/\.swf$/i, '')
+          .replace(/\.bat$/i, '')
+          .replace(/\.zip$/i, '')
+          .replace(/\.rar$/i, '')
+          .replace(/\.7z$/i, '')
+          .replace(/\.tar$/i, '')
+          .replace(/\.gz$/i, '')
+          .replace(/\.bz2$/i, '')
+          .replace(/\.xz$/i, '')
+          .replace(/[-_\s]+/g, ' ')
+          .trim()
+        if (!cleanName) cleanName = nameWithoutExt
+        formData.name = cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
+      }
+
+      // 2. 获取文件夹大小
+      let folderSize = 0
+      const filePath = executablePathValue.trim()
+      const isArchive = isArchiveFile(filePath)
+      
+      if (!isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
+        try {
+          const result = await window.electronAPI.getFolderSize(filePath)
+          if (result.success) {
+            folderSize = result.size
+          }
+        } catch (error) {
+          console.error('获取文件夹大小失败:', error)
+        }
+      } else if (isArchive && this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFileStats) {
+        try {
+          const result = await window.electronAPI.getFileStats(filePath)
+          if (result.success && result.size) {
+            folderSize = result.size
+          }
+        } catch (error) {
+          console.error('获取压缩包文件大小失败:', error)
+        }
+      }
+
+      // 3. 设置默认值
+      formData.folderSize = folderSize
+      formData.playTime = 0
+      formData.playCount = 0
+      formData.lastPlayed = null
+      formData.firstPlayed = null
+      formData.addedDate = new Date().toISOString()
+      formData.isArchive = isArchive
     },
     async handleAddGameConfirm(game) {
       await this.addGame(game)
@@ -667,13 +747,12 @@ export default {
         await this.updateGame(updatedGame.id, {
           name: updatedGame.name,
           developer: updatedGame.developer,
-          publisher: updatedGame.publisher,
           description: updatedGame.description,
           tags: updatedGame.tags,
           executablePath: updatedGame.executablePath,
           image: updatedGame.image
         })
-        notify.native('保存成功', '游戏信息已更新')
+        notify.native('保存成功', '软件信息已更新')
         this.closeEditGameDialog()
       } catch (error: any) {
         console.error('保存编辑失败:', error)

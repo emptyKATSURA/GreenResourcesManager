@@ -209,3 +209,12 @@ export class FormField_Tags extends FormField {
 		super(fieldName, required)
 	}
 }
+
+/**
+ * 复选框字段
+ */
+export class FormField_Checkbox extends FormField {
+	constructor(fieldName: string, required?: boolean) {
+		super(fieldName, required)
+	}
+}
