@@ -257,9 +257,9 @@ export default {
       default: 'add',
       validator: (value: string) => ['add', 'edit'].includes(value)
     },
-    // 资源类构造函数
+    // 资源类构造函数（在 JavaScript/TypeScript 中，类构造函数是 Function 类型）
     resourceClass: {
-      type: Object,
+      type: Function,
       required: true
     } as any,
     // 资源数据（编辑模式）
@@ -592,7 +592,13 @@ export default {
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
         if (value instanceof FormFieldType) {
-          const resourceValue = (this.resourceData as any)[key]
+          let resourceValue = (this.resourceData as any)[key]
+          
+          // 向后兼容：如果字段是 coverPath 但没有值，尝试从 image 字段读取（游戏封面字段迁移）
+          if (key === 'coverPath' && (!resourceValue || resourceValue === '') && (this.resourceData as any).image) {
+            resourceValue = (this.resourceData as any).image
+          }
+          
           if (resourceValue !== undefined && resourceValue !== null) {
             if (value instanceof FormField_Tags && Array.isArray(resourceValue)) {
               initData[key] = [...resourceValue]

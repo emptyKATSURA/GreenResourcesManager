@@ -3,6 +3,7 @@ import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
 import { unlockAchievement } from '../../pages/user/AchievementView.vue'
 import type { Game } from '../../types/game'
+import { Game as GameClass } from '../../types/class/game.ts'
 
 const GAME_COLLECTION_ACHIEVEMENTS = [
   { threshold: 50, id: 'game_collector_50' },
@@ -40,9 +41,14 @@ export function useGameManagement(
 
   /**
    * 保存游戏列表
+   * 使用 SaveableGameProperties 过滤数据，只保存定义的字段
    */
   async function saveGames() {
-    return await saveManager.savePageData(pageId, games.value)
+    // 使用 SaveableGameProperties 提取需要保存的字段
+    const saveableGames = games.value.map(game => 
+      GameClass.SaveableGameProperties.extractSaveableData(game)
+    )
+    return await saveManager.savePageData(pageId, saveableGames)
   }
 
   /**

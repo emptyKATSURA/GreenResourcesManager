@@ -7,7 +7,7 @@ import {
 } from './FormField.ts'
 
 
-import { ResourcesBase } from './ResourcesBase.ts'
+import { ResourcesBase } from './EditableProperties.ts'
 /**
  * 单图片类
  * 用于定义单图片资源的表单字段结构

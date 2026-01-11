@@ -3,38 +3,7 @@
  */
 
 import type { BaseResource } from './abstract/BaseResource'
-
-/**
- * 游戏基本信息接口
- */
-export interface Game extends BaseResource {
-  developer?: string
-  publisher?: string
-  engine?: string
-  executablePath?: string
-  image?: string
-  folderSize?: number
-  playTime?: number
-  playCount?: number
-  lastPlayed?: string | null
-  firstPlayed?: string | null
-  addedDate?: string
-  [key: string]: any
-}
-
-/**
- * 游戏表单数据接口（用于添加/编辑）
- */
-export interface GameForm {
-  name: string
-  developer?: string
-  publisher?: string
-  engine?: string
-  description?: string
-  tags?: string[]
-  executablePath?: string
-  image?: string
-}
+import { Game } from './class/game.ts'
 
 /**
  * 游戏统计信息接口
@@ -83,7 +52,7 @@ export interface GameFilterOptions {
  * 路径更新信息接口
  */
 export interface PathUpdateInfo {
-  existingGame: Game
+  existingGame: Game.GameData
   newPath: string
   newFileName: string
 }
@@ -95,12 +64,12 @@ export interface GameDragDropOptions {
   /**
    * 游戏列表（响应式）
    */
-  games: import('vue').Ref<Game[]> | Game[]
+  games: import('vue').Ref<Game.GameData[]> | Game.GameData[]
   
   /**
    * 添加游戏的回调函数
    */
-  onAddGame: (game: Game) => Promise<void>
+  onAddGame: (game: Game.GameData) => Promise<void>
   
   /**
    * 显示路径更新对话框的回调函数

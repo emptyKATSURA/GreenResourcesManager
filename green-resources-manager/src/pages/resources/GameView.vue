@@ -216,11 +216,12 @@ export default {
           return
         }
         
-        // 检查游戏是否已有封面图
-        if (!game.image || game.image.trim() === '') {
+        // 检查游戏是否已有封面图（向后兼容：同时检查 coverPath 和 image）
+        const currentCover = game.coverPath || (game as any).image
+        if (!currentCover || currentCover.trim() === '') {
           try {
             // 更新游戏封面图
-            await managementComposable.updateGame(game.id, { image: result.filepath })
+            await managementComposable.updateGame(game.id, { coverPath: result.filepath })
             console.log(`✅ 已自动将截图设置为游戏 "${game.name}" 的封面图`)
             
             // 显示提示（可选）
@@ -263,7 +264,44 @@ export default {
 
     // ========== 使用工厂函数创建资源页面 ==========
     // 注意：contextMenuHandlers 需要在 setup 中定义，但某些处理器需要访问组件方法
-    // 所以先创建占位函数，在 methods 中会重新设置
+    // 所以先创建占位函数，在 mounted 中会直接修改这个对象的属性（而不是创建新对象）
+    // 这样 useResourceContextMenu 内部保存的引用也会更新
+    const contextMenuHandlers = {
+      detail: (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      launch: (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      folder: (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      'screenshot-folder': (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      'update-folder-size': (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      'compress-to': (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      'compress-here': (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      extract: (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      'extract-here': (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      edit: (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      },
+      remove: (game: any) => {
+        // 这个会在 mounted 中被覆盖
+      }
+    }
+    
     const resourcePage = createResourcePage({
       pageConfig: {
         pageType: 'games',
@@ -320,38 +358,7 @@ export default {
         { key: 'edit', icon: '✏️', label: '编辑信息' },
         { key: 'remove', icon: '🗑️', label: '删除游戏' }
       ],
-      contextMenuHandlers: {
-        detail: (game: any) => {
-          // 这个会在 methods 中被覆盖
-          resourcePage.showDetail(game)
-        },
-        launch: (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        folder: (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        'screenshot-folder': (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        'update-folder-size': (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        'compress-to': (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        'compress-here': (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        extract: (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        'extract-here': (game: any) => {
-          // 这个会在 methods 中被覆盖
-        },
-        edit: (game: any) => resourcePage.showEdit(game),
-        remove: (game: any) => resourcePage.deleteItem(game)
-      },
+      contextMenuHandlers: contextMenuHandlers,
       emptyState: {
         icon: '🎮',
         title: '你的游戏库是空的',
@@ -489,8 +496,12 @@ export default {
       },
       // 暴露资源页面引用，供 methods 中更新 contextMenuHandlers
       _resourcePage: resourcePage,
+      // 暴露 contextMenuHandlers 引用，供 mounted 中直接修改属性
+      _contextMenuHandlers: contextMenuHandlers,
       // 暴露压缩/解压 composable 引用，供 mounted 中设置密码对话框回调
-      _archiveComposable: archiveComposable
+      _archiveComposable: archiveComposable,
+      // 暴露截图 composable 引用，供 mounted 中使用
+      _screenshotComposable: screenshotComposable
     }
   },
   data() {
@@ -515,7 +526,7 @@ export default {
       showTerminateConfirmDialog: false,
       gameToTerminate: null,
       // Game 类用于 ResourcesEditDialog
-      Game: Game
+      Game: Game.EditableGameProperties
       // 路径更新对话框已移至工厂函数（showPathUpdateDialog, pathUpdateInfo）
       // 空状态配置已移至工厂函数（emptyStateConfig）
       // 工具栏配置已移至工厂函数（toolbarConfig）
@@ -800,7 +811,7 @@ export default {
         description: updatedGame.description,
         tags: updatedGame.tags,
         executablePath: updatedGame.executablePath,
-        image: updatedGame.image
+        coverPath: updatedGame.coverPath || (updatedGame as any).image
       }
       await this.handleEditConfirm({ ...updatedGame, ...updates })
     },
@@ -1111,12 +1122,8 @@ export default {
 
 
     // playScreenshotSound 和 takeScreenshot 已移至 useGameScreenshot composable
-    playScreenshotSound() {
-      this.playScreenshotSound()
-    },
-    async takeScreenshot() {
-      await this.takeScreenshot()
-    },
+    // 不再需要在这里定义，否则会覆盖 composable 的方法导致递归调用
+    // 直接使用 composable 导出的方法即可
     // 应用内快捷键功能已禁用，只使用全局快捷键
     // handleKeyDown(event) {
     //   // 获取用户设置的截图快捷键
@@ -1138,9 +1145,8 @@ export default {
     //   return false
     // },
     // initializeGlobalShortcut 已移至 useGameScreenshot composable
-    async initializeGlobalShortcut() {
-      await this.initializeGlobalShortcut()
-    },
+    // 不再需要在这里定义，否则会覆盖 composable 的方法导致递归调用
+    // 直接使用 composable 导出的方法即可
 
     // SaveManager 相关方法
     async exportGames() {
@@ -1214,10 +1220,8 @@ export default {
         await alertService.error(`打开文件夹失败: ${error.message}`, '错误')
       }
     },
-    // openGameScreenshotFolder 已移至 useGameScreenshot composable
-    async openGameScreenshotFolder(game) {
-      await this.openGameScreenshotFolder(game)
-    },
+    // openGameScreenshotFolder 已移至 useGameScreenshot composable，直接使用 composable 导出的方法
+    // 不再需要在这里定义，否则会覆盖 composable 的方法导致递归调用
     // 压缩/解压相关方法已移至 useArchive composable（通用功能）
     // compressFile, compressFileToCurrentDir, extractArchive, extractArchiveToCurrentDir, performCompression, performExtraction
     // 拖拽处理方法
@@ -1353,29 +1357,37 @@ export default {
     }
 
     // 更新工厂函数的 contextMenuHandlers，添加游戏特有的处理
-    if ((this as any)._resourcePage) {
-      const resourcePage = (this as any)._resourcePage
-      // 更新右键菜单处理器
-      resourcePage.contextMenuHandlers = {
-        ...resourcePage.contextMenuHandlers,
-        detail: (game: any) => this.showGameDetail(game),
-        launch: (game: any) => this.launchGame(game),
-        folder: (game: any) => this.openGameFolder(game),
-        'screenshot-folder': (game: any) => this.openGameScreenshotFolder(game),
-        'update-folder-size': (game: any) => this.updateGameFolderSize(game),
-        'compress-to': (game: any) => {
-          this.compressFile({ name: game.name, path: game.executablePath })
-        },
-        'compress-here': (game: any) => {
-          this.compressFileToCurrentDir({ name: game.name, path: game.executablePath })
-        },
-        extract: (game: any) => {
-          this.extractArchive({ name: game.name, path: game.executablePath, isArchive: game.isArchive })
-        },
-        'extract-here': (game: any) => {
-          this.extractArchiveToCurrentDir({ name: game.name, path: game.executablePath, isArchive: game.isArchive })
+    // 注意：直接修改 contextMenuHandlers 对象的属性，而不是创建新对象
+    // 这样 useResourceContextMenu 内部保存的引用也会更新
+    if ((this as any)._contextMenuHandlers) {
+      const contextMenuHandlers = (this as any)._contextMenuHandlers
+      const screenshotComposable = (this as any)._screenshotComposable
+      // 直接修改对象的属性，而不是创建新对象
+      contextMenuHandlers.detail = (game: any) => this.showGameDetail(game)
+      contextMenuHandlers.launch = (game: any) => this.launchGame(game)
+      contextMenuHandlers.folder = (game: any) => this.openGameFolder(game)
+      contextMenuHandlers['screenshot-folder'] = (game: any) => {
+        if (screenshotComposable && screenshotComposable.openGameScreenshotFolder) {
+          screenshotComposable.openGameScreenshotFolder(game)
+        } else {
+          console.error('无法打开截图文件夹：screenshotComposable 不可用')
         }
       }
+      contextMenuHandlers['update-folder-size'] = (game: any) => this.updateGameFolderSize(game)
+      contextMenuHandlers['compress-to'] = (game: any) => {
+        this.compressFile({ name: game.name, path: game.executablePath })
+      }
+      contextMenuHandlers['compress-here'] = (game: any) => {
+        this.compressFileToCurrentDir({ name: game.name, path: game.executablePath })
+      }
+      contextMenuHandlers.extract = (game: any) => {
+        this.extractArchive({ name: game.name, path: game.executablePath, isArchive: game.isArchive })
+      }
+      contextMenuHandlers['extract-here'] = (game: any) => {
+        this.extractArchiveToCurrentDir({ name: game.name, path: game.executablePath, isArchive: game.isArchive })
+      }
+      contextMenuHandlers.edit = (game: any) => this.editGame(game)
+      contextMenuHandlers.remove = (game: any) => this.deleteItem(game)
     }
 
     // 设置压缩/解压 composable 的密码对话框回调

@@ -16,7 +16,7 @@
         <div class="detail-left">
           <div class="detail-image">
             <img 
-              :src="resolveImage(item.image || item.cover || item.thumbnail || item.favicon)" 
+              :src="resolveImage(item.coverPath || item.image || item.cover || item.thumbnail || item.favicon)" 
               :alt="item.name"
               @error="handleImageError"
             >

@@ -148,7 +148,7 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
             description: '',
             tags: [],
             executablePath: filePath,
-            image: '',
+            coverPath: '',
             folderSize: 0,
             playTime: 0,
             playCount: 0,

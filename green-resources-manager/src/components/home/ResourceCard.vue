@@ -70,7 +70,7 @@ export default {
         return this.resolvedImageUrl
       }
       
-      const img = this.resource.thumbnail || this.resource.image || this.resource.cover
+      const img = this.resource.thumbnail || (this.resource as any).coverPath || this.resource.image || this.resource.cover
       if (!img) {
         return this.getDefaultImage()
       }
@@ -133,7 +133,7 @@ export default {
       this.resolvedImageUrl = null
       
       // 解析图片路径
-      const img = this.resource.thumbnail || this.resource.image || this.resource.cover
+      const img = this.resource.thumbnail || (this.resource as any).coverPath || this.resource.image || this.resource.cover
       if (img && this.isElectronEnvironment && typeof img === 'string' && 
           !img.startsWith('http://') && !img.startsWith('https://') && 
           !img.startsWith('data:') && !img.startsWith('file:')) {

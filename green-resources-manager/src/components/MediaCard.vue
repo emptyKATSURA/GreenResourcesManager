@@ -12,7 +12,7 @@
   >
     <div class="media-image">
       <img 
-        :src="resolveImage(item.image || item.cover || item.thumbnail || item.thumbnailPath)" 
+        :src="resolveImage(coverImagePath)" 
         :alt="item.name"
         loading="lazy"
         @error="handleImageError"
@@ -219,6 +219,7 @@ import { formatPlayTime, formatLastPlayed, formatDuration, formatVideoDuration }
 import { useGameRunningStore } from '../stores/game-running'
 import disguiseManager from '../utils/DisguiseManager'
 import { isDisguiseModeEnabled } from '../utils/disguiseMode'
+import { getGameScreenshotFolderPath } from '../composables/game/useGameScreenshot'
 
 export default {
   name: 'MediaCard',
@@ -262,7 +263,8 @@ export default {
       exeIconLoading: false, // 图标加载中标志，避免重复加载
       gameRunningStore: null, // 游戏运行状态 store
       sessionUpdateTimer: null, // 会话时长更新定时器
-      updateTrigger: 0 // 用于触发响应式更新的时间戳
+      updateTrigger: 0, // 用于触发响应式更新的时间戳
+      screenshotCoverPath: null // 从截图文件夹读取的第一张图片路径（仅用于游戏类型）
     }
   },
   computed: {
@@ -418,6 +420,27 @@ export default {
         return '' // 没有评分或评分无效时返回空，保持原样
       }
       return `rating-border-${rating}`
+    },
+    // 获取封面图片路径
+    // 优先使用 coverPath，如果没有则从截图文件夹读取第一张图片，最后使用默认图片
+    coverImagePath() {
+      // 优先使用 coverPath
+      if (this.item.coverPath) {
+        return this.item.coverPath
+      }
+      
+      // 如果是游戏类型且没有封面，尝试使用从截图文件夹读取的图片
+      if (this.type === 'game' && this.screenshotCoverPath) {
+        return this.screenshotCoverPath
+      }
+      
+      // 其他类型的资源使用各自的字段
+      if (this.type !== 'game') {
+        return this.item.cover || this.item.thumbnail || this.item.thumbnailPath || ''
+      }
+      
+      // 游戏类型且没有封面和截图，返回空字符串（会在 resolveImage 中处理为默认图片）
+      return ''
     }
   },
   methods: {
@@ -858,6 +881,52 @@ export default {
       const fileName = filePath.toLowerCase()
       const archiveExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz', '.bz2', '.tar.bz2', '.xz', '.tar.xz']
       return archiveExtensions.some(ext => fileName.endsWith(ext))
+    },
+    
+    /**
+     * 从截图文件夹读取第一张图片作为封面
+     * 仅用于游戏类型，且没有 coverPath 时
+     */
+    async loadScreenshotAsCover() {
+      // 只处理游戏类型
+      if (this.type !== 'game') {
+        return
+      }
+      
+      // 如果已有封面，不需要读取截图
+      if (this.item.coverPath) {
+        return
+      }
+      
+      // 需要 Electron 环境
+      if (!this.isElectronEnvironment || !window.electronAPI || !window.electronAPI.listImageFiles) {
+        return
+      }
+      
+      try {
+        // 获取游戏截图文件夹路径
+        const screenshotFolderPath = await getGameScreenshotFolderPath(
+          this.item.id,
+          this.item.name,
+          this.isElectronEnvironment
+        )
+        
+        // 列出截图文件夹中的图片文件
+        const result = await window.electronAPI.listImageFiles(screenshotFolderPath)
+        
+        if (result.success && result.files && result.files.length > 0) {
+          // 使用第一张图片作为封面
+          const firstImage = result.files[0]
+          this.screenshotCoverPath = firstImage
+          console.log(`[MediaCard] 从截图文件夹读取封面: ${firstImage}`)
+        } else {
+          // 截图文件夹不存在或为空，使用默认图片（screenshotCoverPath 保持为 null）
+          this.screenshotCoverPath = null
+        }
+      } catch (error) {
+        console.warn('[MediaCard] 读取截图文件夹失败:', error)
+        this.screenshotCoverPath = null
+      }
     }
     
   },
@@ -894,6 +963,14 @@ export default {
         this.updateTrigger = Date.now()
       }, 1000) // 每秒更新一次
     }
+    
+    // 如果游戏没有封面，尝试从截图文件夹读取第一张图片
+    if (this.type === 'game' && !this.item.coverPath) {
+      // 延迟加载，避免阻塞渲染
+      setTimeout(() => {
+        this.loadScreenshotAsCover()
+      }, 100)
+    }
   },
   beforeUnmount() {
     // 清理事件监听器
@@ -921,6 +998,23 @@ export default {
           this.sessionUpdateTimer = null
         }
       }
+    },
+    // 监听 item 变化，重新加载截图封面
+    item: {
+      handler(newItem) {
+        if (this.type === 'game' && newItem && !newItem.coverPath) {
+          // 重置截图封面路径
+          this.screenshotCoverPath = null
+          // 延迟加载，避免阻塞
+          setTimeout(() => {
+            this.loadScreenshotAsCover()
+          }, 100)
+        } else if (this.type === 'game' && newItem && newItem.coverPath) {
+          // 如果有封面了，清除截图封面
+          this.screenshotCoverPath = null
+        }
+      },
+      immediate: false
     }
   }
 }

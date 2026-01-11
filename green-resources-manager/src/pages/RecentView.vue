@@ -105,7 +105,7 @@ export default {
         name: game.name,
         category: game.developer || '游戏',
         description: game.description,
-        thumbnail: game.image,
+        thumbnail: game.coverPath || (game as any).image,
         lastAccessed: game.lastPlayed,
         badge: game.playTime ? undefined : '未通关',
         metadata: {
