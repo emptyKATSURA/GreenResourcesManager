@@ -33,6 +33,7 @@ import FunStatistic from './data-display/Statistic/FunStatistic.vue'
 
 // Navigation 导航组件
 import FunPagination from './navigation/Pagination/FunPagination.vue'
+import FunMenu from './navigation/Menu/FunMenu.vue'
 
 // Layout 布局组件
 import FunGrid from './layout/Grid/FunGrid.vue'
@@ -62,6 +63,7 @@ const components = {
   FunStatistic,
   // Navigation
   FunPagination,
+  FunMenu,
   // Layout
   FunGrid,
   // Feedback
@@ -89,6 +91,7 @@ export function install(app: App) {
   app.component('fun-empty-state', FunEmptyState)
   app.component('fun-statistic', FunStatistic)
   app.component('fun-pagination', FunPagination)
+  app.component('fun-menu', FunMenu)
   app.component('fun-grid', FunGrid)
   app.component('fun-alert', FunAlert)
   app.component('fun-confirm-dialog', FunConfirmDialog)
@@ -115,6 +118,7 @@ export {
   FunStatistic,
   // Navigation
   FunPagination,
+  FunMenu,
   // Layout
   FunGrid,
   // Feedback

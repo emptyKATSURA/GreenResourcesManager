@@ -22,7 +22,10 @@ import VideoSection from '../components/help/sections/VideoSection.vue'
 import NovelSection from '../components/help/sections/NovelSection.vue'
 import WebsiteSection from '../components/help/sections/WebsiteSection.vue'
 import AudioSection from '../components/help/sections/AudioSection.vue'
+import ApiSection from '../components/help/sections/ApiSection.vue'
+import ApiGamesSection from '../components/help/sections/ApiGamesSection.vue'
 import FaqSection from '../components/help/sections/FaqSection.vue'
+import WorkshopSection from '../components/help/sections/WorkshopSection.vue'
 import SupportSection from '../components/help/sections/SupportSection.vue'
 import AboutSection from '../components/help/sections/AboutSection.vue'
 
@@ -38,9 +41,12 @@ export default defineComponent({
     NovelSection,
     WebsiteSection,
     AudioSection,
+    ApiSection,
+    ApiGamesSection,
     FaqSection,
     SupportSection,
-    AboutSection
+    AboutSection,
+    WorkshopSection
   },
   setup() {
     const activeSection = ref('intro')
@@ -54,9 +60,12 @@ export default defineComponent({
       novel: NovelSection,
       website: WebsiteSection,
       audio: AudioSection,
+      api: ApiSection,
+      'api-games': ApiGamesSection,
       faq: FaqSection,
       support: SupportSection,
-      about: AboutSection
+      about: AboutSection,
+      workshop: WorkshopSection
     }
 
     const currentSectionComponent = computed(() => {
