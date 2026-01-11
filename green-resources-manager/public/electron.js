@@ -17,6 +17,7 @@ const gameProcess = require('./js/services/game-process')
 const screenshot = require('./js/services/screenshot')
 const shortcuts = require('./js/services/shortcuts')
 const autoUpdaterService = require('./js/services/auto-updater')
+const apiServer = require('./js/services/api-server')
 // 引入 IPC 处理器模块
 const dialogHandlers = require('./js/ipc/dialog-handlers')
 const fileHandlers = require('./js/ipc/file-handlers')
@@ -184,6 +185,9 @@ if (!gotTheLock) {
     // 注册自动更新相关的 IPC 处理器
     autoUpdaterService.registerIpcHandlers(ipcMain, autoUpdater, isDev, () => mainWindowModule.getMainWindow())
     
+    // 启动 HTTP API 服务器
+    apiServer.startHttpServer()
+    
     // 在 macOS 上，当单击 dock 图标并且没有其他窗口打开时，
     // 通常在应用程序中重新创建窗口
     app.on('activate', () => {
@@ -338,6 +342,8 @@ app.on('will-quit', () => {
   shortcuts.unregisterAllShortcuts()
   // 销毁系统托盘
   systemTray.destroyTray()
+  // 关闭 HTTP 服务器
+  apiServer.stopHttpServer()
 })
 
 // 自动更新相关功能已迁移到 js/services/auto-updater.js
