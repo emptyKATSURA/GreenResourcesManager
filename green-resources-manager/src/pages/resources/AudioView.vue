@@ -46,17 +46,22 @@
     </div>
 
     <!-- 添加音频对话框 -->
-    <AddAudioDialog
-      ref="addAudioDialog"
+    <ResourcesEditDialog
       :visible="showAddDialog"
+      mode="add"
+      :resource-class="Audio"
       :is-electron-environment="true"
-      :initial-file-path="newAudioFilePath"
-      :initial-name="newAudioName"
-      :initial-duration="newAudioDuration"
       :available-tags="allTags"
+      add-title="添加音频"
+      edit-title="编辑音频"
+      add-button-text="添加"
+      edit-button-text="保存修改"
+      :custom-validation="(formData, isEditMode) => {
+        return formData.filePath && formData.filePath.trim() !== ''
+      }"
+      :custom-confirm-handler="handleAddAudioCustomConfirm"
       @close="closeAddDialog"
       @confirm="handleAddAudioConfirm"
-      @browse-audio-file="selectAudioFile"
     />
 
     <!-- 音频详情对话框 -->
@@ -72,16 +77,20 @@
     />
 
     <!-- 编辑音频对话框 -->
-    <EditAudioDialog
+    <ResourcesEditDialog
+      :key="'edit-dialog-' + (editForm?.id || 'new')"
       :visible="showEditDialog"
-      :audio="editForm"
+      mode="edit"
+      :resource-class="Audio"
+      :resource-data="editForm"
       :is-electron-environment="true"
-      :get-thumbnail-url="getThumbnailUrl"
       :available-tags="allTags"
+      add-title="添加音频"
+      edit-title="编辑音频"
+      add-button-text="添加"
+      edit-button-text="保存修改"
       @close="closeEditDialog"
       @confirm="handleEditAudioConfirm"
-      @browse-audio-file="selectEditAudioFile"
-      @browse-thumbnail-file="selectEditThumbnailFile"
     />
 
 
@@ -110,8 +119,8 @@ import FormField from '../../components/FormField.vue'
 import AudioGrid from '../../components/audio/AudioGrid.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
-import AddAudioDialog from '../../components/audio/AddAudioDialog.vue'
-import EditAudioDialog from '../../components/audio/EditAudioDialog.vue'
+import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
+import { Audio } from '../../types/class/audio.ts'
 
 import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
@@ -135,8 +144,7 @@ export default {
     AudioGrid,
     DetailPanel,
     PathUpdateDialog,
-    AddAudioDialog,
-    EditAudioDialog
+    ResourcesEditDialog
   },
   emits: ['filter-data-updated'],
   setup() {
@@ -364,10 +372,8 @@ export default {
   },
   data() {
     return {
-      // 添加对话框相关状态（AddAudioDialog 需要这些临时状态）
-      newAudioFilePath: '',
-      newAudioName: '',
-      newAudioDuration: 0
+      // Audio 类用于 ResourcesEditDialog
+      Audio: Audio.EditableAudioProperties,
     }
   },
   computed: {
@@ -409,23 +415,32 @@ export default {
     // checkFileExistence, updateFilterOptions, filterByTag, excludeByTag, clearTagFilter, 
     // filterByArtist, excludeByArtist, clearArtistFilter, handleFilterEvent, updateFilterData 已移至 composables
     
-    async selectAudioFile() {
-      try {
-        if (window.electronAPI && window.electronAPI.selectAudioFile) {
-          const filePath = await window.electronAPI.selectAudioFile()
-          if (filePath) {
-            this.newAudioFilePath = filePath
-            this.newAudioName = this.extractNameFromPath(filePath)
-            // 自动获取音频时长
-            this.newAudioDuration = await this.getAudioDuration(filePath)
-          }
-        } else {
-          notify.toast('error', '选择失败', '当前环境不支持文件选择功能')
+    // 添加音频时的自定义确认处理（在 ResourcesEditDialog 的 confirm 事件之前执行）
+    async handleAddAudioCustomConfirm(formData: any): Promise<any> {
+      const audioData = { ...formData }
+      
+      // 如果名称为空，从文件路径提取
+      if (!audioData.name || audioData.name.trim() === '') {
+        if (audioData.filePath) {
+          audioData.name = this.extractNameFromPath(audioData.filePath)
         }
-      } catch (error) {
-        console.error('选择音频文件失败:', error)
-        notify.toast('error', '选择失败', '选择音频文件失败: ' + error.message)
       }
+      
+      // 如果文件路径存在，自动获取音频时长
+      if (audioData.filePath) {
+        try {
+          audioData.duration = await this.getAudioDuration(audioData.filePath)
+        } catch (error) {
+          console.warn('获取音频时长失败:', error)
+          audioData.duration = 0
+        }
+      }
+      
+      // 设置默认值
+      audioData.playCount = 0
+      audioData.addedDate = new Date().toISOString()
+      
+      return audioData
     },
     
     // handleAddAudioConfirm 使用 crud.handleAddConfirm，但需要保留验证逻辑
@@ -478,12 +493,7 @@ export default {
       }
     },
     
-    closeAddDialog() {
-      this.showAddDialog = false
-      this.newAudioFilePath = ''
-      this.newAudioName = ''
-      this.newAudioDuration = 0
-    },
+    // closeAddDialog 已在 setup() 中通过 resourcePage 返回，无需重新定义
     
     // handleContextMenuClick 使用 contextMenu.handleContextMenuClick
     handleContextMenuClick(data: any) {
@@ -512,54 +522,24 @@ export default {
       this.closeEdit()
     },
     
-    // 文件选择
-    async selectEditAudioFile() {
-      try {
-        if (window.electronAPI && window.electronAPI.selectAudioFile) {
-          const filePath = await window.electronAPI.selectAudioFile()
-          if (filePath) {
-            this.editAudioForm.filePath = filePath
-            // 如果名称为空，自动提取文件名
-            if (!this.editAudioForm.name) {
-              this.editAudioForm.name = this.extractNameFromPath(filePath)
-            }
-            // 自动获取音频时长
-            this.editAudioForm.duration = await this.getAudioDuration(filePath)
-          }
-        } else {
-          notify.toast('error', '选择失败', '当前环境不支持文件选择功能')
-        }
-      } catch (error) {
-        console.error('选择音频文件失败:', error)
-        notify.toast('error', '选择失败', '选择音频文件失败: ' + error.message)
-      }
-    },
-    
-    async selectEditThumbnailFile() {
-      try {
-        if (window.electronAPI && window.electronAPI.selectImageFile) {
-          const filePath = await window.electronAPI.selectImageFile()
-          if (filePath) {
-            this.editAudioForm.thumbnailPath = filePath
-          }
-        } else {
-          await alertService.warning('当前环境不支持文件选择功能', '提示')
-        }
-      } catch (error) {
-        console.error('选择缩略图文件失败:', error)
-        await alertService.error('选择缩略图文件失败: ' + error.message, '错误')
-      }
-    },
-    
-    // getThumbnailUrl 已在 setup() 中定义
-    
     // 保存编辑
     // handleEditAudioConfirm 使用 crud.handleEditConfirm，但需要保留验证逻辑
     async handleEditAudioConfirm(updatedAudio: any) {
-      if (!updatedAudio.name.trim()) {
+      if (!updatedAudio.name || !updatedAudio.name.trim()) {
         await alertService.warning('请输入音频名称', '提示')
         return
       }
+      
+      // 确保 actors 是数组
+      if (updatedAudio.actors && !Array.isArray(updatedAudio.actors)) {
+        updatedAudio.actors = []
+      }
+      
+      // 确保 tags 是数组
+      if (updatedAudio.tags && !Array.isArray(updatedAudio.tags)) {
+        updatedAudio.tags = []
+      }
+      
       await this.handleEditConfirm(updatedAudio)
     },
     
