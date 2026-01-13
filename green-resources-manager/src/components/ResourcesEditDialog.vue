@@ -261,7 +261,8 @@ import {
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
   FormField_SelectVideoThumbnail
-} from '../types/class/FormField.ts'
+} from '../class/FormField.ts'
+import { ResourceField } from '../class/game.ts'
 
 export default {
   name: 'ResourcesEditDialog',
@@ -364,12 +365,17 @@ export default {
     const resourceInstance = new props.resourceClass()
     
     // 提取所有 FormField 类型的字段，保持类中定义的顺序
+    // 支持两种形式：直接使用 FormField 或使用 ResourceField（从 editType 中提取）
     const formFields = computed(() => {
       const fields: Record<string, FormFieldType> = {}
       // 遍历资源实例的所有属性，保持定义顺序
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
-        if (value instanceof FormFieldType) {
+        if (value instanceof ResourceField) {
+          // 如果是 ResourceField，使用其 editType
+          fields[key] = value.editType
+        } else if (value instanceof FormFieldType) {
+          // 如果是 FormField，直接使用
           fields[key] = value
         }
       }
@@ -401,13 +407,22 @@ export default {
       // 遍历资源实例的所有属性
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
-        if (value instanceof FormFieldType) {
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
+        if (field) {
           // 根据字段类型初始化默认值
-          if (value instanceof FormField_Tags) {
+          if (field instanceof FormField_Tags) {
             data[key] = []
-          } else if (value instanceof FormField_Checkbox) {
+          } else if (field instanceof FormField_Checkbox) {
             data[key] = false
-          } else if (value instanceof FormField_Number) {
+          } else if (field instanceof FormField_Number) {
             data[key] = 0
           } else {
             data[key] = ''
@@ -442,12 +457,21 @@ export default {
       // 检查必填字段
       const resourceInstance = new this.resourceClass()
       for (const key in resourceInstance) {
-        const field = (resourceInstance as any)[key]
-        if (field instanceof FormFieldType && field.required) {
-          const value = this.formData[key]
-          if (!value || (typeof value === 'string' && value.trim() === '') || 
-              (Array.isArray(value) && value.length === 0)) {
-            console.log('[ResourcesEditDialog] canConfirm (required field missing):', key, value)
+        const value = (resourceInstance as any)[key]
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
+        if (field && field.required) {
+          const formValue = this.formData[key]
+          if (!formValue || (typeof formValue === 'string' && formValue.trim() === '') || 
+              (Array.isArray(formValue) && formValue.length === 0)) {
+            console.log('[ResourcesEditDialog] canConfirm (required field missing):', key, formValue)
             return false
           }
         }
@@ -618,7 +642,16 @@ export default {
       // 首先加载类中定义的字段
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
-        if (value instanceof FormFieldType) {
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
+        if (field) {
           let resourceValue = (this.resourceData as any)[key]
           
           // 向后兼容：如果字段是 coverPath 但没有值，尝试从 image 字段读取（游戏封面字段迁移）
@@ -627,11 +660,11 @@ export default {
           }
           
           if (resourceValue !== undefined && resourceValue !== null) {
-            if (value instanceof FormField_Tags && Array.isArray(resourceValue)) {
+            if (field instanceof FormField_Tags && Array.isArray(resourceValue)) {
               initData[key] = [...resourceValue]
-            } else if (value instanceof FormField_Checkbox && typeof resourceValue === 'boolean') {
+            } else if (field instanceof FormField_Checkbox && typeof resourceValue === 'boolean') {
               initData[key] = resourceValue
-            } else if (value instanceof FormField_Number && (typeof resourceValue === 'number' || typeof resourceValue === 'string')) {
+            } else if (field instanceof FormField_Number && (typeof resourceValue === 'number' || typeof resourceValue === 'string')) {
               initData[key] = typeof resourceValue === 'number' ? resourceValue : Number(resourceValue) || 0
             } else if (typeof resourceValue === 'string' || typeof resourceValue === 'number' || typeof resourceValue === 'boolean') {
               initData[key] = resourceValue
@@ -1033,7 +1066,16 @@ export default {
         if (detectedEngine) {
           const resourceInstance = new this.resourceClass()
           for (const key in resourceInstance) {
-            const field = (resourceInstance as any)[key]
+            const value = (resourceInstance as any)[key]
+            let field: FormFieldType | null = null
+            
+            // 支持 ResourceField 和 FormField 两种形式
+            if (value instanceof ResourceField) {
+              field = value.editType
+            } else if (value instanceof FormFieldType) {
+              field = value
+            }
+            
             if (field instanceof FormField_SelectEngine) {
               this.formData[key] = detectedEngine
               notify.toast('success', '识别成功', `已识别为 ${detectedEngine}`)
@@ -1073,20 +1115,29 @@ export default {
 
         // 遍历资源类的字段定义，从 formData 中提取对应的值
         for (const key in resourceInstance) {
-          const field = (resourceInstance as any)[key]
-          if (field instanceof FormFieldType) {
-            let value = this.formData[key]
+          const value = (resourceInstance as any)[key]
+          let field: FormFieldType | null = null
+          
+          // 支持 ResourceField 和 FormField 两种形式
+          if (value instanceof ResourceField) {
+            field = value.editType
+          } else if (value instanceof FormFieldType) {
+            field = value
+          }
+          
+          if (field) {
+            let formValue = this.formData[key]
             
             if (field instanceof FormField_Tags) {
-              resource[key] = Array.isArray(value) ? [...value] : []
+              resource[key] = Array.isArray(formValue) ? [...formValue] : []
             } else if (field instanceof FormField_Checkbox) {
-              resource[key] = Boolean(value)
+              resource[key] = Boolean(formValue)
             } else if (field instanceof FormField_Number) {
-              resource[key] = typeof value === 'number' ? value : (typeof value === 'string' ? Number(value) || 0 : 0)
-            } else if (typeof value === 'string') {
-              resource[key] = value.trim()
+              resource[key] = typeof formValue === 'number' ? formValue : (typeof formValue === 'string' ? Number(formValue) || 0 : 0)
+            } else if (typeof formValue === 'string') {
+              resource[key] = formValue.trim()
             } else {
-              resource[key] = value
+              resource[key] = formValue
             }
 
             // 编辑模式的特殊处理：如果值为空，保留原有值

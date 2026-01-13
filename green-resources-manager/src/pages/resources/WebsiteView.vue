@@ -101,7 +101,7 @@
 import BaseView from '../../components/BaseView.vue'
 import FormField from '../../components/FormField.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Website } from '../../types/class/website.ts'
+import { Website } from '../../class/website.ts'
 import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 

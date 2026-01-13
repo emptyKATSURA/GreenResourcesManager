@@ -5,7 +5,7 @@ declare module '*.vue' {
 }
 
 // 导入文件选择过滤器类型
-import type { FileSelectFilter } from './types/class/game'
+import type { FileSelectFilter } from './class/game'
 
 // Electron 环境中的 File 扩展
 // 注意：path 属性已被 Electron 官方弃用，建议未来使用 webUtils.getPathForFile

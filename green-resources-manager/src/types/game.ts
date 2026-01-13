@@ -3,7 +3,7 @@
  */
 
 import type { BaseResource } from './abstract/BaseResource'
-import { Game } from './class/game.ts'
+import { Game } from '../class/game.ts'
 
 /**
  * 游戏统计信息接口

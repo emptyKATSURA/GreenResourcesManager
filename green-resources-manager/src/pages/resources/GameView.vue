@@ -124,7 +124,7 @@ import FormField from '../../components/FormField.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Game } from '../../types/class/game.ts'
+import { Game } from '../../class/game.ts'
 import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
 

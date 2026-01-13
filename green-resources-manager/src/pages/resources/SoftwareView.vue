@@ -122,7 +122,7 @@ import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import SoftwareDetailPanel from '../../components/software/SoftwareDetailPanel.vue'
-import { Software } from '../../types/class/soft.ts'
+import { Software } from '../../class/soft.ts'
 import GameGrid from '../../components/game/GameGrid.vue'
 import { formatPlayTime, formatLastPlayed, formatDateTime, formatDate, formatFirstPlayed } from '../../utils/formatters'
 

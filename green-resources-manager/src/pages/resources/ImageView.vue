@@ -166,7 +166,7 @@ import DetailPanel from '../../components/DetailPanel.vue'
 import ComicViewer from '../../components/ComicViewer.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Manga } from '../../types/class/manga.ts'
+import { Manga } from '../../class/manga.ts'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 import FunGrid from '../../fun-ui/layout/Grid/FunGrid.vue'
 

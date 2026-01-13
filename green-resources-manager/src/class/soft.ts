@@ -6,9 +6,9 @@ import {
 	FormField_SelectGameCover,
 	FormField as FormFieldType
 } from './FormField.ts'
-import { EditableProperties } from '../abstract/EditableProperties.ts'
-import { SaveableProperties } from '../abstract/SaveableProperties.ts'
-import { ResourcesDataBase } from '../abstract/ResourcesDataBase.ts'
+import { EditableProperties } from './base/EditableProperties.ts'
+import { SaveableProperties } from './base/SaveableProperties.ts'
+import { ResourcesDataBase } from './base/ResourcesDataBase.ts'
 
 
 export namespace Software{

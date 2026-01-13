@@ -147,7 +147,7 @@ import { defineComponent, reactive, computed } from 'vue'
 import notificationService from '../utils/NotificationService.ts'
 import alertService from '../utils/AlertService.ts'
 import confirmService from '../utils/ConfirmService.ts'
-import { Game } from '../types/class/game.ts'
+import { Game } from '../class/game.ts'
 import {
   FormField,
   FormField_Text,
@@ -159,7 +159,7 @@ import {
   FormField_Tags,
   FormField_SelectFile,
   FormField_SelectFolder
-} from '../types/class/FormField.ts'
+} from '../class/FormField.ts'
 
 export default defineComponent({
   name: 'DebugView',

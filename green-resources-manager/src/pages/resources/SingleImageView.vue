@@ -150,7 +150,7 @@ import DetailPanel from '../../components/DetailPanel.vue'
 import ComicViewer from '../../components/ComicViewer.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { SingleImage } from '../../types/class/singleImage.ts'
+import { SingleImage } from '../../class/singleImage.ts'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 
 import notify from '../../utils/NotificationService.ts'

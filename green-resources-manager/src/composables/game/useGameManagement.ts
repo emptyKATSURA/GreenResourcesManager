@@ -3,7 +3,7 @@ import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
 import { unlockAchievement } from '../../pages/user/AchievementView.vue'
 import type { Game } from '../../types/game'
-import { Game as GameClass } from '../../types/class/game.ts'
+import { Game as GameClass } from '../../class/game.ts'
 
 const GAME_COLLECTION_ACHIEVEMENTS = [
   { threshold: 50, id: 'game_collector_50' },

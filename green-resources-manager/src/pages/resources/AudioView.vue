@@ -120,7 +120,7 @@ import AudioGrid from '../../components/audio/AudioGrid.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Audio } from '../../types/class/audio.ts'
+import { Audio } from '../../class/audio.ts'
 
 import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'

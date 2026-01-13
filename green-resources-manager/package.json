@@ -2,7 +2,7 @@
   "name": "green-resources-manager",
   "version": "0.6.8",
   "description": "一款全能、免费的文件管理器，可以管理你的游戏、漫画、视频、音频、小说、网站等资源。",
-  "main": "public/electron.js",
+  "main": "electron/main.js",
   "homepage": "./",
   "scripts": {
     "dev": "vite",
@@ -50,9 +50,7 @@
     "artifactName": "${productName} ${version}.${ext}",
     "files": [
       "dist/**/*",
-      "public/electron.js",
-      "public/preload.js",
-      "public/js/**/*",
+      "electron/**/*",
       "public/butter-logo.svg",
       "public/butter-icon.ico",
       "public/butter-icon.png",
@@ -60,6 +58,10 @@
       "public/unlock.mp3",
       "public/camera.mp3",
       "public/achievement.mp3",
+      "public/default-*.png",
+      "public/imgs/**/*",
+      "public/html/**/*",
+      "public/pdf.worker.min.mjs",
       "node_modules/**/*"
     ],
     "asarUnpack": [
