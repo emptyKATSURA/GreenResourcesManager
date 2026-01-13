@@ -25,6 +25,7 @@ const pathHandlers = require('./js/ipc/path-handlers')
 const systemHandlers = require('./js/ipc/system-handlers')
 const settingsHandlers = require('./js/ipc/settings-handlers')
 const mediaHandlers = require('./js/ipc/media-handlers')
+const tabHandlers = require('./js/ipc/tab-handlers')
 // 引入工具模块
 const fileUtils = require('./js/utils/file-utils')
 const pathUtils = require('./js/utils/path-utils')
@@ -165,6 +166,9 @@ if (!gotTheLock) {
     
     // 注册媒体相关的 IPC 处理器
     mediaHandlers.registerIpcHandlers(ipcMain, shell, pathUtils)
+    
+    // 注册标签页相关的 IPC 处理器
+    tabHandlers.registerTabHandlers(ipcMain, mainWindow, isDev)
     
     // 注册快捷键相关的 IPC 处理器
     shortcuts.registerIpcHandlers(

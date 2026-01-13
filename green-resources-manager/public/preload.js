@@ -191,7 +191,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPetWindowZoom: () => ipcRenderer.invoke('get-pet-window-zoom'),
   adjustPetWindowZoom: (delta) => ipcRenderer.invoke('adjust-pet-window-zoom', delta),
   // 获取游戏数据（用于收益页面）
-  getPetGamesData: () => ipcRenderer.invoke('get-pet-games-data')
+  getPetGamesData: () => ipcRenderer.invoke('get-pet-games-data'),
+  
+  // 标签页管理
+  tabCreate: (options) => ipcRenderer.invoke('tab-create', options),
+  tabClose: (tabId) => ipcRenderer.invoke('tab-close', { tabId }),
+  tabActivate: (tabId) => ipcRenderer.invoke('tab-activate', { tabId }),
+  tabGetAll: () => ipcRenderer.invoke('tab-get-all'),
+  tabNavigate: (tabId, url) => ipcRenderer.invoke('tab-navigate', { tabId, url }),
+  
+  // 标签页事件监听
+  onTabLoaded: (callback) => ipcRenderer.on('tab-loaded', (event, data) => callback(data)),
+  onTabClosed: (callback) => ipcRenderer.on('tab-closed', (event, data) => callback(data)),
+  onTabActivated: (callback) => ipcRenderer.on('tab-activated', (event, data) => callback(data)),
+  onTabTitleUpdated: (callback) => ipcRenderer.on('tab-title-updated', (event, data) => callback(data))
 })
 
 // 监听来自主进程的消息

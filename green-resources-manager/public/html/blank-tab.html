@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新标签页</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .blank-content {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .blank-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    .blank-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #666;
+    }
+
+    .blank-subtitle {
+      font-size: 14px;
+      color: #999;
+    }
+
+    /* 暗色主题 */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1e1e1e;
+        color: #e0e0e0;
+      }
+
+      .blank-title {
+        color: #b0b0b0;
+      }
+
+      .blank-subtitle {
+        color: #808080;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="blank-content">
+    <div class="blank-icon">📄</div>
+    <div class="blank-title">新标签页</div>
+    <div class="blank-subtitle">这是一个空白标签页</div>
+  </div>
+</body>
+</html>

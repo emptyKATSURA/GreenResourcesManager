@@ -8,8 +8,11 @@
       </div>
     </div>
 
-    <!-- 左侧导航栏 -->
-    <nav class="sidebar" v-show="!isLoading">
+    <!-- 标签栏 - 始终显示，覆盖在侧边栏上方 -->
+    <TabBar @tabs-changed="onTabsChanged" v-show="!isLoading" />
+
+    <!-- 左侧导航栏 - 只在活动标签页是主页时显示 -->
+    <nav class="sidebar" v-show="!isLoading && activeTabIsHome">
       <div class="sidebar-header">
         <img 
           :src="logoIcon" 
@@ -118,28 +121,30 @@
     </nav>
 
     <!-- 主内容区域 -->
-    <main class="main-content" v-show="!isLoading">
+    <main class="main-content" :class="{ 'with-tabs': hasTabs && !activeTabIsHome }" v-show="!isLoading">
 
-      <!-- 标题和简介 -->
-      <header class="content-header">
-        <h2>{{ getCurrentViewTitle() }}</h2>
-        <p>{{ getCurrentViewDescription() }}</p>
-      </header>
+      <!-- 主页内容 - 只在活动标签页是主页时显示 -->
+      <template v-if="activeTabIsHome">
+        <!-- 标题和简介 -->
+        <header class="content-header">
+          <h2>{{ getCurrentViewTitle() }}</h2>
+          <p>{{ getCurrentViewDescription() }}</p>
+        </header>
 
-      <div class="content-body" :class="{ 'with-filter': showFilterSidebar }">
-        <!-- 筛选器侧边栏 - 只在需要筛选的页面显示 -->
-        <div v-if="showFilterSidebar" class="filter-sidebar-container">
-          <FilterSidebar 
-            :filters="currentFilterData.filters" 
-            :isLoading="isFilterSidebarLoading"
-            @filter-select="onFilterSelect"
-            @filter-exclude="onFilterExclude" 
-            @filter-clear="onFilterClear" 
-          />
-        </div>
+        <div class="content-body" :class="{ 'with-filter': showFilterSidebar }">
+          <!-- 筛选器侧边栏 - 只在需要筛选的页面显示 -->
+          <div v-if="showFilterSidebar" class="filter-sidebar-container">
+            <FilterSidebar 
+              :filters="currentFilterData.filters" 
+              :isLoading="isFilterSidebarLoading"
+              @filter-select="onFilterSelect"
+              @filter-exclude="onFilterExclude" 
+              @filter-clear="onFilterClear" 
+            />
+          </div>
 
-        <!-- 页面内容区域 -->
-        <div class="page-content" :class="{ 'has-background': backgroundImageUrl }" :style="pageContentStyle">
+          <!-- 页面内容区域 -->
+          <div class="page-content" :class="{ 'has-background': backgroundImageUrl }" :style="pageContentStyle">
           <!-- 插件视图 -->
           <div v-if="pluginView.visible" class="plugin-view-container">
             <div class="plugin-view-header">
@@ -156,8 +161,10 @@
             @navigate="navigateTo"
             @theme-changed="onThemeChanged"
           />
+          </div>
         </div>
-      </div>
+      </template>
+      
       <!-- 全局音频播放器 -->
       <GlobalAudioPlayer @audio-started="onAudioStarted" @playlist-ended="onPlaylistEnded" />
     </main>
@@ -177,6 +184,7 @@
 <script lang="ts">
 import GlobalAudioPlayer from './components/GlobalAudioPlayer.vue'
 import FilterSidebar from './components/FilterSidebar.vue'
+import TabBar from './components/TabBar.vue'
 import FunLoading from './fun-ui/feedback/Loading/FunLoading.vue'
 import { updateDynamicRoutes } from './router/index'
 
@@ -197,6 +205,7 @@ export default {
   components: {
     GlobalAudioPlayer,
     FilterSidebar,
+    TabBar,
     FunLoading
   },
   data() {
@@ -304,7 +313,10 @@ export default {
           description: '管理你的合集'
         }
       },
-      navItems: []
+      navItems: [],
+      // 标签页相关
+      hasTabs: false, // 是否有标签页（不包括主页标签）
+      activeTabIsHome: true // 当前活动标签页是否是主页
     }
   },
   computed: {
@@ -991,6 +1003,42 @@ export default {
       console.log('🏁 播放列表播放完毕')
       // 可以在这里添加播放列表结束后的逻辑
     },
+    onTabsChanged(hasTabs, activeTabId) {
+      // hasTabs 表示是否有非主页标签页
+      // 如果只有主页标签页，hasTabs 应该是 false
+      this.hasTabs = hasTabs
+      // 检查活动标签页是否是主页
+      this.checkActiveTabIsHome(activeTabId)
+    },
+    async checkActiveTabIsHome(activeTabId) {
+      if (!window.electronAPI || !window.electronAPI.tabGetAll) {
+        // 没有 Electron API 时，默认显示主页
+        this.activeTabIsHome = true
+        this.hasTabs = false
+        return
+      }
+      
+      try {
+        const result = await window.electronAPI.tabGetAll()
+        if (result.success) {
+          const targetTabId = activeTabId || result.activeTabId
+          const activeTab = result.tabs.find(t => t.id === targetTabId)
+          const isHome = activeTab ? (activeTab.isHome || false) : (targetTabId === 'home-tab')
+          console.log('检查活动标签页:', { targetTabId, activeTab, isHome, allTabs: result.tabs })
+          this.activeTabIsHome = isHome
+          // 更新 hasTabs：如果有非主页标签页，则为 true
+          const nonHomeTabs = result.tabs.filter(t => !t.isHome)
+          this.hasTabs = nonHomeTabs.length > 0
+        } else {
+          this.activeTabIsHome = true
+          this.hasTabs = false
+        }
+      } catch (error) {
+        console.error('检查活动标签页失败:', error)
+        this.activeTabIsHome = true
+        this.hasTabs = false
+      }
+    },
     async saveCurrentView(viewId: string) {
       try {
         const settings = await saveManager.loadSettings()
@@ -1160,6 +1208,27 @@ export default {
     }
   },
   async mounted() {
+    // 初始化标签页状态（确保默认显示主页）
+    if (window.electronAPI && window.electronAPI.tabGetAll) {
+      try {
+        const result = await window.electronAPI.tabGetAll()
+        if (result.success) {
+          const activeTab = result.tabs.find(t => t.id === (result.activeTabId || 'home-tab'))
+          this.activeTabIsHome = activeTab ? (activeTab.isHome || false) : true
+          const nonHomeTabs = result.tabs.filter(t => !t.isHome)
+          this.hasTabs = nonHomeTabs.length > 0
+        }
+      } catch (error) {
+        console.warn('初始化标签页状态失败:', error)
+        this.activeTabIsHome = true
+        this.hasTabs = false
+      }
+    } else {
+      // 没有 Electron API 时，默认显示主页
+      this.activeTabIsHome = true
+      this.hasTabs = false
+    }
+
     // 读取版本号
     try {
       const packageJson = await import('../package.json')
@@ -1491,6 +1560,7 @@ export default {
   position: relative;
   z-index: 1;
 }
+
 
 
 .sidebar-logo{
