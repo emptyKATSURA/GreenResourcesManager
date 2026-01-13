@@ -55,13 +55,55 @@
         </div>
       </div>
     </div>
+
+    <!-- 协作者展示区域 -->
+    <div class="collaborators-showcase">
+      <div class="showcase-header">
+        <h2 class="showcase-title">关于协作者</h2>
+      </div>
+      <div class="collaborators-content">
+        <p class="collaborators-description">
+          感谢所有为这个项目做出贡献的协作者们。他们的支持和帮助让这个项目变得更好。
+        </p>
+        <div class="collaborators-list">
+          <!-- 协作者卡片 -->
+          <div 
+            class="collaborator-card" 
+            v-for="collaborator in collaborators" 
+            :key="collaborator.name"
+            @click="collaborator.link ? openExternalLink(collaborator.link) : null"
+            :class="{ 'clickable': collaborator.link }"
+          >
+            <div class="collaborator-image-container">
+              <img :src="collaborator.image" :alt="collaborator.name" class="collaborator-image" />
+            </div>
+            <div class="collaborator-name">{{ collaborator.name }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </HelpSection>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import HelpSection from '../HelpSection.vue'
 import { useHelpUtils } from '../../../composables/useHelpUtils'
 
 const { openExternalLink } = useHelpUtils()
+
+// 协作者列表数据
+const collaborators = ref([
+  {
+    name: '猫猫D菌_NekoD',
+    image: '/imgs/猫猫D菌_NekoD.jpg',
+    link: 'https://github.com/CutrelyAlex'
+  },
+  {
+    name: 'blycr',
+    image: '/imgs/blycr.png',
+    link: 'https://github.com/blycr'
+  }
+])
 </script>
 

@@ -1,7 +1,10 @@
 <template>
-  <div class="help-sidebar">
+  <div class="help-sidebar" :class="{ collapsed: isCollapsed }">
     <div class="sidebar-header">
-      <h2>📚 帮助中心</h2>
+      <h2 v-if="!isCollapsed">📚 帮助中心</h2>
+      <button class="collapse-toggle" @click="toggleCollapse" :title="isCollapsed ? '展开菜单' : '收起菜单'">
+        {{ isCollapsed ? '→' : '←' }}
+      </button>
     </div>
     <nav class="sidebar-nav">
       <FunMenu
@@ -9,6 +12,7 @@
         :active-key="activeSection"
         :default-expanded-keys="['user-manual']"
         :is-item-active-fn="isItemActive"
+        :collapsed="isCollapsed"
         @item-click="handleMenuClick"
       />
     </nav>
@@ -16,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import FunMenu from '../../fun-ui/navigation/Menu/FunMenu.vue'
 import type { MenuItem } from '../../fun-ui/navigation/Menu/FunMenu.vue'
 
@@ -28,6 +32,14 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'section-change': [section: string]
 }>()
+
+// 缩起状态
+const isCollapsed = ref(false)
+
+// 切换缩起状态
+const toggleCollapse = () => {
+  isCollapsed.value = !isCollapsed.value
+}
 
 // 菜单项配置
 const menuItems: MenuItem[] = [
@@ -99,12 +111,21 @@ const handleMenuClick = (item: MenuItem) => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  transition: width 0.3s ease;
+}
+
+.help-sidebar.collapsed {
+  width: 64px;
 }
 
 .sidebar-header {
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
 }
 
 .sidebar-header h2 {
@@ -112,6 +133,34 @@ const handleMenuClick = (item: MenuItem) => {
   color: var(--text-primary);
   font-size: 1.3rem;
   font-weight: 600;
+  transition: opacity 0.3s ease;
+}
+
+.help-sidebar.collapsed .sidebar-header h2 {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+.collapse-toggle {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.collapse-toggle:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-color);
+}
+
+.help-sidebar.collapsed .collapse-toggle {
+  margin: 0 auto;
 }
 
 .sidebar-nav {

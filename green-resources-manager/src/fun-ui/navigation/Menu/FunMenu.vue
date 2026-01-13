@@ -1,5 +1,5 @@
 <template>
-  <ul class="fun-menu">
+  <ul class="fun-menu" :class="{ collapsed: collapsed }">
     <li
       v-for="item in items"
       :key="item.id || item.key"
@@ -14,16 +14,19 @@
             active: isItemActive(item),
             expanded: isExpanded(item)
           }"
+          @mouseenter="collapsed && item.children ? handleHover(item, true) : null"
+          @mouseleave="collapsed && item.children ? handleHover(item, false) : null"
         >
           <div
             class="fun-menu-item-content"
             @click="handleItemClick(item)"
+            :title="collapsed ? (item.label || item.text || item.name) : ''"
           >
             <span v-if="item.icon" class="fun-menu-icon">{{ item.icon }}</span>
-            <span class="fun-menu-text">{{ item.label || item.text || item.name }}</span>
+            <span v-if="!collapsed" class="fun-menu-text">{{ item.label || item.text || item.name }}</span>
           </div>
           <span
-            v-if="item.children && item.children.length > 0"
+            v-if="item.children && item.children.length > 0 && !collapsed"
             class="fun-menu-arrow"
             :class="{ expanded: isExpanded(item) }"
             @click.stop="toggleExpand(item)"
@@ -31,10 +34,14 @@
             ▶
           </span>
         </div>
-        <!-- 子菜单 -->
+        <!-- 子菜单 - 折叠时也显示（只显示图标） -->
         <ul
+          v-if="!collapsed || (collapsed && isExpanded(item))"
           class="fun-menu-submenu"
-          :class="{ expanded: isExpanded(item) }"
+          :class="{ 
+            expanded: isExpanded(item),
+            'collapsed-mode': collapsed
+          }"
         >
           <li
             v-for="child in item.children"
@@ -46,16 +53,22 @@
             <template v-if="child.children && child.children.length > 0">
               <div
                 class="fun-menu-item fun-menu-item-child"
-                :class="{ active: isItemActive(child), expanded: isExpanded(child) }"
+                :class="{ 
+                  active: isItemActive(child), 
+                  expanded: isExpanded(child),
+                  'collapsed-mode': collapsed
+                }"
               >
                 <div
                   class="fun-menu-item-content"
                   @click="handleItemClick(child)"
+                  :title="collapsed ? (child.label || child.text || child.name) : ''"
                 >
                   <span v-if="child.icon" class="fun-menu-icon">{{ child.icon }}</span>
-                  <span class="fun-menu-text">{{ child.label || child.text || child.name }}</span>
+                  <span v-if="!collapsed" class="fun-menu-text">{{ child.label || child.text || child.name }}</span>
                 </div>
                 <span
+                  v-if="!collapsed"
                   class="fun-menu-arrow"
                   :class="{ expanded: isExpanded(child) }"
                   @click.stop="toggleExpand(child)"
@@ -65,6 +78,7 @@
               </div>
               <!-- 三级子菜单（递归） -->
               <ul
+                v-if="!collapsed"
                 class="fun-menu-submenu fun-menu-submenu-nested"
                 :class="{ expanded: isExpanded(child) }"
               >
@@ -86,10 +100,12 @@
             <div
               v-else
               class="fun-menu-item fun-menu-item-child"
+              :class="{ 'collapsed-mode': collapsed }"
               @click="handleItemClick(child)"
+              :title="collapsed ? (child.label || child.text || child.name) : ''"
             >
               <span v-if="child.icon" class="fun-menu-icon">{{ child.icon }}</span>
-              <span class="fun-menu-text">{{ child.label || child.text || child.name }}</span>
+              <span v-if="!collapsed" class="fun-menu-text">{{ child.label || child.text || child.name }}</span>
             </div>
           </li>
         </ul>
@@ -101,9 +117,10 @@
         class="fun-menu-item"
         :class="{ active: isItemActive(item) }"
         @click="handleItemClick(item)"
+        :title="collapsed ? (item.label || item.text || item.name) : ''"
       >
         <span v-if="item.icon" class="fun-menu-icon">{{ item.icon }}</span>
-        <span class="fun-menu-text">{{ item.label || item.text || item.name }}</span>
+        <span v-if="!collapsed" class="fun-menu-text">{{ item.label || item.text || item.name }}</span>
       </div>
     </li>
   </ul>
@@ -133,11 +150,14 @@ interface Props {
   defaultExpandedKeys?: string[]
   // 自定义激活判断函数
   isItemActiveFn?: (item: MenuItem) => boolean
+  // 是否缩起（只显示图标）
+  collapsed?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   items: () => [],
-  defaultExpandedKeys: () => []
+  defaultExpandedKeys: () => [],
+  collapsed: false
 })
 
 const emit = defineEmits<{
@@ -198,10 +218,27 @@ const isItemActive = (item: MenuItem): boolean => {
 const handleItemClick = (item: MenuItem) => {
   // 如果有子菜单，点击时展开/折叠
   if (item.children && item.children.length > 0) {
+    // 折叠模式下，点击时切换展开状态（显示子菜单图标）
     toggleExpand(item)
   }
   
   emit('item-click', item)
+}
+
+// 处理悬停（用于折叠模式下的弹出提示）
+const hoveredItem = ref<MenuItem | null>(null)
+
+const handleHover = (item: MenuItem, isEnter: boolean) => {
+  if (isEnter) {
+    hoveredItem.value = item
+    // 折叠模式下悬停时自动展开（显示子菜单）
+    const key = item.id || item.key
+    if (key && !expandedKeys.value.has(key)) {
+      toggleExpand(item)
+    }
+  } else {
+    hoveredItem.value = null
+  }
 }
 
 // 监听 activeKey 变化，自动展开包含该 key 的父菜单
@@ -252,11 +289,17 @@ watch(() => props.activeKey, (newKey) => {
 
 .fun-menu-item-wrapper {
   list-style: none;
+  position: relative;
+}
+
+.fun-menu.collapsed .fun-menu-item-wrapper.has-children {
+  position: relative;
 }
 
 .fun-menu-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 12px 20px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -279,10 +322,21 @@ watch(() => props.activeKey, (newKey) => {
   }
 }
 
+.fun-menu.collapsed .fun-menu-item {
+  justify-content: center;
+  padding: 12px;
+}
+
 .fun-menu-item-content {
   display: flex;
   align-items: center;
   flex: 1;
+  justify-content: flex-start;
+}
+
+.fun-menu.collapsed .fun-menu-item-content {
+  justify-content: center;
+  flex: 0;
 }
 
 .fun-menu-icon {
@@ -290,6 +344,11 @@ watch(() => props.activeKey, (newKey) => {
   margin-right: 12px;
   color: var(--text-secondary, rgba(0, 0, 0, 0.6));
   transition: color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.fun-menu.collapsed .fun-menu-icon {
+  margin-right: 0;
 }
 
 .fun-menu-text {
@@ -323,6 +382,27 @@ watch(() => props.activeKey, (newKey) => {
   &.expanded {
     max-height: 500px;
   }
+  
+  &.collapsed-mode {
+    position: absolute;
+    left: calc(100% + 4px);
+    top: 0;
+    background: var(--bg-secondary, #ffffff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 4px;
+    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.15);
+    min-width: 120px;
+    z-index: 1000;
+    max-height: none;
+    padding: 4px 0;
+    display: block;
+    overflow: visible;
+  }
+  
+  &.collapsed-mode.expanded {
+    max-height: none;
+    display: block;
+  }
 }
 
 .fun-menu-submenu-item {
@@ -344,6 +424,17 @@ watch(() => props.activeKey, (newKey) => {
 .fun-menu-item-child {
   padding-left: 48px;
   font-size: 0.9rem;
+}
+
+.fun-menu.collapsed .fun-menu-item-child {
+  padding-left: 12px;
+  padding-right: 12px;
+  justify-content: center;
+}
+
+.fun-menu.collapsed .fun-menu-submenu-item .fun-menu-item {
+  padding: 8px 12px;
+  justify-content: center;
 }
 
 .fun-menu-submenu-nested {

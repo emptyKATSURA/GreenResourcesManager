@@ -50,20 +50,18 @@
         </div>
 
         <!-- 右键菜单 -->
-        <ContextMenu :visible="showContextMenu" :position="contextMenuPos" :menu-items="contextMenuItems"
+        <fun-context-menu :visible="showContextMenu" :position="contextMenuPos" :menu-items="contextMenuItems"
             @item-click="handleContextMenuClick" />
     </div>
 </template>
 
 <script>
 import GameToolbar from './Toolbar.vue'
-import ContextMenu from './ContextMenu.vue'
 
 export default {
     name: 'BaseView',
     components: {
-        GameToolbar,
-        ContextMenu
+        GameToolbar
     },
     props: {
         // 空状态相关属性

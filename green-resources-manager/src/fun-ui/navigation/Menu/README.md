@@ -6,8 +6,10 @@
 
 - ✅ 支持一级菜单项
 - ✅ 支持可展开/折叠的二级菜单
+- ✅ 支持三级嵌套菜单
 - ✅ 自动激活状态管理
 - ✅ 自定义激活判断函数
+- ✅ 缩起模式（只显示图标）
 - ✅ 响应式设计
 - ✅ TypeScript 类型支持
 
@@ -70,6 +72,7 @@ const handleMenuClick = (item: MenuItem) => {
 | `activeId` | `string` | - | 当前激活的菜单项 id（与 activeKey 作用相同） |
 | `defaultExpandedKeys` | `string[]` | `[]` | 默认展开的菜单项 keys |
 | `isItemActiveFn` | `(item: MenuItem) => boolean` | - | 自定义激活判断函数 |
+| `collapsed` | `boolean` | `false` | 是否缩起（只显示图标） |
 
 ## MenuItem 接口
 
@@ -131,9 +134,43 @@ const menuItems: MenuItem[] = [
 - `--text-primary`: 主文本颜色
 - `--text-secondary`: 次要文本颜色
 
+## 缩起模式
+
+组件支持缩起模式，缩起后只显示图标，隐藏文本和子菜单：
+
+```vue
+<template>
+  <div class="sidebar" :class="{ collapsed: isCollapsed }">
+    <button @click="isCollapsed = !isCollapsed">
+      {{ isCollapsed ? '展开' : '收起' }}
+    </button>
+    <FunMenu
+      :items="menuItems"
+      :collapsed="isCollapsed"
+      @item-click="handleMenuClick"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import FunMenu from '@/fun-ui/navigation/Menu/FunMenu.vue'
+
+const isCollapsed = ref(false)
+// ...
+</script>
+```
+
+缩起时：
+- 只显示图标
+- 隐藏菜单文本
+- 隐藏所有子菜单
+- 鼠标悬停时显示提示文本（通过 title 属性）
+
 ## 使用场景
 
 - 侧边栏导航菜单
 - 帮助页面导航
 - 应用主菜单
+- 需要节省空间的导航场景
 - 任何需要层级菜单的场景

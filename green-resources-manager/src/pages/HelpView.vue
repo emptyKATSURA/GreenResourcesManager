@@ -665,6 +665,126 @@ export default defineComponent({
 }
 
 // ============================================
+// 9.1 协作者展示区域样式
+// ============================================
+
+// 协作者展示卡片 - 与个人信息展示区域样式类似
+.collaborators-showcase {
+  max-width: 800px;
+  margin: 40px auto 60px;
+  padding: 60px 40px;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+
+  // 背景旋转动画层
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+    animation: rotate 20s linear infinite;
+    pointer-events: none;
+  }
+}
+
+// 协作者内容区域
+.collaborators-content {
+  position: relative;
+  z-index: 1;
+  margin-top: 40px;
+}
+
+// 协作者描述文本
+.collaborators-description {
+  font-size: 1.15rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin: 0 auto 40px;
+  max-width: 600px;
+  font-weight: 400;
+}
+
+// 协作者列表容器
+.collaborators-list {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-3xl);
+  flex-wrap: wrap;
+  margin-top: 40px;
+}
+
+// 协作者卡片 - 包含图片和名称
+.collaborator-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-xl);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  transition: all var(--transition-base);
+  min-width: 180px;
+  max-width: 220px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+
+  // 悬停效果
+  &:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-color);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+    background: var(--bg-secondary);
+  }
+
+  // 可点击的卡片样式
+  &.clickable {
+    cursor: pointer;
+    
+    &:hover {
+      transform: translateY(-5px);
+      border-color: var(--accent-color);
+      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+      background: var(--bg-secondary);
+    }
+  }
+
+  .collaborator-image-container {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: var(--spacing-lg);
+    border: 3px solid var(--border-color);
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-base);
+  }
+
+  .collaborator-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+
+  .collaborator-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+    line-height: 1.4;
+  }
+}
+
+// ============================================
 // 10. 响应式设计
 // ============================================
 
@@ -738,6 +858,34 @@ export default defineComponent({
   .personal-link-item {
     min-width: auto;
     justify-content: center;
+  }
+
+  // 移动端：协作者展示区域调整
+  .collaborators-showcase {
+    padding: 40px var(--spacing-xl);
+    margin: var(--spacing-3xl) auto 40px;
+  }
+
+  .collaborators-description {
+    font-size: 1rem;
+    margin-bottom: var(--spacing-3xl);
+  }
+
+  .collaborators-list {
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    align-items: stretch;
+  }
+
+  .collaborator-card {
+    min-width: auto;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .collaborator-image-container {
+    width: 100px;
+    height: 100px;
   }
 }
 

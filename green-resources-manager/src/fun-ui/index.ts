@@ -42,6 +42,7 @@ import FunGrid from './layout/Grid/FunGrid.vue'
 import FunAlert from './feedback/Alert/FunAlert.vue'
 import FunConfirmDialog from './feedback/ConfirmDialog/FunConfirmDialog.vue'
 import FunNotification from './feedback/Notification/FunNotification.vue'
+import FunContextMenu from './feedback/ContextMenu/FunContextMenu.vue'
 
 // 组件列表
 const components = {
@@ -69,7 +70,8 @@ const components = {
   // Feedback
   FunAlert,
   FunConfirmDialog,
-  FunNotification
+  FunNotification,
+  FunContextMenu
 }
 
 /**
@@ -96,6 +98,7 @@ export function install(app: App) {
   app.component('fun-alert', FunAlert)
   app.component('fun-confirm-dialog', FunConfirmDialog)
   app.component('fun-notification', FunNotification)
+  app.component('fun-context-menu', FunContextMenu)
 }
 
 // 导出所有组件
@@ -124,7 +127,8 @@ export {
   // Feedback
   FunAlert,
   FunConfirmDialog,
-  FunNotification
+  FunNotification,
+  FunContextMenu
 }
 
 // 默认导出（支持 app.use(FunUI)）
