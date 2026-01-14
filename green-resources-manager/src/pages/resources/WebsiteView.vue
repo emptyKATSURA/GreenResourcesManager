@@ -101,7 +101,7 @@
 import BaseView from '../../components/BaseView.vue'
 import FormField from '../../components/FormField.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Website } from '../../class/website.ts'
+import { Website } from '@resources/website.ts'
 import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 
@@ -209,11 +209,7 @@ export default {
       importProgress: '',
       // 空状态配置
       websiteEmptyStateConfig: {
-        emptyIcon: '🌐',
-        emptyTitle: '你的网站收藏是空的',
-        emptyDescription: '点击"添加网站"按钮来添加你的第一个网站收藏',
-        emptyButtonText: '添加第一个网站',
-        emptyButtonAction: 'showAddDialog',
+        ...Website.emptyStateConfig,
         noResultsIcon: '🔍',
         noResultsTitle: '没有找到匹配的网站',
         noResultsDescription: '尝试使用不同的搜索词',
@@ -223,25 +219,11 @@ export default {
       },
       // 工具栏配置
       websiteToolbarConfig: {
-        addButtonText: '添加网站',
-        importBookmarkButtonText: '从书签导入',
-        searchPlaceholder: '搜索网站...',
-        sortOptions: [
-          { value: 'name', label: '按名称' },
-          { value: 'visitCount', label: '按访问次数' },
-          { value: 'addedDate', label: '按添加时间' },
-          { value: 'lastVisited', label: '按最后访问' }
-        ],
+        ...Website.toolbarConfig,
         pageType: 'websites'
       },
       // 右键菜单配置
-      websiteContextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'visit', icon: '🔗', label: '访问网站' },
-        { key: 'refresh-favicon', icon: '🔄', label: '刷新图标' },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'delete', icon: '🗑️', label: '删除网站' }
-      ]
+      websiteContextMenuItems: Website.contextMenuItems
     }
   },
   computed: {

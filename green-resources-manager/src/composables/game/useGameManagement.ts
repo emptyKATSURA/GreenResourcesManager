@@ -2,9 +2,9 @@ import { ref, type Ref } from 'vue'
 import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
 import { unlockAchievement } from '../../pages/user/AchievementView.vue'
-import { Game as GameClass } from '../../class/game.ts'
-import { BaseResources } from '../../class/base/ResourcesDataBase.ts'
-import { ResourceField } from '../../class/base/ResourceField.ts'
+import { Game as GameClass } from '@resources/game.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+import { ResourceField } from '@resources/base/ResourceField.ts'
 
 // 游戏数据类型
 type Game = InstanceType<typeof GameClass> & Record<string, any>

@@ -59,4 +59,12 @@ export class VideoFolder extends BaseResources {
 		saveable: true,
 		editType: new FormField_SelectVideoThumbnail('缩略图', false)
 	})
+
+	// 静态配置：启动方式配置
+	static actionConfig = {
+		key: 'open',
+		icon: '📁',
+		label: '打开文件夹',
+		handlerName: 'openFolder' // 组件中对应的方法名
+	}
 }

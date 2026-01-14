@@ -266,8 +266,8 @@ import {
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
   FormField_SelectVideoThumbnail
-} from '../class/base/FormField.ts'
-import { ResourceField } from '../class/base/ResourceField.ts'
+} from '@resources/base/FormField.ts'
+import { ResourceField } from '@resources/base/ResourceField.ts'
 
 export default {
   name: 'ResourcesEditDialog',
@@ -573,11 +573,11 @@ export default {
       }
     },
     getTitle() {
-      if (this.title) return this.title
+      const config = (this.resourceClass as any)?.editDialogConfig
       if (this.isEditMode) {
-        return this.editTitle || '编辑资源'
+        return config?.editTitle || '编辑资源'
       }
-      return this.addTitle || '添加资源'
+      return config?.addTitle || '添加资源'
     },
     getConfirmButtonText() {
       if (this.confirmButtonText) return this.confirmButtonText

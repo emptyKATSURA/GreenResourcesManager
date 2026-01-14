@@ -206,7 +206,7 @@ import TextReader from '../../components/TextReader.vue'
 import EbookReader from '../../components/epub-reader-v2/EbookReader.vue'
 import ContentView from '../../components/epub-reader-v2/ContentView.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Novel } from '../../class/novel.ts'
+import { Novel } from '@resources/novel.ts'
 import saveManager from '../../utils/SaveManager.ts'
 import { useNovelManagement } from '../../composables/novel/useNovelManagement'
 import { useNovelFilter } from '../../composables/novel/useNovelFilter'
@@ -341,11 +341,7 @@ export default {
       },
       // 空状态配置
       novelEmptyStateConfig: {
-        emptyIcon: '📚',
-        emptyTitle: '你的小说库是空的',
-        emptyDescription: '点击"添加小说"按钮来添加你的第一本小说',
-        emptyButtonText: '添加第一本小说',
-        emptyButtonAction: 'showAddNovelDialog',
+        ...Novel.emptyStateConfig,
         noResultsIcon: '🔍',
         noResultsTitle: '没有找到匹配的小说',
         noResultsDescription: '尝试使用不同的搜索词',
@@ -355,25 +351,11 @@ export default {
       },
       // 工具栏配置
       novelToolbarConfig: {
-        addButtonText: '添加小说',
-        searchPlaceholder: '搜索小说...',
-        sortOptions: [
-          { value: 'name', label: '按名称排序' },
-          { value: 'author', label: '按作者排序' },
-          { value: 'readProgress', label: '按阅读进度' },
-          { value: 'added', label: '按添加时间' }
-        ],
+        ...Novel.toolbarConfig,
         pageType: 'novels'
       },
       // 右键菜单配置
-      novelContextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'read', icon: '📖', label: '开始阅读' },
-        { key: 'read-v2', icon: '📚', label: 'EPUB阅读器V2' },
-        { key: 'folder', icon: '📁', label: '打开文件夹' },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'remove', icon: '🗑️', label: '删除小说' }
-      ],
+      novelContextMenuItems: Novel.contextMenuItems,
       // 小说列表分页相关
       currentNovelPage: 1,
       novelPageSize: 20, // 默认每页显示20个小说

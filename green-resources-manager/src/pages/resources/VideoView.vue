@@ -146,8 +146,8 @@ import DetailPanel from '../../components/DetailPanel.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import VideoSelector from '../video/VideoSelector.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Video } from '../../class/video.ts'
-import { VideoFolder } from '../../class/videoFolder.ts'
+import { Video } from '@resources/video.ts'
+import { VideoFolder } from '@resources/videoFolder.ts'
 import FolderVideosGrid from '../../components/video/FolderVideosGrid.vue'
 
 import saveManager from '../../utils/SaveManager.ts'
@@ -393,22 +393,12 @@ export default {
         { value: 'added', label: '按添加时间' }
       ],
       // 右键菜单配置
-      videoContextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'play', icon: '▶️', label: '播放视频' },
-        { key: 'folder', icon: '📁', label: '打开文件夹' },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'remove', icon: '🗑️', label: '删除视频' }
-      ],
+      videoContextMenuItems: Video.contextMenuItems,
       // 标签、演员、系列筛选相关已移至 useVideoFilter composable
       // 视频列表分页相关已移至 usePagination composable
       // 空状态配置
       videoEmptyStateConfig: {
-        emptyIcon: '🎬',
-        emptyTitle: '你的视频库是空的',
-        emptyDescription: '点击"添加视频"或"添加文件夹"按钮来添加内容，或直接拖拽视频文件/文件夹到此处（支持多选）',
-        emptyButtonText: '添加第一个视频',
-        emptyButtonAction: 'showAddVideoDialog',
+        ...Video.emptyStateConfig,
         noResultsIcon: '🔍',
         noResultsTitle: '没有找到匹配的内容',
         noResultsDescription: '尝试使用不同的搜索词',
@@ -418,15 +408,7 @@ export default {
       },
       // 工具栏配置
       videoToolbarConfig: {
-        addButtonText: '添加视频',
-        addFolderButtonText: '添加文件夹',
-        searchPlaceholder: '搜索视频...',
-        sortOptions: [
-          { value: 'name', label: '按名称排序' },
-          { value: 'lastWatched', label: '按最后观看时间' },
-          { value: 'watchCount', label: '按观看次数' },
-          { value: 'added', label: '按添加时间' }
-        ],
+        ...Video.toolbarConfig,
         pageType: 'videos'
       },
     }

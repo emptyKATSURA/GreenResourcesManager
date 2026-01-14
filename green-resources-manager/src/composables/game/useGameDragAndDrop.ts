@@ -3,7 +3,7 @@ import { useDragAndDrop } from '../useDragAndDrop'
 import notify from '../../utils/NotificationService'
 import type { GameDragDropOptions } from '../../types/game'
 import { isArchiveFile } from '../useArchive'
-import { Game as GameClass } from '../../class/game.ts'
+import { Game as GameClass } from '@resources/game.ts'
 
 // Game 类型就是 GameClass 的实例类型
 type Game = InstanceType<typeof GameClass>

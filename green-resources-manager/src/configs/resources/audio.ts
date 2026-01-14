@@ -54,4 +54,49 @@ export class Audio extends BaseResources {
 			{ name: '所有文件', extensions: ['*'] }
 		], false)
 	})
+
+	// 静态配置：编辑对话框配置
+	static editDialogConfig = {
+		addTitle: '添加音频',
+		editTitle: '编辑音频',
+	}
+
+	// 静态配置：右键菜单项
+	static contextMenuItems = [
+		{ key: 'detail', icon: '👁️', label: '查看详情' },
+		{ key: 'play', icon: '▶️', label: '播放' },
+		{ key: 'addToPlaylist', icon: '➕', label: '添加到播放列表' },
+		{ key: 'folder', icon: '📁', label: '打开文件夹' },
+		{ key: 'edit', icon: '✏️', label: '编辑信息' },
+		{ key: 'delete', icon: '🗑️', label: '删除音频' }
+	]
+
+	// 静态配置：空状态配置
+	static emptyStateConfig = {
+		icon: '🎵',
+		title: '你的音频库是空的',
+		description: '点击"添加音频"按钮来添加你的第一个音频',
+		buttonText: '添加第一个音频',
+		buttonAction: 'showAddDialog'
+	}
+
+	// 静态配置：工具栏配置
+	static toolbarConfig = {
+		addButtonText: '添加音频',
+		searchPlaceholder: '搜索音频...',
+		sortOptions: [
+			{ value: 'name', label: '按名称' },
+			{ value: 'artist', label: '按艺术家' },
+			{ value: 'playCount', label: '按播放次数' },
+			{ value: 'addedDate', label: '按添加时间' }
+		]
+	}
+
+	// 静态配置：启动方式配置
+	static actionConfig = {
+		key: 'play',
+		icon: '▶️',
+		label: '播放',
+		handlerName: 'playAudio' // 组件中对应的方法名
+	}
 }

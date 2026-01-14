@@ -124,7 +124,8 @@ import FormField from '../../components/FormField.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Game } from '../../class/game.ts'
+import { Game } from '@resources/game.ts'
+import { GamePage } from '../../configs/pages/GamePage.ts'
 import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
 
@@ -165,6 +166,12 @@ export default {
   },
   emits: ['filter-data-updated'],
   setup(props) {
+    // 创建页面配置实例
+    const gamePage = new GamePage()
+    
+    // 获取排序选项配置（用于工具栏显示）
+    const sortOptions = gamePage.getSortOptions()
+    
     // 响应式数据
     const games = ref([])
     const isElectronEnvironment = ref(false)
@@ -182,8 +189,8 @@ export default {
       return gameRunningStore.isGameRunning(game.id?.value || game.id)
     }
 
-    // 使用筛选 composable
-    const filterComposable = useGameFilter(games, searchQuery, sortBy, isGameRunningForFilter)
+    // 使用筛选 composable（传入页面配置实例，由 composable 内部调用排序函数）
+    const filterComposable = useGameFilter(games, searchQuery, sortBy, gamePage, isGameRunningForFilter)
 
     // 使用管理 composable
     const managementComposable = useGameManagement(
@@ -334,59 +341,18 @@ export default {
         getItemName: (game: any) => game.name?.value || game.name,
         itemType: '游戏'
       },
-      contextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'launch', icon: '▶️', label: '启动游戏' },
-        { key: 'folder', icon: '📁', label: '打开文件夹' },
-        { key: 'screenshot-folder', icon: '📸', label: '打开截图文件夹' },
-        { key: 'update-folder-size', icon: '📊', label: '更新文件夹大小' },
-        { 
-          key: 'compress', 
-          icon: '🗜️', 
-          label: '压缩文件',
-          children: [
-            { key: 'compress-to', icon: '🗜️', label: '压缩到指定目录...' },
-            { key: 'compress-here', icon: '🗜️', label: '压缩到当前目录' }
-          ]
-        },
-        { 
-          key: 'extract', 
-          icon: '📦', 
-          label: '解压文件',
-          children: [
-            { key: 'extract', icon: '📦', label: '解压到指定目录...' },
-            { key: 'extract-here', icon: '📦', label: '解压到当前目录' }
-          ]
-        },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'remove', icon: '🗑️', label: '删除游戏' }
-      ],
+      contextMenuItems: Game.contextMenuItems,
       contextMenuHandlers: contextMenuHandlers,
-      emptyState: {
-        icon: '🎮',
-        title: '你的游戏库是空的',
-        description: '点击"添加游戏"按钮来添加你的第一个游戏，或直接拖拽游戏文件（.exe、.swf、.bat）或压缩包（.zip、.rar、.7z 等）到此处',
-        buttonText: '添加第一个游戏',
-        buttonAction: 'showAddGameDialog'
-      },
+      emptyState: Game.emptyStateConfig,
       toolbar: {
-        addButtonText: '添加游戏',
-        searchPlaceholder: '搜索游戏...',
-        sortOptions: [
-          { value: 'name-asc', label: '按名称排序（升序）' },
-          { value: 'name-desc', label: '按名称排序（降序）' },
-          { value: 'lastPlayed-asc', label: '按最后游玩时间（升序）' },
-          { value: 'lastPlayed-desc', label: '按最后游玩时间（降序）' },
-          { value: 'playTime-asc', label: '按游戏时长（升序）' },
-          { value: 'playTime-desc', label: '按游戏时长（降序）' },
-          { value: 'added-asc', label: '按添加时间（升序）' },
-          { value: 'added-desc', label: '按添加时间（降序）' }
-        ]
+        ...Game.toolbarConfig,
+        // 从页面配置获取排序选项（只提取 value 和 label，用于工具栏显示）
+        sortOptions: sortOptions.map(option => ({
+          value: option.value,
+          label: option.label
+        }))
       },
-      displayLayout: {
-        minWidth: 80,
-        maxWidth: 400
-      },
+      displayLayout: gamePage.displayLayoutConfig,
       getStats: (game: any) => [
         { label: '开发商', value: game.developers?.value?.[0] || game.developer?.value || game.developer || '未知' },
         { label: '发行商', value: game.publisher?.value || game.publisher || '未知' },
@@ -401,8 +367,9 @@ export default {
         // 注意：isGameRunning 函数会在组件实例化后设置，这里先使用 store
         const gameId = game.id?.value || game.id
         const isRunning = gameRunningStore.isGameRunning(gameId)
+        const actionConfig = Game.actionConfig
         const actions = [
-          { key: 'launch', icon: '▶️', label: isRunning ? '游戏运行中' : '启动游戏', class: 'btn-launch' },
+          { key: actionConfig.key, icon: actionConfig.icon, label: isRunning ? '游戏运行中' : actionConfig.label, class: 'btn-launch' },
           { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
           { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },
           { key: 'remove', icon: '🗑️', label: '删除游戏', class: 'btn-remove' }

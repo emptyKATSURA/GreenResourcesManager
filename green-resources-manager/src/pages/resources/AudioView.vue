@@ -120,7 +120,7 @@ import AudioGrid from '../../components/audio/AudioGrid.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { Audio } from '../../class/audio.ts'
+import { Audio } from '@resources/audio.ts'
 
 import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
@@ -231,14 +231,7 @@ export default {
         getItemName: (audio: any) => audio.name,
         itemType: '音频'
       },
-      contextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'play', icon: '▶️', label: '播放' },
-        { key: 'addToPlaylist', icon: '➕', label: '添加到播放列表' },
-        { key: 'folder', icon: '📁', label: '打开文件夹' },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'delete', icon: '🗑️', label: '删除音频' }
-      ],
+      contextMenuItems: Audio.contextMenuItems,
       contextMenuHandlers: {
         detail: (audio: any) => resourcePage.showDetail(audio),
         play: (audio: any) => audioPlayback.playAudio(audio),
@@ -247,27 +240,12 @@ export default {
         edit: (audio: any) => resourcePage.showEdit(audio),
         delete: (audio: any) => resourcePage.deleteItem(audio)
       },
-      emptyState: {
-        icon: '🎵',
-        title: '你的音频库是空的',
-        description: '点击"添加音频"按钮来添加你的第一个音频',
-        buttonText: '添加第一个音频',
-        buttonAction: 'showAddDialog'
-      },
-      toolbar: {
-        addButtonText: '添加音频',
-        searchPlaceholder: '搜索音频...',
-        sortOptions: [
-          { value: 'name', label: '按名称' },
-          { value: 'artist', label: '按艺术家' },
-          { value: 'playCount', label: '按播放次数' },
-          { value: 'addedDate', label: '按添加时间' }
-        ]
-      },
+      emptyState: Audio.emptyStateConfig,
+      toolbar: Audio.toolbarConfig,
       displayLayout: {
         minWidth: 80,
         maxWidth: 280
-      },
+      }, // TODO: 移动到 AudioPage 配置
       getStats: (audio: any) => [
         { label: '艺术家', value: audio.artist || '未知' },
         { label: '时长', value: formatDurationUtil(audio.duration) },
@@ -275,8 +253,9 @@ export default {
         { label: '添加时间', value: formatDate(audio.addedDate) }
       ],
       getActions: (audio: any) => {
+        const actionConfig = Audio.actionConfig
         const actions = [
-          { key: 'play', icon: '▶️', label: '播放', class: 'btn-play' },
+          { key: actionConfig.key, icon: actionConfig.icon, label: actionConfig.label, class: 'btn-play' },
           { key: 'addToPlaylist', icon: '➕', label: '添加到播放列表', class: 'btn-add-to-playlist' },
           { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
           { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },

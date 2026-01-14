@@ -1,6 +1,12 @@
 import { ref, computed, type Ref } from 'vue'
-import type { Game, FilterItem, GameSortBy } from '../../types/game'
-import { ResourceField } from '../../class/base/ResourceField.ts'
+import type { FilterItem, GameSortBy } from '../../types/game'
+import { ResourceField } from '@resources/base/ResourceField.ts'
+import { Game as GameClass } from '@resources/game.ts'
+import { sortBy as sortByUtil } from '../../utils/sortBy'
+import type { GamePage } from '../../configs/pages/GamePage'
+
+// Game 类型就是 GameClass 的实例类型
+type Game = InstanceType<typeof GameClass>
 
 /**
  * 安全获取游戏属性值的辅助函数
@@ -20,6 +26,7 @@ export function useGameFilter(
   games: Ref<Game[]>, 
   searchQuery: Ref<string>, 
   sortBy: Ref<GameSortBy>,
+  gamePage: GamePage,
   isGameRunning?: (game: Game) => boolean
 ) {
   // 筛选状态
@@ -218,41 +225,14 @@ export function useGameFilter(
       return matchesSearch && matchesTag && notExcludedTag && matchesDeveloper && notExcludedDeveloper && matchesPublisher && notExcludedPublisher && matchesEngine && notExcludedEngine && matchesOther && notExcludedOther
     })
 
-    // 排序
-    filtered.sort((a, b) => {
-      const sortType = sortBy.value
-      let result = 0
-      
-      // 解析排序类型和方向
-      if (sortType.startsWith('name-')) {
-        const aName = getFieldValue<string>(a.name) || ''
-        const bName = getFieldValue<string>(b.name) || ''
-        result = aName.localeCompare(bName)
-      } else if (sortType.startsWith('lastPlayed-')) {
-        const aLastPlayed = (a as any).lastPlayed
-        const bLastPlayed = (b as any).lastPlayed
-        const aTime = aLastPlayed ? new Date(aLastPlayed).getTime() : 0
-        const bTime = bLastPlayed ? new Date(bLastPlayed).getTime() : 0
-        result = aTime - bTime
-      } else if (sortType.startsWith('playTime-')) {
-        const aPlayTime = (a as any).playTime || 0
-        const bPlayTime = (b as any).playTime || 0
-        result = aPlayTime - bPlayTime
-      } else if (sortType.startsWith('added-')) {
-        const aAddedDate = getFieldValue<string>(a.addedDate)
-        const bAddedDate = getFieldValue<string>(b.addedDate)
-        const aAdded = aAddedDate ? new Date(aAddedDate).getTime() : 0
-        const bAdded = bAddedDate ? new Date(bAddedDate).getTime() : 0
-        result = aAdded - bAdded
-      }
-      
-      // 如果是降序，反转结果
-      if (sortType.endsWith('-desc')) {
-        result = -result
-      }
-      
-      return result
-    })
+    // 排序 - 使用 sortBy 工具函数
+    const sortConfig = gamePage.getSortConfig(sortBy.value)
+    if (sortConfig) {
+      return sortByUtil(filtered, sortConfig)
+    }
+    
+    // 如果没有找到对应的排序配置，返回原数组（不排序）
+    return filtered
 
     return filtered
   })

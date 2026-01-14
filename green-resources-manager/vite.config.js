@@ -4,6 +4,11 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@resources': resolve(__dirname, 'src/configs/resources')
+    }
+  },
   base: './',
   build: {
     outDir: 'dist',

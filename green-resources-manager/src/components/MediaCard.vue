@@ -220,7 +220,7 @@ import { useGameRunningStore } from '../stores/game-running'
 import disguiseManager from '../utils/DisguiseManager'
 import { isDisguiseModeEnabled } from '../utils/disguiseMode'
 import { getGameScreenshotFolderPath } from '../composables/game/useGameScreenshot'
-import { ResourceField } from '../class/base/ResourceField.ts'
+import { ResourceField } from '@resources/base/ResourceField.ts'
 
 /**
  * 安全获取资源属性值的辅助函数

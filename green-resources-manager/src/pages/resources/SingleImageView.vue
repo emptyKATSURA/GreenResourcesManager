@@ -150,7 +150,7 @@ import DetailPanel from '../../components/DetailPanel.vue'
 import ComicViewer from '../../components/ComicViewer.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
-import { SingleImage } from '../../class/singleImage.ts'
+import { SingleImage } from '@resources/singleImage.ts'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 
 import notify from '../../utils/NotificationService.ts'
@@ -391,13 +391,7 @@ export default {
         { value: 'lastViewed', label: '按最后查看' }
       ],
       // 右键菜单配置
-      albumContextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'open', icon: '📖', label: '查看图片' },
-        { key: 'folder', icon: '📁', label: '打开文件位置' },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'remove', icon: '🗑️', label: '删除图片' }
-      ],
+      albumContextMenuItems: SingleImage.contextMenuItems,
       // 图片查看器相关（showComicViewer 已在 setup() 中定义）
       currentPageIndex: 0,
       // 分页相关（详情页内图片分页，避免与 composable 的变量名冲突）
@@ -408,11 +402,7 @@ export default {
       // 图片列表分页相关已移至 usePagination composable
       // 空状态配置
       albumEmptyStateConfig: {
-        emptyIcon: '🖼️',
-        emptyTitle: '还没有添加图片',
-        emptyDescription: '点击"添加图片"按钮选择图片文件，或直接拖拽图片文件到此处（支持多选，支持 .jpg、.jpeg、.png、.gif、.bmp、.webp、.svg 等格式）',
-        emptyButtonText: '添加第一个图片',
-        emptyButtonAction: 'showAddAlbumDialog',
+        ...SingleImage.emptyStateConfig,
         noResultsIcon: '🔍',
         noResultsTitle: '没有找到匹配的图片',
         noResultsDescription: '尝试使用不同的搜索词',
@@ -422,14 +412,7 @@ export default {
       },
       // 工具栏配置
       albumToolbarConfig: {
-        addButtonText: '添加图片',
-        searchPlaceholder: '搜索图片...',
-        sortOptions: [
-          { value: 'name', label: '按名称排序' },
-          { value: 'author', label: '按作者排序' },
-          { value: 'added', label: '按添加时间' },
-          { value: 'viewCount', label: '按查看次数' }
-        ],
+        ...SingleImage.toolbarConfig,
         pageType: 'images'
       },
     }

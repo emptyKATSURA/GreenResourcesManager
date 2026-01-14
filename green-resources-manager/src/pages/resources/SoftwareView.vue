@@ -122,7 +122,7 @@ import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import SoftwareDetailPanel from '../../components/software/SoftwareDetailPanel.vue'
-import { Software } from '../../class/soft.ts'
+import { Software } from '@resources/soft.ts'
 import GameGrid from '../../components/game/GameGrid.vue'
 import { formatPlayTime, formatLastPlayed, formatDateTime, formatDate, formatFirstPlayed } from '../../utils/formatters'
 
@@ -336,13 +336,9 @@ export default {
         { value: 'playTime', label: '按运行时长' },
         { value: 'added', label: '按添加时间' }
       ],
-      // 右键菜单基础配置
+      // 右键菜单基础配置（基于 Software.contextMenuItems，添加压缩/解压功能）
       baseGameContextMenuItems: [
-        { key: 'detail', icon: '👁️', label: '查看详情' },
-        { key: 'launch', icon: '▶️', label: '启动游戏' },
-        { key: 'folder', icon: '📁', label: '打开文件夹' },
-        { key: 'screenshot-folder', icon: '📸', label: '打开截图文件夹' },
-        { key: 'update-folder-size', icon: '📊', label: '更新文件夹大小' },
+        ...Software.contextMenuItems,
         { 
           key: 'compress', 
           icon: '🗜️', 
@@ -360,9 +356,7 @@ export default {
             { key: 'extract', icon: '📦', label: '解压到指定目录...' },
             { key: 'extract-here', icon: '📦', label: '解压到当前目录' }
           ]
-        },
-        { key: 'edit', icon: '✏️', label: '编辑信息' },
-        { key: 'remove', icon: '🗑️', label: '删除游戏' }
+        }
       ],
       // 标签和开发商筛选相关已移至 composables
       // 拖拽相关已移至 useGameDragAndDrop composable
@@ -381,11 +375,7 @@ export default {
       // 分页相关已移至 useGamePagination composable
       // 空状态配置
       gameEmptyStateConfig: {
-        emptyIcon: '🎮',
-        emptyTitle: '你的软件库是空的',
-        emptyDescription: '点击"添加软件"按钮来添加你的第一个软件，或直接拖拽软件文件（.exe、.swf、.bat）或压缩包（.zip、.rar、.7z 等）到此处',
-        emptyButtonText: '添加第一个软件',
-        emptyButtonAction: 'showAddGameDialog',
+        ...Software.emptyStateConfig,
         noResultsIcon: '🔍',
         noResultsTitle: '没有找到匹配的软件',
         noResultsDescription: '尝试使用不同的搜索词',
@@ -395,16 +385,11 @@ export default {
       },
       // 工具栏配置
       gameToolbarConfig: {
-        addButtonText: '添加软件',
-        searchPlaceholder: '搜索软件...',
-        sortOptions: [
-          { value: 'name', label: '按名称排序' },
-          { value: 'lastPlayed', label: '按最后运行时间' },
-          { value: 'playTime', label: '按运行时长' },
-          { value: 'added', label: '按添加时间' }
-        ],
+        ...Software.toolbarConfig,
         pageType: 'software'
-      }
+      },
+      // 右键菜单配置
+      gameContextMenuItems: Software.contextMenuItems
     }
   },
   computed: {
