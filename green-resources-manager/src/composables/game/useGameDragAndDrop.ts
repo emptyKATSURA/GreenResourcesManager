@@ -1,8 +1,12 @@
 import { ref, type Ref } from 'vue'
 import { useDragAndDrop } from '../useDragAndDrop'
 import notify from '../../utils/NotificationService'
-import type { Game, GameDragDropOptions } from '../../types/game'
+import type { GameDragDropOptions } from '../../types/game'
 import { isArchiveFile } from '../useArchive'
+import { Game as GameClass } from '../../class/game.ts'
+
+// Game 类型就是 GameClass 的实例类型
+type Game = InstanceType<typeof GameClass>
 
 /**
  * 从文件路径提取游戏名称
@@ -76,9 +80,9 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
       console.log('当前游戏库状态:')
       const currentGames = getGames()
       currentGames.forEach((game, index) => {
-        console.log(`  ${index + 1}. ${game.name}`)
-        console.log(`     路径: ${game.executablePath}`)
-        console.log(`     文件存在: ${game.fileExists}`)
+        console.log(`  ${index + 1}. ${game.name?.value}`)
+        console.log(`     路径: ${game.resourcePath?.value}`)
+        console.log(`     文件存在: ${game.fileExists?.value}`)
       })
 
       if (files.length === 0) {
@@ -98,7 +102,9 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
           const currentGames = getGames()
 
           // 检查是否已经存在相同的文件路径
-          const existingGameByPath = currentGames.find(game => game.executablePath === filePath)
+          const existingGameByPath = currentGames.find(game => {
+            return game.resourcePath?.value === filePath
+          })
           if (existingGameByPath) {
             console.log(`游戏文件已存在: ${executableFile.name}`)
             failedCount++
@@ -107,15 +113,18 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
 
           // 检查是否存在同名但路径不同的丢失文件
           const existingGameByName = currentGames.find(game => {
-            const gameFileName = game.executablePath.split(/[\\/]/).pop()?.toLowerCase() || ''
+            const gamePath = game.resourcePath?.value
+            if (!gamePath) return false
+            
+            const gameFileName = gamePath.split(/[\\/]/).pop()?.toLowerCase() || ''
             const newFileName = executableFile.name.toLowerCase()
             const isSameName = gameFileName === newFileName
-            const isFileMissing = !game.fileExists
+            const isFileMissing = !game.fileExists?.value
 
-            console.log(`检查游戏: ${game.name}`)
+            console.log(`检查游戏: ${game.name?.value}`)
             console.log(`  文件名: ${gameFileName} vs ${newFileName}`)
             console.log(`  是否同名: ${isSameName}`)
-            console.log(`  文件存在: ${game.fileExists}`)
+            console.log(`  文件存在: ${game.fileExists?.value}`)
             console.log(`  是否丢失: ${isFileMissing}`)
             console.log(`  匹配条件: ${isSameName && isFileMissing}`)
 
@@ -124,7 +133,7 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
 
           if (existingGameByName) {
             console.log(`发现同名丢失文件: ${executableFile.name}`)
-            console.log(`现有游戏路径: ${existingGameByName.executablePath}`)
+            console.log(`现有游戏路径: ${existingGameByName.resourcePath?.value}`)
             console.log(`新文件路径: ${filePath}`)
             // 显示路径更新确认对话框
             onShowPathUpdateDialog({
@@ -139,15 +148,14 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
           // 检查是否为压缩包
           const isArchive = isArchiveFile(filePath)
 
-          // 创建新的游戏对象
-          const game: Game = {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          // 创建游戏数据对象（普通对象）
+          const gameData: any = {
             name: extractGameNameFromPath(executableFile.name),
-            developer: '',
+            developers: [],
             publisher: '',
             description: '',
             tags: [],
-            executablePath: filePath,
+            resourcePath: filePath,
             coverPath: '',
             folderSize: 0,
             playTime: 0,
@@ -159,20 +167,22 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
             isArchive: isArchive // 标记是否为压缩包
           }
 
-          console.log('创建游戏对象:', game)
-
           // 获取游戏文件夹大小
           if (isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
             try {
               const result = await window.electronAPI.getFolderSize(filePath)
               if (result.success) {
-                game.folderSize = result.size
-                console.log(`游戏 ${game.name} 文件夹大小: ${result.size} 字节`)
+                gameData.folderSize = result.size
+                console.log(`游戏 ${gameData.name} 文件夹大小: ${result.size} 字节`)
               }
             } catch (error) {
               console.error('获取文件夹大小失败:', error)
             }
           }
+
+          // 使用 fromJSON 创建 Game 实例（会自动生成 id）
+          const game = GameClass.fromJSON(gameData)
+          console.log('创建游戏对象:', game)
 
           // 添加到游戏列表
           await onAddGame(game)

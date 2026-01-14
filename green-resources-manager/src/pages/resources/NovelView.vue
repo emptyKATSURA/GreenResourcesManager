@@ -323,7 +323,7 @@ export default {
       showEditDialog: false,
       editNovelForm: null,  // ResourcesEditDialog 会自动处理数据加载
       // Novel 类用于 ResourcesEditDialog
-      Novel: Novel.EditableNovelProperties,
+      Novel: Novel,
       // 图片缓存
       imageCache: {},
       // 阅读器相关状态

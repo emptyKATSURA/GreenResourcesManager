@@ -159,7 +159,7 @@ import {
   FormField_Tags,
   FormField_SelectFile,
   FormField_SelectFolder
-} from '../class/FormField.ts'
+} from '../class/base/FormField.ts'
 
 export default defineComponent({
   name: 'DebugView',

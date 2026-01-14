@@ -13,7 +13,7 @@
     <div class="media-image">
       <img 
         :src="resolveImage(coverImagePath)" 
-        :alt="item.name"
+        :alt="itemName"
         loading="lazy"
         @error="handleImageError"
       >
@@ -37,7 +37,7 @@
         📁
       </div>
       <!-- 收藏标识 -->
-      <div v-if="item.isFavorite" class="favorite-indicator" title="已收藏">
+      <div v-if="itemIsFavorite" class="favorite-indicator" title="已收藏">
         ⭐
       </div>
       <div class="media-overlay" v-if="showActionButton">
@@ -60,9 +60,9 @@
       
       <!-- 游戏特有信息 -->
       <template v-if="type === 'game'">
-        <p class="media-subtitle" v-if="scale >= 50">{{ item.developer }}</p>
-        <p class="media-tertiary" v-if="item.publisher && item.publisher !== '未知发行商' && scale >= 50">{{ item.publisher }}</p>
-        <p class="media-description" v-if="item.description && scale >= 50">{{ item.description }}</p>
+        <p class="media-subtitle" v-if="scale >= 50">{{ itemDeveloper }}</p>
+        <p class="media-tertiary" v-if="itemPublisher && itemPublisher !== '未知发行商' && scale >= 50">{{ itemPublisher }}</p>
+        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
           <fun-tag 
             v-for="tag in displayTags.slice(0, 9)" 
@@ -93,8 +93,8 @@
       
       <!-- 图片特有信息 -->
       <template v-if="type === 'image'">
-        <p class="media-subtitle" v-if="item.author && scale >= 50">{{ item.author }}</p>
-        <p class="media-description" v-if="item.description && scale >= 50">{{ item.description }}</p>
+        <p class="media-subtitle" v-if="itemAuthor && scale >= 50">{{ itemAuthor }}</p>
+        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
           <span 
             v-for="tag in displayTags.slice(0, 3)" 
@@ -110,9 +110,9 @@
       
       <!-- 小说特有信息 -->
       <template v-if="type === 'novel'">
-        <p class="media-subtitle" v-if="item.author && scale >= 50">{{ item.author }}</p>
-        <p class="media-tertiary" v-if="item.genre && scale >= 50">{{ item.genre }}</p>
-        <p class="media-description" v-if="item.description && scale >= 50">{{ item.description }}</p>
+        <p class="media-subtitle" v-if="itemAuthor && scale >= 50">{{ itemAuthor }}</p>
+        <p class="media-tertiary" v-if="itemGenre && scale >= 50">{{ itemGenre }}</p>
+        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
           <span 
             v-for="tag in displayTags.slice(0, 3)" 
@@ -138,8 +138,8 @@
       
       <!-- 视频特有信息 -->
       <template v-if="type === 'video'">
-        <p class="media-subtitle" v-if="item.series && scale >= 50">{{ item.series }}</p>
-        <p class="media-description" v-if="item.description && scale >= 50">{{ item.description }}</p>
+        <p class="media-subtitle" v-if="itemSeries && scale >= 50">{{ itemSeries }}</p>
+        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
           <span 
             v-for="tag in displayTags.slice(0, 3)" 
@@ -188,8 +188,8 @@
       
       <!-- 文件夹特有信息 -->
       <template v-if="type === 'folder'">
-        <p class="media-subtitle" v-if="item.series && scale >= 50">{{ item.series }}</p>
-        <p class="media-description" v-if="item.description && scale >= 50">{{ item.description }}</p>
+        <p class="media-subtitle" v-if="itemSeries && scale >= 50">{{ itemSeries }}</p>
+        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
           <span 
             v-for="tag in displayTags.slice(0, 3)" 
@@ -220,6 +220,20 @@ import { useGameRunningStore } from '../stores/game-running'
 import disguiseManager from '../utils/DisguiseManager'
 import { isDisguiseModeEnabled } from '../utils/disguiseMode'
 import { getGameScreenshotFolderPath } from '../composables/game/useGameScreenshot'
+import { ResourceField } from '../class/base/ResourceField.ts'
+
+/**
+ * 安全获取资源属性值的辅助函数
+ * 如果属性是 ResourceField，返回其 value；否则直接返回属性值
+ * @param {any} field - 可能是 ResourceField 或普通值
+ * @returns {any} 字段的实际值
+ */
+function getFieldValue(field) {
+  if (field instanceof ResourceField) {
+    return field.value
+  }
+  return field
+}
 
 export default {
   name: 'MediaCard',
@@ -294,31 +308,33 @@ export default {
       
       if (disguiseModeEnabled) {
         // 检查伪装文字缓存
-        if (this.disguiseTextCache[this.item.id]) {
-          return this.disguiseTextCache[this.item.id]
+        const itemId = getFieldValue(this.item.id)
+        if (this.disguiseTextCache[itemId]) {
+          return this.disguiseTextCache[itemId]
         }
         
         // 异步获取伪装文字
-        this.loadDisguiseText(this.item.id)
-        return this.item.name // 先返回原始名称，等异步加载完成
+        this.loadDisguiseText(itemId)
+        return getFieldValue(this.item.name) // 先返回原始名称，等异步加载完成
       }
-      return this.item.name
+      return getFieldValue(this.item.name)
     },
     
     // 获取显示的标签（支持伪装模式）
     displayTags() {
-      if (!this.item.tags || this.item.tags.length === 0) {
+      const tags = getFieldValue(this.item.tags)
+      if (!tags || tags.length === 0) {
         return []
       }
       
       // 依赖 disguiseModeState 以确保响应式更新
       const disguiseModeEnabled = this.disguiseModeState
-      //console.log(`[displayTags] 伪装模式状态: ${disguiseModeEnabled}, 项目ID: ${this.item.id}, 原始标签:`, this.item.tags)
+      //console.log(`[displayTags] 伪装模式状态: ${disguiseModeEnabled}, 项目ID: ${getFieldValue(this.item.id)}, 原始标签:`, tags)
       
       if (disguiseModeEnabled) {
         // 为每个标签使用全局伪装方法（确保在所有地方显示一致）
         // 使用缓存，如果缓存中没有则异步加载
-        const disguisedTags = this.item.tags.map(tag => {
+        const disguisedTags = tags.map(tag => {
           // 检查标签缓存
           if (this.disguiseTagCache[tag]) {
             return this.disguiseTagCache[tag]
@@ -333,47 +349,52 @@ export default {
         return disguisedTags
       }
       
-      // console.log(`[displayTags] 伪装模式未启用，返回原始标签:`, this.item.tags)
-      return this.item.tags
+      // console.log(`[displayTags] 伪装模式未启用，返回原始标签:`, tags)
+      return tags
     },
     badgeText() {
       if (this.type === 'game') {
-        return this.formatFolderSize(this.item.folderSize)
+        return this.formatFolderSize(getFieldValue(this.item.folderSize))
       } else if (this.type === 'image') {
-        return `${this.item.pagesCount || 0} 页`
+        return `${getFieldValue(this.item.pagesCount) || 0} 页`
       } else if (this.type === 'novel') {
-        return this.formatWordCount(this.item.totalWords)
+        return this.formatWordCount(getFieldValue(this.item.totalWords))
       } else if (this.type === 'video') {
-        return this.formatDuration(this.item.duration)
+        return this.formatDuration(getFieldValue(this.item.duration))
       } else if (this.type === 'audio') {
-        return this.formatAudioDuration(this.item.duration)
+        return this.formatAudioDuration(getFieldValue(this.item.duration))
       } else if (this.type === 'folder') {
-        return `${this.item.videoCount || 0} 个视频`
+        return `${getFieldValue(this.item.videoCount) || 0} 个视频`
       }
       return ''
     },
     showFileError() {
       // 优先使用 item.fileExists（如果存在），否则使用 prop 的 fileExists
       // 这样可以避免 prop 默认值导致的误判
-      const fileExistsValue = this.item?.fileExists !== undefined ? this.item.fileExists : this.fileExists
+      const itemFileExists = getFieldValue(this.item?.fileExists)
+      const fileExistsValue = itemFileExists !== undefined ? itemFileExists : this.fileExists
       const shouldShow = ['game', 'audio', 'image', 'novel', 'video', 'folder'].includes(this.type) && fileExistsValue === false
       if (this.type === 'image' && fileExistsValue === false) {
         console.log('🔍 MediaCard showFileError:', {
           type: this.type,
           fileExists: this.fileExists,
-          itemFileExists: this.item?.fileExists,
+          itemFileExists: itemFileExists,
           fileExistsValue: fileExistsValue,
           shouldShow: shouldShow,
-          itemName: this.item?.name
+          itemName: getFieldValue(this.item?.name)
         })
       }
       return shouldShow
     },
     isArchive() {
       if (this.type === 'game') {
-        return this.item?.isArchive || (this.item?.executablePath && this.isArchiveFile(this.item.executablePath))
+        const isArchive = getFieldValue(this.item?.isArchive)
+        const executablePath = getFieldValue(this.item?.executablePath)
+        return isArchive || (executablePath && this.isArchiveFile(executablePath))
       } else if (this.type === 'image') {
-        return this.item?.isArchive || (this.item?.folderPath && this.isArchiveFile(this.item.folderPath))
+        const isArchive = getFieldValue(this.item?.isArchive)
+        const folderPath = getFieldValue(this.item?.folderPath)
+        return isArchive || (folderPath && this.isArchiveFile(folderPath))
       }
       return false
     },
@@ -382,18 +403,19 @@ export default {
     },
     // 获取 exe 图标
     exeIcon() {
-      if (this.type !== 'game' || !this.item?.executablePath) {
+      const executablePath = getFieldValue(this.item?.executablePath)
+      if (this.type !== 'game' || !executablePath) {
         return null
       }
       
       // 检查是否为 exe 文件
-      const ext = this.item.executablePath.toLowerCase().split('.').pop()
+      const ext = executablePath.toLowerCase().split('.').pop()
       if (ext !== 'exe') {
         return null
       }
       
       // 检查缓存
-      const cacheKey = this.item.executablePath
+      const cacheKey = executablePath
       if (this.exeIconCache[cacheKey]) {
         return this.exeIconCache[cacheKey]
       }
@@ -411,11 +433,11 @@ export default {
         return 0
       }
       
-      return this.gameRunningStore.getSessionDuration(this.item.id)
+      return this.gameRunningStore.getSessionDuration(getFieldValue(this.item.id))
     },
     // 根据评分获取边框类名
     ratingBorderClass() {
-      const rating = this.item?.rating
+      const rating = getFieldValue(this.item?.rating)
       if (!rating || rating < 1 || rating > 5) {
         return '' // 没有评分或评分无效时返回空，保持原样
       }
@@ -425,8 +447,9 @@ export default {
     // 优先使用 coverPath，如果没有则从截图文件夹读取第一张图片，最后使用默认图片
     coverImagePath() {
       // 优先使用 coverPath
-      if (this.item.coverPath) {
-        return this.item.coverPath
+      const coverPath = getFieldValue(this.item.coverPath)
+      if (coverPath) {
+        return coverPath
       }
       
       // 如果是游戏类型且没有封面，尝试使用从截图文件夹读取的图片
@@ -436,11 +459,39 @@ export default {
       
       // 其他类型的资源使用各自的字段
       if (this.type !== 'game') {
-        return this.item.cover || this.item.thumbnail || this.item.thumbnailPath || ''
+        const cover = getFieldValue(this.item.cover)
+        const thumbnail = getFieldValue(this.item.thumbnail)
+        const thumbnailPath = getFieldValue(this.item.thumbnailPath)
+        return cover || thumbnail || thumbnailPath || ''
       }
       
       // 游戏类型且没有封面和截图，返回空字符串（会在 resolveImage 中处理为默认图片）
       return ''
+    },
+    // 用于模板中访问 item 字段的辅助 computed 属性
+    itemName() {
+      return getFieldValue(this.item.name)
+    },
+    itemIsFavorite() {
+      return getFieldValue(this.item.isFavorite)
+    },
+    itemDeveloper() {
+      return getFieldValue(this.item.developer)
+    },
+    itemPublisher() {
+      return getFieldValue(this.item.publisher)
+    },
+    itemDescription() {
+      return getFieldValue(this.item.description)
+    },
+    itemAuthor() {
+      return getFieldValue(this.item.author)
+    },
+    itemGenre() {
+      return getFieldValue(this.item.genre)
+    },
+    itemSeries() {
+      return getFieldValue(this.item.series)
     }
   },
   methods: {
@@ -580,17 +631,18 @@ export default {
     },
     // 加载 exe 图标（使用全局缓存避免重复加载）
     async loadExeIcon() {
-      if (this.type !== 'game' || !this.item?.executablePath) {
+      const executablePath = getFieldValue(this.item?.executablePath)
+      if (this.type !== 'game' || !executablePath) {
         return
       }
       
       // 检查是否为 exe 文件
-      const ext = this.item.executablePath.toLowerCase().split('.').pop()
+      const ext = executablePath.toLowerCase().split('.').pop()
       if (ext !== 'exe') {
         return
       }
       
-      const cacheKey = this.item.executablePath
+      const cacheKey = executablePath
       
       // 检查全局缓存（如果存在）
       if (window.__exeIconCache && window.__exeIconCache[cacheKey]) {
@@ -641,7 +693,7 @@ export default {
       this.exeIconLoading = true
       
       try {
-        const result = await window.electronAPI.getFileIcon(this.item.executablePath, 32)
+        const result = await window.electronAPI.getFileIcon(executablePath, 32)
         if (result.success && result.icon) {
           // 初始化全局缓存
           if (!window.__exeIconCache) {
@@ -670,6 +722,11 @@ export default {
       }
     },
     resolveImage(imagePath) {
+      // 如果传入的是 ResourceField 对象，提取其 value
+      if (imagePath instanceof ResourceField) {
+        imagePath = imagePath.value
+      }
+      
       // 空值返回默认
       if (!imagePath || (typeof imagePath === 'string' && imagePath.trim() === '')) {
         return this.getDefaultImage()
@@ -894,7 +951,8 @@ export default {
       }
       
       // 如果已有封面，不需要读取截图
-      if (this.item.coverPath) {
+      const coverPath = getFieldValue(this.item.coverPath)
+      if (coverPath) {
         return
       }
       
@@ -905,9 +963,11 @@ export default {
       
       try {
         // 获取游戏截图文件夹路径
+        const itemId = getFieldValue(this.item.id)
+        const itemName = getFieldValue(this.item.name)
         const screenshotFolderPath = await getGameScreenshotFolderPath(
-          this.item.id,
-          this.item.name,
+          itemId,
+          itemName,
           this.isElectronEnvironment
         )
         
@@ -946,8 +1006,9 @@ export default {
     
     // 延迟加载 exe 图标，避免同时加载太多图标导致卡顿
     // 使用 setTimeout 分批加载，减少并发压力
-    if (this.type === 'game' && this.item?.executablePath) {
-      const ext = this.item.executablePath.toLowerCase().split('.').pop()
+    const executablePath = getFieldValue(this.item?.executablePath)
+    if (this.type === 'game' && executablePath) {
+      const ext = executablePath.toLowerCase().split('.').pop()
       if (ext === 'exe') {
         // 随机延迟 0-500ms，分散加载时间
         const delay = Math.random() * 500
@@ -965,7 +1026,7 @@ export default {
     }
     
     // 如果游戏没有封面，尝试从截图文件夹读取第一张图片
-    if (this.type === 'game' && !this.item.coverPath) {
+    if (this.type === 'game' && !getFieldValue(this.item.coverPath)) {
       // 延迟加载，避免阻塞渲染
       setTimeout(() => {
         this.loadScreenshotAsCover()

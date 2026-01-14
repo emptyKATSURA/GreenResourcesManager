@@ -202,7 +202,7 @@ export default {
       editWebsiteData: null,  // ResourcesEditDialog 会自动处理数据加载
       isElectronEnvironment: false,
       // Website 类用于 ResourcesEditDialog
-      Website: Website.EditableWebsiteProperties,
+      Website: Website,
       // 拖拽相关
       isDragOver: false,
       isImporting: false,

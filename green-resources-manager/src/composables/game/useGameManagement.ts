@@ -2,8 +2,12 @@ import { ref, type Ref } from 'vue'
 import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
 import { unlockAchievement } from '../../pages/user/AchievementView.vue'
-import type { Game } from '../../types/game'
 import { Game as GameClass } from '../../class/game.ts'
+import { BaseResources } from '../../class/base/ResourcesDataBase.ts'
+import { ResourceField } from '../../class/base/ResourceField.ts'
+
+// 游戏数据类型
+type Game = InstanceType<typeof GameClass> & Record<string, any>
 
 const GAME_COLLECTION_ACHIEVEMENTS = [
   { threshold: 50, id: 'game_collector_50' },
@@ -33,35 +37,49 @@ export function useGameManagement(
 ) {
   /**
    * 加载游戏列表
+   * 将 JSON 对象转换为 Game 类实例
    */
   async function loadGames() {
-    games.value = await saveManager.loadPageData(pageId)
+    const jsonData = await saveManager.loadPageData(pageId)
+    games.value = jsonData.map((data: any) => GameClass.fromJSON(data))
     extractAllTags()
   }
 
   /**
    * 保存游戏列表
-   * 使用 SaveableGameProperties 过滤数据，只保存定义的字段
+   * 使用 BaseResources.getSaveableData 过滤数据，只保存定义的字段
    */
   async function saveGames() {
-    // 使用 SaveableGameProperties 提取需要保存的字段
+    // 使用 BaseResources.getSaveableData 提取需要保存的字段
     const saveableGames = games.value.map(game => 
-      GameClass.SaveableGameProperties.extractSaveableData(game)
+      BaseResources.getSaveableData(game)
     )
     return await saveManager.savePageData(pageId, saveableGames)
   }
 
   /**
    * 添加游戏
+   * 如果传入的是普通对象，会转换为 Game 实例
    */
-  async function addGame(game: Game) {
-    games.value.push(game)
+  async function addGame(game: Game | any) {
+    // 如果传入的不是 Game 实例（没有 ResourceField），使用 fromJSON 转换
+    let gameInstance: Game
+    if (game instanceof GameClass) {
+      gameInstance = game
+    } else {
+      // 普通对象，使用 fromJSON 转换为 Game 实例
+      // 如果没有 id，构造函数会自动生成
+      gameInstance = GameClass.fromJSON(game)
+    }
+    
+    games.value.push(gameInstance)
     await saveGames()
     await checkGameCollectionAchievements()
     
     // 检查是否为 Flash 游戏，如果是则触发"老资历"成就
-    if (game.executablePath) {
-      const filePath = game.executablePath.toLowerCase()
+    const resourcePath = gameInstance.resourcePath?.value || (gameInstance as any).executablePath
+    if (resourcePath) {
+      const filePath = resourcePath.toLowerCase()
       const isFlashGame = filePath.endsWith('.swf')
       if (isFlashGame) {
         try {
@@ -74,34 +92,52 @@ export function useGameManagement(
     }
     
     extractAllTags()
+    return gameInstance
   }
 
   /**
    * 更新游戏
    */
   async function updateGame(gameId: string, updates: Partial<Game>) {
-    const index = games.value.findIndex(g => g.id === gameId)
+    const index = games.value.findIndex(g => {
+      const id = g.id instanceof ResourceField ? g.id.value : (g as any).id
+      return id === gameId
+    })
     if (index === -1) {
       throw new Error('未找到要更新的游戏')
     }
 
     const target = games.value[index]
-    Object.assign(target, updates)
-
-    // 如果可执行文件路径发生变化，重新计算文件夹大小
-    if (updates.executablePath && updates.executablePath.trim() !== target.executablePath) {
-      let folderSize = 0
-      if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.getFolderSize) {
-        try {
-          const result = await window.electronAPI.getFolderSize(updates.executablePath.trim())
-          if (result.success) {
-            folderSize = result.size
-          }
-        } catch (error) {
-          console.error('获取文件夹大小失败:', error)
-        }
+    
+    // 将 updates 中的值赋给对应的 ResourceField.value
+    for (const key in updates) {
+      const field = (target as any)[key]
+      if (field && field instanceof ResourceField) {
+        field.value = (updates as any)[key]
+      } else {
+        // 如果不是 ResourceField，直接赋值（如 folderSize, playTime 等额外字段）
+        (target as any)[key] = (updates as any)[key]
       }
-      target.folderSize = folderSize
+    }
+
+    // 如果资源路径发生变化，重新计算文件夹大小
+    const newPath = updates.resourcePath || (updates as any).resourcePath || (updates as any).executablePath
+    if (newPath !== undefined) {
+      const oldPath = target.resourcePath instanceof ResourceField ? target.resourcePath.value : (target as any).resourcePath
+      if (newPath && typeof newPath === 'string' && newPath.trim() !== oldPath) {
+        let folderSize = 0
+        if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.getFolderSize) {
+          try {
+            const result = await window.electronAPI.getFolderSize(newPath.trim())
+            if (result.success) {
+              folderSize = result.size
+            }
+          } catch (error) {
+            console.error('获取文件夹大小失败:', error)
+          }
+        }
+        (target as any).folderSize = folderSize
+      }
     }
 
     await saveGames()
@@ -112,7 +148,7 @@ export function useGameManagement(
    * 删除游戏
    */
   async function removeGame(gameId: string) {
-    const index = games.value.findIndex(g => g.id === gameId)
+    const index = games.value.findIndex(g => g.id?.value === gameId)
     if (index === -1) {
       throw new Error('未找到要删除的游戏')
     }
@@ -121,17 +157,22 @@ export function useGameManagement(
     games.value.splice(index, 1)
     await saveGames()
 
-    notify.toast('success', '删除成功', `已成功删除游戏 "${game.name}"`)
+    const gameName = game.name?.value || (game as any).name || '未知游戏'
+    notify.toast('success', '删除成功', `已成功删除游戏 "${gameName}"`)
   }
 
   /**
    * 更新游戏游玩时长
    */
   async function updateGamePlayTime(executablePath: string, playTime: number) {
-    const game = games.value.find(g => g.executablePath === executablePath)
+    const game = games.value.find(g => {
+      const path = g.resourcePath?.value || (g as any).executablePath
+      return path === executablePath
+    })
     if (game) {
-      game.playTime = (game.playTime || 0) + playTime
-      game.lastPlayed = new Date().toISOString()
+      const currentPlayTimeValue: number = (game as any).playTime || 0
+      ;(game as any).playTime = currentPlayTimeValue + playTime
+      ;(game as any).lastPlayed = new Date().toISOString()
       await saveGames()
       await checkGameTimeAchievements()
     }
@@ -141,33 +182,40 @@ export function useGameManagement(
    * 更新游戏文件夹大小
    */
   async function updateGameFolderSize(gameId: string) {
-    const game = games.value.find(g => g.id === gameId)
-    if (!game || !game.executablePath) {
+    const game = games.value.find(g => g.id?.value === gameId)
+    if (!game) {
+      throw new Error('未找到游戏')
+    }
+    
+    const resourcePath = game.resourcePath?.value || (game as any).executablePath
+    if (!resourcePath) {
       throw new Error('游戏文件路径不存在')
     }
 
     if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.getFolderSize) {
       try {
-        const result = await window.electronAPI.getFolderSize(game.executablePath)
+        const result = await window.electronAPI.getFolderSize(resourcePath)
         if (result.success) {
-          const oldSize = game.folderSize || 0
-          game.folderSize = result.size
+          const oldSize = (game as any).folderSize || 0
+          ;(game as any).folderSize = result.size
           await saveGames()
 
-          const oldSizeMB = (oldSize / 1024 / 1024).toFixed(2)
-          const newSizeMB = (result.size / 1024 / 1024).toFixed(2)
+          const oldSizeMB = ((oldSize as number) / 1024 / 1024).toFixed(2)
+          const newSizeMB = ((result.size as number) / 1024 / 1024).toFixed(2)
+          const gameName = game.name?.value || (game as any).name || '未知游戏'
 
           notify.toast(
             'success',
             '更新成功',
-            `"${game.name}" 文件夹大小已更新\n旧大小: ${oldSizeMB} MB\n新大小: ${newSizeMB} MB`
+            `"${gameName}" 文件夹大小已更新\n旧大小: ${oldSizeMB} MB\n新大小: ${newSizeMB} MB`
           )
         } else {
           throw new Error(result.error || '获取文件夹大小失败')
         }
       } catch (error: any) {
         console.error('获取文件夹大小失败:', error)
-        notify.toast('error', '更新失败', `无法获取 "${game.name}" 的文件夹大小: ${error.message}`)
+        const gameName = game.name?.value || (game as any).name || '未知游戏'
+        notify.toast('error', '更新失败', `无法获取 "${gameName}" 的文件夹大小: ${error.message}`)
         throw error
       }
     } else {
@@ -235,23 +283,41 @@ export function useGameManagement(
     if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.checkFileExists) {
       // 如果API不可用，默认设置为存在
       games.value.forEach(game => {
-        game.fileExists = true
+        if (game.fileExists instanceof ResourceField) {
+          game.fileExists.value = true
+        } else {
+          (game as any).fileExists = true
+        }
       })
       return
     }
 
     for (const game of games.value) {
-      if (!game.executablePath) {
-        game.fileExists = false
+      const resourcePath = game.resourcePath?.value || (game as any).executablePath
+      if (!resourcePath) {
+        if (game.fileExists instanceof ResourceField) {
+          game.fileExists.value = false
+        } else {
+          (game as any).fileExists = false
+        }
         continue
       }
 
       try {
-        const result = await window.electronAPI.checkFileExists(game.executablePath)
-        game.fileExists = result.exists
+        const result = await window.electronAPI.checkFileExists(resourcePath)
+        if (game.fileExists instanceof ResourceField) {
+          game.fileExists.value = result.exists
+        } else {
+          (game as any).fileExists = result.exists
+        }
       } catch (error) {
-        console.error(`检测游戏文件存在性失败: ${game.name}`, error)
-        game.fileExists = false
+        const gameName = game.name?.value || (game as any).name || '未知游戏'
+        console.error(`检测游戏文件存在性失败: ${gameName}`, error)
+        if (game.fileExists instanceof ResourceField) {
+          game.fileExists.value = false
+        } else {
+          (game as any).fileExists = false
+        }
       }
     }
 
@@ -262,10 +328,11 @@ export function useGameManagement(
    * 为现有游戏计算文件夹大小（如果还没有的话）
    */
   async function updateExistingGamesFolderSize() {
-    const gamesNeedingUpdate = games.value.filter(game =>
-      game.executablePath &&
-      (game.folderSize === undefined || game.folderSize === null || game.folderSize === 0)
-    )
+    const gamesNeedingUpdate = games.value.filter(game => {
+      const resourcePath = game.resourcePath?.value || (game as any).executablePath
+      const folderSize = (game as any).folderSize
+      return resourcePath && (folderSize === undefined || folderSize === null || folderSize === 0)
+    })
 
     if (gamesNeedingUpdate.length === 0) {
       return
@@ -278,13 +345,17 @@ export function useGameManagement(
     let updatedCount = 0
     for (const game of gamesNeedingUpdate) {
       try {
-        const result = await window.electronAPI.getFolderSize(game.executablePath!)
+        const resourcePath = game.resourcePath?.value || (game as any).executablePath
+        if (!resourcePath) continue
+        
+        const result = await window.electronAPI.getFolderSize(resourcePath)
         if (result.success) {
-          game.folderSize = result.size
+          (game as any).folderSize = result.size
           updatedCount++
         }
       } catch (error) {
-        console.error(`计算游戏 ${game.name} 文件夹大小失败:`, error)
+        const gameName = game.name?.value || (game as any).name || '未知游戏'
+        console.error(`计算游戏 ${gameName} 文件夹大小失败:`, error)
       }
     }
 

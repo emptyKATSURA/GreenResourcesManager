@@ -1,5 +1,17 @@
 import { ref, computed, type Ref } from 'vue'
 import type { Game, FilterItem, GameSortBy } from '../../types/game'
+import { ResourceField } from '../../class/base/ResourceField.ts'
+
+/**
+ * 安全获取游戏属性值的辅助函数
+ * 如果属性是 ResourceField，返回其 value；否则直接返回属性值
+ */
+function getFieldValue<T>(field: any): T | undefined {
+  if (field instanceof ResourceField) {
+    return field.value as T
+  }
+  return field as T
+}
 
 /**
  * 游戏筛选和排序的 composable
@@ -72,29 +84,38 @@ export function useGameFilter(
 
     games.value.forEach(game => {
       // 提取标签
-      if (game.tags && Array.isArray(game.tags)) {
-        game.tags.forEach(tag => {
+      const tags = getFieldValue<string[]>(game.tags)
+      if (tags && Array.isArray(tags)) {
+        tags.forEach(tag => {
           tagCount[tag] = (tagCount[tag] || 0) + 1
         })
       }
 
-      // 提取开发商
-      if (game.developer) {
-        developerCount[game.developer] = (developerCount[game.developer] || 0) + 1
+      // 提取开发商（注意：Game 类中是 developers 数组，不是 developer）
+      const developers = getFieldValue<string[]>(game.developers)
+      if (developers && Array.isArray(developers)) {
+        developers.forEach(dev => {
+          if (dev) {
+            developerCount[dev] = (developerCount[dev] || 0) + 1
+          }
+        })
       }
 
       // 提取发行商
-      if (game.publisher) {
-        publisherCount[game.publisher] = (publisherCount[game.publisher] || 0) + 1
+      const publisher = getFieldValue<string>(game.publisher)
+      if (publisher) {
+        publisherCount[publisher] = (publisherCount[publisher] || 0) + 1
       }
 
       // 提取引擎
-      if (game.engine) {
-        engineCount[game.engine] = (engineCount[game.engine] || 0) + 1
+      const engine = getFieldValue<string>(game.engine)
+      if (engine) {
+        engineCount[engine] = (engineCount[engine] || 0) + 1
       }
 
       // 统计丢失的资源
-      if (game.fileExists === false) {
+      const fileExists = getFieldValue<boolean>(game.fileExists)
+      if (fileExists === false) {
         missingResourcesCount++
       }
     })
@@ -131,42 +152,51 @@ export function useGameFilter(
    */
   const filteredGames = computed(() => {
     let filtered = games.value.filter(game => {
+      // 获取属性值
+      const name = getFieldValue<string>(game.name) || ''
+      const developers = getFieldValue<string[]>(game.developers) || []
+      const publisher = getFieldValue<string>(game.publisher) || ''
+      const engine = getFieldValue<string>(game.engine) || ''
+      const tags = getFieldValue<string[]>(game.tags) || []
+      const fileExists = getFieldValue<boolean>(game.fileExists)
+
       // 搜索筛选
-      const matchesSearch = game.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        (game.developer && game.developer.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
-        (game.publisher && game.publisher.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
-        (game.engine && game.engine.toLowerCase().includes(searchQuery.value.toLowerCase()))
+      const searchLower = searchQuery.value.toLowerCase()
+      const matchesSearch = name.toLowerCase().includes(searchLower) ||
+        developers.some(dev => dev && dev.toLowerCase().includes(searchLower)) ||
+        (publisher && publisher.toLowerCase().includes(searchLower)) ||
+        (engine && engine.toLowerCase().includes(searchLower))
 
       // 标签筛选 - 必须包含所有选中的标签（AND逻辑）
       const matchesTag = selectedTags.value.length === 0 || 
-        (game.tags && selectedTags.value.every(tag => game.tags!.includes(tag)))
+        (tags.length > 0 && selectedTags.value.every(tag => tags.includes(tag)))
       const notExcludedTag = excludedTags.value.length === 0 || 
-        !(game.tags && excludedTags.value.some(tag => game.tags!.includes(tag)))
+        !(tags.length > 0 && excludedTags.value.some(tag => tags.includes(tag)))
 
-      // 开发商筛选 - 开发商是"或"逻辑（一个游戏只能有一个开发商）
+      // 开发商筛选 - 开发商是"或"逻辑（一个游戏可以有多个开发商）
       const matchesDeveloper = selectedDevelopers.value.length === 0 || 
-        selectedDevelopers.value.includes(game.developer || '')
+        developers.some(dev => selectedDevelopers.value.includes(dev || ''))
       const notExcludedDeveloper = excludedDevelopers.value.length === 0 || 
-        !excludedDevelopers.value.includes(game.developer || '')
+        !developers.some(dev => excludedDevelopers.value.includes(dev || ''))
 
       // 发行商筛选 - 发行商是"或"逻辑（一个游戏只能有一个发行商）
       const matchesPublisher = selectedPublishers.value.length === 0 || 
-        selectedPublishers.value.includes(game.publisher || '')
+        selectedPublishers.value.includes(publisher)
       const notExcludedPublisher = excludedPublishers.value.length === 0 || 
-        !excludedPublishers.value.includes(game.publisher || '')
+        !excludedPublishers.value.includes(publisher)
 
       // 引擎筛选 - 引擎是"或"逻辑（一个游戏只能有一个引擎）
       const matchesEngine = selectedEngines.value.length === 0 || 
-        selectedEngines.value.includes(game.engine || '')
+        selectedEngines.value.includes(engine)
       const notExcludedEngine = excludedEngines.value.length === 0 || 
-        !excludedEngines.value.includes(game.engine || '')
+        !excludedEngines.value.includes(engine)
 
       // 其他筛选
       let matchesOther = true
       if (selectedOthers.value.length > 0) {
         matchesOther = selectedOthers.value.some(other => {
           if (other === '丢失的资源') {
-            return game.fileExists === false
+            return fileExists === false
           }
           if (other === '正在游玩') {
             return isGameRunning ? isGameRunning(game) : false
@@ -177,7 +207,7 @@ export function useGameFilter(
       const notExcludedOther = excludedOthers.value.length === 0 || 
         !excludedOthers.value.some(other => {
           if (other === '丢失的资源') {
-            return game.fileExists === false
+            return fileExists === false
           }
           if (other === '正在游玩') {
             return isGameRunning ? isGameRunning(game) : false
@@ -195,16 +225,24 @@ export function useGameFilter(
       
       // 解析排序类型和方向
       if (sortType.startsWith('name-')) {
-        result = a.name.localeCompare(b.name)
+        const aName = getFieldValue<string>(a.name) || ''
+        const bName = getFieldValue<string>(b.name) || ''
+        result = aName.localeCompare(bName)
       } else if (sortType.startsWith('lastPlayed-')) {
-        const aTime = a.lastPlayed ? new Date(a.lastPlayed).getTime() : 0
-        const bTime = b.lastPlayed ? new Date(b.lastPlayed).getTime() : 0
+        const aLastPlayed = (a as any).lastPlayed
+        const bLastPlayed = (b as any).lastPlayed
+        const aTime = aLastPlayed ? new Date(aLastPlayed).getTime() : 0
+        const bTime = bLastPlayed ? new Date(bLastPlayed).getTime() : 0
         result = aTime - bTime
       } else if (sortType.startsWith('playTime-')) {
-        result = (a.playTime || 0) - (b.playTime || 0)
+        const aPlayTime = (a as any).playTime || 0
+        const bPlayTime = (b as any).playTime || 0
+        result = aPlayTime - bPlayTime
       } else if (sortType.startsWith('added-')) {
-        const aAdded = a.addedDate ? new Date(a.addedDate).getTime() : 0
-        const bAdded = b.addedDate ? new Date(b.addedDate).getTime() : 0
+        const aAddedDate = getFieldValue<string>(a.addedDate)
+        const bAddedDate = getFieldValue<string>(b.addedDate)
+        const aAdded = aAddedDate ? new Date(aAddedDate).getTime() : 0
+        const bAdded = bAddedDate ? new Date(bAddedDate).getTime() : 0
         result = aAdded - bAdded
       }
       

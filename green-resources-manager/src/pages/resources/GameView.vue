@@ -80,8 +80,8 @@
 
       <!-- 路径更新确认对话框 -->
       <PathUpdateDialog :visible="showPathUpdateDialog" title="更新游戏路径" description="发现同名但路径不同的游戏文件："
-        item-name-label="游戏名称" :item-name="pathUpdateInfo.existingItem?.name || ''"
-        :old-path="pathUpdateInfo.existingItem?.executablePath || ''" :new-path="pathUpdateInfo.newPath || ''"
+        item-name-label="游戏名称" :item-name="pathUpdateInfo.existingItem?.name?.value || pathUpdateInfo.existingItem?.name || ''"
+        :old-path="pathUpdateInfo.existingItem?.resourcePath?.value || pathUpdateInfo.existingItem?.executablePath?.value || pathUpdateInfo.existingItem?.resourcePath || pathUpdateInfo.existingItem?.executablePath || ''" :new-path="pathUpdateInfo.newPath || ''"
         missing-label="文件丢失" found-label="文件存在" question="是否要更新游戏路径？" @confirm="confirmPathUpdate"
         @cancel="closePathUpdateDialog" />
 
@@ -179,7 +179,7 @@ export default {
     // 创建用于筛选的 isGameRunning 函数（接受 Game 对象）
     // 直接使用 store，确保总是获取最新的运行状态
     const isGameRunningForFilter = (game: any) => {
-      return gameRunningStore.isGameRunning(game.id)
+      return gameRunningStore.isGameRunning(game.id?.value || game.id)
     }
 
     // 使用筛选 composable
@@ -210,27 +210,30 @@ export default {
         if (!result.gameId || !result.filepath) return
         
         // 在 games 数组中查找对应的游戏
-        const game = games.value.find((g: any) => g.id === result.gameId)
+        const game = games.value.find((g: any) => (g.id?.value || g.id) === result.gameId)
         if (!game) {
           console.log('未找到对应的游戏，无法设置封面图')
           return
         }
         
         // 检查游戏是否已有封面图（向后兼容：同时检查 coverPath 和 image）
-        const currentCover = game.coverPath || (game as any).image
+        const currentCover = game.coverPath?.value || (game as any).image
         if (!currentCover || currentCover.trim() === '') {
           try {
             // 更新游戏封面图
-            await managementComposable.updateGame(game.id, { coverPath: result.filepath })
-            console.log(`✅ 已自动将截图设置为游戏 "${game.name}" 的封面图`)
+            const gameId = game.id?.value || game.id
+            await managementComposable.updateGame(gameId, { coverPath: result.filepath } as any)
+            const gameName = game.name?.value || game.name
+            console.log(`✅ 已自动将截图设置为游戏 "${gameName}" 的封面图`)
             
             // 显示提示（可选）
-            notify.toast('success', '封面已更新', `已自动将截图设置为 "${game.name}" 的封面图`)
+            notify.toast('success', '封面已更新', `已自动将截图设置为 "${gameName}" 的封面图`)
           } catch (error: any) {
             console.error('设置封面图失败:', error)
           }
         } else {
-          console.log(`游戏 "${game.name}" 已有封面图，跳过自动设置`)
+          const gameName = game.name?.value || game.name
+          console.log(`游戏 "${gameName}" 已有封面图，跳过自动设置`)
         }
       }
     )
@@ -328,7 +331,7 @@ export default {
         onSave: async () => {
           await managementComposable.saveGames()
         },
-        getItemName: (game: any) => game.name,
+        getItemName: (game: any) => game.name?.value || game.name,
         itemType: '游戏'
       },
       contextMenuItems: [
@@ -385,18 +388,19 @@ export default {
         maxWidth: 400
       },
       getStats: (game: any) => [
-        { label: '开发商', value: game.developer || '未知' },
-        { label: '发行商', value: game.publisher || '未知' },
-        { label: '引擎', value: game.engine || '未知' },
-        { label: '游戏时长', value: formatPlayTime(game.playTime || 0) },
-        { label: '游玩次数', value: `${game.playCount || 0} 次` },
-        { label: '最后游玩', value: formatLastPlayed(game.lastPlayed) },
-        { label: '首次游玩', value: formatFirstPlayed(game.firstPlayed) },
-        { label: '添加时间', value: formatDateUtil(game.added) }
+        { label: '开发商', value: game.developers?.value?.[0] || game.developer?.value || game.developer || '未知' },
+        { label: '发行商', value: game.publisher?.value || game.publisher || '未知' },
+        { label: '引擎', value: game.engine?.value || game.engine || '未知' },
+        { label: '游戏时长', value: formatPlayTime(game.playTime?.value || game.playTime || 0) },
+        { label: '游玩次数', value: `${game.playCount?.value || game.playCount || 0} 次` },
+        { label: '最后游玩', value: formatLastPlayed(game.lastPlayed?.value || game.lastPlayed) },
+        { label: '首次游玩', value: formatFirstPlayed(game.firstPlayed?.value || game.firstPlayed) },
+        { label: '添加时间', value: formatDateUtil(game.addedDate?.value || game.added || game.addedDate) }
       ],
       getActions: (game: any) => {
         // 注意：isGameRunning 函数会在组件实例化后设置，这里先使用 store
-        const isRunning = gameRunningStore.isGameRunning(game.id)
+        const gameId = game.id?.value || game.id
+        const isRunning = gameRunningStore.isGameRunning(gameId)
         const actions = [
           { key: 'launch', icon: '▶️', label: isRunning ? '游戏运行中' : '启动游戏', class: 'btn-launch' },
           { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
@@ -526,7 +530,7 @@ export default {
       showTerminateConfirmDialog: false,
       gameToTerminate: null,
       // Game 类用于 ResourcesEditDialog
-      Game: Game.EditableGameProperties
+      Game: Game
       // 路径更新对话框已移至工厂函数（showPathUpdateDialog, pathUpdateInfo）
       // 空状态配置已移至工厂函数（emptyStateConfig）
       // 工具栏配置已移至工厂函数（toolbarConfig）
@@ -613,8 +617,18 @@ export default {
     },
     async launchGame(game) {
       try {
+        // 获取游戏属性值（支持 ResourceField 和普通属性）
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        const gameName = game.name?.value || game.name
+        const gameId = game.id?.value || game.id
+        const isArchiveValue = game.isArchive?.value ?? game.isArchive
+        const lastPlayedValue = game.lastPlayed?.value || game.lastPlayed
+        const playCountValue = game.playCount?.value || game.playCount || 0
+        const firstPlayedValue = game.firstPlayed?.value || game.firstPlayed
+        const playTimeValue = game.playTime?.value || game.playTime || 0
+        
         // 检查是否为压缩包，压缩包不能运行
-        const isArchive = game.isArchive || (game.executablePath && isArchiveFile(game.executablePath))
+        const isArchive = isArchiveValue || (executablePath && isArchiveFile(executablePath))
         if (isArchive) {
           notify.toast('warning', '无法运行', `压缩包文件无法直接运行。请先解压后再运行游戏。`)
           return
@@ -628,30 +642,30 @@ export default {
           return
         }
 
-        console.log('启动游戏:', game.name, game.executablePath)
-        console.log('更新前 - lastPlayed:', game.lastPlayed)
-        console.log('更新前 - playCount:', game.playCount)
+        console.log('启动游戏:', gameName, executablePath)
+        console.log('更新前 - lastPlayed:', lastPlayedValue)
+        console.log('更新前 - playCount:', playCountValue)
 
         // 更新游戏统计（启动时也更新 lastPlayed，记录开始游玩的时间）
         const updates: any = {
           lastPlayed: new Date().toISOString(),
-          playCount: (game.playCount || 0) + 1
+          playCount: playCountValue + 1
         }
 
         // 如果是第一次启动，记录第一次游玩时间
-        if (!game.firstPlayed) {
+        if (!firstPlayedValue) {
           updates.firstPlayed = new Date().toISOString()
-          console.log(`游戏 ${game.name} 第一次启动，记录时间:`, updates.firstPlayed)
+          console.log(`游戏 ${gameName} 第一次启动，记录时间:`, updates.firstPlayed)
         }
 
-        await this.updateGame(game.id, updates)
+        await this.updateGame(gameId, updates)
         console.log('更新后 - lastPlayed:', updates.lastPlayed)
         console.log('更新后 - playCount:', updates.playCount)
         console.log('游戏数据已保存')
 
         if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.launchGame) {
           console.log('使用 Electron API 启动游戏')
-          const result = await window.electronAPI.launchGame(game.executablePath, game.name)
+          const result = await window.electronAPI.launchGame(executablePath, gameName)
 
           if (result.success) {
             console.log('------------------------------')
@@ -661,20 +675,20 @@ export default {
 
             // 将游戏添加到全局运行列表中（包含完整信息）
             this.addRunningGame({
-              id: game.id,
+              id: gameId,
               pid: result.pid,
               windowTitles: result.windowTitles || [],
-              gameName: game.name
+              gameName: gameName
             })
             
             // 保存游戏启动时的初始 playTime
             if (!this.gameInitialPlayTimes) {
               this.gameInitialPlayTimes = new Map()
             }
-            this.gameInitialPlayTimes.set(game.id, game.playTime || 0)
+            this.gameInitialPlayTimes.set(gameId, playTimeValue)
 
             // 显示成功提示
-            notify.toast('success', '游戏启动成功', `${game.name} 已启动`)
+            notify.toast('success', '游戏启动成功', `${gameName} 已启动`)
           } else {
             console.error('游戏启动失败:', result.error)
             notify.toast('error', '游戏启动失败', `启动游戏失败: ${result.error}`)
@@ -682,7 +696,7 @@ export default {
           }
         } else {
           // 提供更详细的错误信息
-          let errorMessage = `无法启动游戏: ${game.name}\n\n`
+          let errorMessage = `无法启动游戏: ${gameName}\n\n`
           if (!this.isElectronEnvironment) {
             errorMessage += `❌ 错误：未检测到 Electron 环境\n`
             errorMessage += `当前环境：${navigator.userAgent.includes('Electron') ? 'Electron 但 API 未加载' : '浏览器环境'}\n\n`
@@ -694,7 +708,7 @@ export default {
             errorMessage += `❌ 错误：Electron API 不可用\n`
             errorMessage += `请检查应用是否正确打包\n\n`
           }
-          errorMessage += `游戏路径: ${game.executablePath}`
+          errorMessage += `游戏路径: ${executablePath}`
           notify.toast('error', '游戏启动失败', errorMessage)
           return
         }
@@ -746,14 +760,20 @@ export default {
      */
     async handleUpdateRating(rating, game) {
       // 检查 game 是否存在，避免在面板关闭时触发更新
-      if (!game || !game.id) {
+      const gameId = game?.id?.value || game?.id
+      if (!game || !gameId) {
         return
       }
       try {
-        await this.updateGame(game.id, { rating })
+        await this.updateGame(gameId, { rating })
         // 更新当前游戏对象，以便详情面板立即显示新星级
-        if (this.selectedItem && this.selectedItem.id === game.id) {
-          this.selectedItem.rating = rating
+        const selectedItemId = this.selectedItem?.id?.value || this.selectedItem?.id
+        if (this.selectedItem && selectedItemId === gameId) {
+          if (this.selectedItem.rating && typeof this.selectedItem.rating === 'object' && 'value' in this.selectedItem.rating) {
+            this.selectedItem.rating.value = rating
+          } else {
+            this.selectedItem.rating = rating
+          }
         }
       } catch (error: any) {
         console.error('更新星级失败:', error)
@@ -762,14 +782,20 @@ export default {
     },
     async handleUpdateComment(comment, game) {
       // 检查 game 是否存在，避免在面板关闭时触发更新
-      if (!game || !game.id) {
+      const gameId = game?.id?.value || game?.id
+      if (!game || !gameId) {
         return
       }
       try {
-        await this.updateGame(game.id, { comment })
+        await this.updateGame(gameId, { comment })
         // 更新当前游戏对象，以便详情面板立即显示新评论
-        if (this.selectedItem && this.selectedItem.id === game.id) {
-          this.selectedItem.comment = comment
+        const selectedItemId = this.selectedItem?.id?.value || this.selectedItem?.id
+        if (this.selectedItem && selectedItemId === gameId) {
+          if (this.selectedItem.comment && typeof this.selectedItem.comment === 'object' && 'value' in this.selectedItem.comment) {
+            this.selectedItem.comment.value = comment
+          } else {
+            this.selectedItem.comment = comment
+          }
         }
       } catch (error: any) {
         console.error('更新评论失败:', error)
@@ -778,15 +804,22 @@ export default {
     },
     async handleToggleFavorite(game) {
       // 检查 game 是否存在，避免在面板关闭时触发更新
-      if (!game || !game.id) {
+      const gameId = game?.id?.value || game?.id
+      if (!game || !gameId) {
         return
       }
       try {
-        const newFavoriteStatus = !game.isFavorite
-        await this.updateGame(game.id, { isFavorite: newFavoriteStatus })
+        const currentFavorite = game.isFavorite?.value ?? game.isFavorite
+        const newFavoriteStatus = !currentFavorite
+        await this.updateGame(gameId, { isFavorite: newFavoriteStatus })
         // 更新当前游戏对象，以便详情面板立即显示新状态
-        if (this.selectedItem && this.selectedItem.id === game.id) {
-          this.selectedItem.isFavorite = newFavoriteStatus
+        const selectedItemId = this.selectedItem?.id?.value || this.selectedItem?.id
+        if (this.selectedItem && selectedItemId === gameId) {
+          if (this.selectedItem.isFavorite && typeof this.selectedItem.isFavorite === 'object' && 'value' in this.selectedItem.isFavorite) {
+            this.selectedItem.isFavorite.value = newFavoriteStatus
+          } else {
+            this.selectedItem.isFavorite = newFavoriteStatus
+          }
         }
       } catch (error: any) {
         console.error('切换收藏状态失败:', error)
@@ -891,9 +924,11 @@ export default {
 
     async updateGameFolderSize(game) {
       try {
-        await this.updateGameFolderSize(game.id)
+        const gameId = game.id?.value || game.id
+        await this.updateGameFolderSize(gameId)
       } catch (error: any) {
-        console.error(`❌ 更新游戏 ${game.name} 文件夹大小失败:`, error)
+        const gameName = game.name?.value || game.name
+        console.error(`❌ 更新游戏 ${gameName} 文件夹大小失败:`, error)
       }
     },
     // extractAllTags 已移至 useGameFilter composable
@@ -1021,18 +1056,22 @@ export default {
     },
     async terminateGame(game) {
       try {
-        console.log('[DEBUG] 🛑 开始强制结束游戏:', game.name, game.executablePath)
+        const gameName = game.name?.value || game.name
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        const gameId = game.id?.value || game.id
+        
+        console.log('[DEBUG] 🛑 开始强制结束游戏:', gameName, executablePath)
         
         if (!this.isElectronEnvironment || !window.electronAPI || !window.electronAPI.terminateGame) {
           notify.toast('error', '操作失败', '当前环境不支持强制结束游戏功能')
           return
         }
 
-        const result = await window.electronAPI.terminateGame(game.executablePath)
+        const result = await window.electronAPI.terminateGame(executablePath)
         
         if (result.success) {
           console.log('[DEBUG] ✅ 游戏已强制结束，PID:', result.pid, '运行时长:', result.playTime, '秒')
-          notify.toast('success', '游戏已结束', `${game.name} 已强制结束`)
+          notify.toast('success', '游戏已结束', `${gameName} 已强制结束`)
         } else {
           console.warn('[DEBUG] ⚠️ 强制结束游戏失败:', result.error)
           
@@ -1046,13 +1085,13 @@ export default {
           
           if (isProcessNotFound) {
             // 如果未找到进程，显示警告并从运行列表中移除
-            console.warn('[DEBUG] ⚠️ 游戏进程未找到，从运行列表中移除:', game.id)
-            notify.toast('warning', '游戏已停止', `未找到 ${game.name} 的运行进程，已将其标记为已停止`)
+            console.warn('[DEBUG] ⚠️ 游戏进程未找到，从运行列表中移除:', gameId)
+            notify.toast('warning', '游戏已停止', `未找到 ${gameName} 的运行进程，已将其标记为已停止`)
             
             // 检查游戏是否在运行列表中，如果在则移除
             if (this.isGameRunning(game)) {
-              this.removeRunningGame(game.id)
-              console.log('[DEBUG] ✅ 已从运行列表中移除游戏:', game.id)
+              this.removeRunningGame(gameId)
+              console.log('[DEBUG] ✅ 已从运行列表中移除游戏:', gameId)
             }
           } else {
             // 其他错误，显示错误提示
@@ -1061,6 +1100,9 @@ export default {
         }
       } catch (error) {
         console.error('[DEBUG] ❌ 强制结束游戏异常:', error)
+        
+        const gameName = game.name?.value || game.name
+        const gameId = game.id?.value || game.id
         
         // 检查错误信息是否包含"未找到运行中的游戏进程"
         const errorMessage = error.message || String(error)
@@ -1071,13 +1113,13 @@ export default {
         
         if (isProcessNotFound) {
           // 如果未找到进程，显示警告并从运行列表中移除
-          console.warn('[DEBUG] ⚠️ 游戏进程未找到，从运行列表中移除:', game.id)
-          notify.toast('warning', '游戏已停止', `未找到 ${game.name} 的运行进程，已将其标记为已停止`)
+          console.warn('[DEBUG] ⚠️ 游戏进程未找到，从运行列表中移除:', gameId)
+          notify.toast('warning', '游戏已停止', `未找到 ${gameName} 的运行进程，已将其标记为已停止`)
           
           // 检查游戏是否在运行列表中，如果在则移除
           if (this.isGameRunning(game)) {
-            this.removeRunningGame(game.id)
-            console.log('[DEBUG] ✅ 已从运行列表中移除游戏:', game.id)
+            this.removeRunningGame(gameId)
+            console.log('[DEBUG] ✅ 已从运行列表中移除游戏:', gameId)
           }
         } else {
           notify.toast('error', '操作失败', `强制结束游戏失败: ${errorMessage}`)
@@ -1197,13 +1239,14 @@ export default {
 
     async openGameFolder(game) {
       try {
-        if (!game.executablePath) {
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        if (!executablePath) {
           await alertService.warning('游戏文件路径不存在', '提示')
           return
         }
 
         if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.openFileFolder) {
-          const result = await window.electronAPI.openFileFolder(game.executablePath)
+          const result = await window.electronAPI.openFileFolder(executablePath)
           if (result.success) {
             console.log('已打开游戏文件夹:', result.folderPath)
 
@@ -1213,7 +1256,7 @@ export default {
           }
         } else {
           // 降级处理：在浏览器中显示路径
-          await alertService.info(`游戏文件位置:\n${game.executablePath}`, '文件位置')
+          await alertService.info(`游戏文件位置:\n${executablePath}`, '文件位置')
         }
       } catch (error) {
         console.error('打开游戏文件夹失败:', error)
@@ -1286,21 +1329,39 @@ export default {
           return
         }
 
-        console.log(`更新游戏 "${existingItem.name}" 的路径:`)
-        console.log(`旧路径: ${existingItem.executablePath}`)
+        const itemName = existingItem.name?.value || existingItem.name
+        const oldPath = existingItem.resourcePath?.value || existingItem.executablePath?.value || existingItem.resourcePath || existingItem.executablePath
+        console.log(`更新游戏 "${itemName}" 的路径:`)
+        console.log(`旧路径: ${oldPath}`)
         console.log(`新路径: ${newPath}`)
 
         // 更新游戏路径
-        existingItem.executablePath = newPath
-        existingItem.fileExists = true
+        if (existingItem.resourcePath && typeof existingItem.resourcePath === 'object' && 'value' in existingItem.resourcePath) {
+          existingItem.resourcePath.value = newPath
+        } else if (existingItem.executablePath && typeof existingItem.executablePath === 'object' && 'value' in existingItem.executablePath) {
+          existingItem.executablePath.value = newPath
+        } else {
+          existingItem.resourcePath = newPath
+          existingItem.executablePath = newPath
+        }
+        
+        if (existingItem.fileExists && typeof existingItem.fileExists === 'object' && 'value' in existingItem.fileExists) {
+          existingItem.fileExists.value = true
+        } else {
+          existingItem.fileExists = true
+        }
 
         // 重新计算文件夹大小
         if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.getFolderSize) {
           try {
             const result = await window.electronAPI.getFolderSize(newPath)
             if (result.success) {
-              existingItem.folderSize = result.size
-              console.log(`游戏 ${existingItem.name} 文件夹大小: ${result.size} 字节`)
+              if (existingItem.folderSize && typeof existingItem.folderSize === 'object' && 'value' in existingItem.folderSize) {
+                existingItem.folderSize.value = result.size
+              } else {
+                existingItem.folderSize = result.size
+              }
+              console.log(`游戏 ${itemName} 文件夹大小: ${result.size} 字节`)
             }
           } catch (error) {
             console.error('获取文件夹大小失败:', error)
@@ -1317,10 +1378,10 @@ export default {
         notify.toast(
           'success',
           '路径更新成功',
-          `游戏 "${existingItem.name}" 的路径已更新`
+          `游戏 "${itemName}" 的路径已更新`
         )
 
-        console.log(`游戏 "${existingItem.name}" 路径更新完成`)
+        console.log(`游戏 "${itemName}" 路径更新完成`)
 
       } catch (error) {
         console.error('更新游戏路径失败:', error)
@@ -1375,16 +1436,26 @@ export default {
       }
       contextMenuHandlers['update-folder-size'] = (game: any) => this.updateGameFolderSize(game)
       contextMenuHandlers['compress-to'] = (game: any) => {
-        this.compressFile({ name: game.name, path: game.executablePath })
+        const gameName = game.name?.value || game.name
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        this.compressFile({ name: gameName, path: executablePath })
       }
       contextMenuHandlers['compress-here'] = (game: any) => {
-        this.compressFileToCurrentDir({ name: game.name, path: game.executablePath })
+        const gameName = game.name?.value || game.name
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        this.compressFileToCurrentDir({ name: gameName, path: executablePath })
       }
       contextMenuHandlers.extract = (game: any) => {
-        this.extractArchive({ name: game.name, path: game.executablePath, isArchive: game.isArchive })
+        const gameName = game.name?.value || game.name
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        const isArchiveValue = game.isArchive?.value ?? game.isArchive
+        this.extractArchive({ name: gameName, path: executablePath, isArchive: isArchiveValue })
       }
       contextMenuHandlers['extract-here'] = (game: any) => {
-        this.extractArchiveToCurrentDir({ name: game.name, path: game.executablePath, isArchive: game.isArchive })
+        const gameName = game.name?.value || game.name
+        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        const isArchiveValue = game.isArchive?.value ?? game.isArchive
+        this.extractArchiveToCurrentDir({ name: gameName, path: executablePath, isArchive: isArchiveValue })
       }
       contextMenuHandlers.edit = (game: any) => this.editGame(game)
       contextMenuHandlers.remove = (game: any) => this.deleteItem(game)
@@ -1457,16 +1528,22 @@ export default {
     // 监听游戏时长更新事件（接收总时长，直接设置）
     this.handleGamePlaytimeUpdate = (event: CustomEvent) => {
       const { gameId, totalPlayTime, shouldSave } = event.detail
-      const game = this.games.find(g => g.id === gameId)
+      const game = this.games.find(g => (g.id?.value || g.id) === gameId)
       if (game) {
         // 直接设置总时长，不累加
-        game.playTime = totalPlayTime
-        console.log(`[GameView] 游戏 ${game.name} 时长已更新: ${game.playTime} 秒`)
+        if (game.playTime && typeof game.playTime === 'object' && 'value' in game.playTime) {
+          game.playTime.value = totalPlayTime
+        } else {
+          game.playTime = totalPlayTime
+        }
+        const gameName = game.name?.value || game.name
+        const playTimeValue = game.playTime?.value || game.playTime
+        console.log(`[GameView] 游戏 ${gameName} 时长已更新: ${playTimeValue} 秒`)
         
         if (shouldSave) {
           // 游戏结束时保存
           this.saveGames()
-          console.log(`[GameView] 游戏 ${game.name} 时长已保存`)
+          console.log(`[GameView] 游戏 ${gameName} 时长已保存`)
         }
       }
     }
@@ -1479,11 +1556,12 @@ export default {
     // 监听请求更新游戏时长事件（App.vue 定时触发）
     this.handleRequestUpdatePlaytime = (event: CustomEvent) => {
       const { gameId } = event.detail
-      const game = this.games.find(g => g.id === gameId)
+      const game = this.games.find(g => (g.id?.value || g.id) === gameId)
       if (game && this.gameRunningStore && this.gameInitialPlayTimes) {
         // 如果还没有保存初始值，先保存（第一次更新时）
         if (!this.gameInitialPlayTimes.has(gameId)) {
-          this.gameInitialPlayTimes.set(gameId, game.playTime || 0)
+          const playTimeValue = game.playTime?.value || game.playTime || 0
+          this.gameInitialPlayTimes.set(gameId, playTimeValue)
         }
         
         // 获取初始 playTime（启动时的值）
@@ -1491,36 +1569,48 @@ export default {
         // 计算当前总时长 = 初始时长 + 会话时长
         const totalPlayTime = this.gameRunningStore.getCurrentPlayTime(gameId, initialPlayTime)
         // 更新游戏时长（用于显示）
-        game.playTime = totalPlayTime
-        console.log(`[GameView] 游戏 ${game.name} 时长已更新: ${totalPlayTime} 秒 (初始: ${initialPlayTime}, 会话: ${totalPlayTime - initialPlayTime})`)
+        if (game.playTime && typeof game.playTime === 'object' && 'value' in game.playTime) {
+          game.playTime.value = totalPlayTime
+        } else {
+          game.playTime = totalPlayTime
+        }
+        const gameName = game.name?.value || game.name
+        console.log(`[GameView] 游戏 ${gameName} 时长已更新: ${totalPlayTime} 秒 (初始: ${initialPlayTime}, 会话: ${totalPlayTime - initialPlayTime})`)
       }
     }
     
     // 监听请求最终游戏时长事件（游戏结束时）
     this.handleRequestFinalPlaytime = (event: CustomEvent) => {
       const { gameId } = event.detail
-      const game = this.games.find(g => g.id === gameId)
+      const game = this.games.find(g => (g.id?.value || g.id) === gameId)
       if (game && this.gameRunningStore && this.gameInitialPlayTimes) {
         // 获取初始 playTime（从保存的初始值获取，如果不存在则使用当前值）
-        const initialPlayTime = this.gameInitialPlayTimes.get(gameId) || game.playTime || 0
+        const currentPlayTime = game.playTime?.value || game.playTime || 0
+        const initialPlayTime = this.gameInitialPlayTimes.get(gameId) || currentPlayTime
         // 计算最终总时长
         const totalPlayTime = this.gameRunningStore.getCurrentPlayTime(gameId, initialPlayTime)
         // 更新并保存
-        game.playTime = totalPlayTime
+        if (game.playTime && typeof game.playTime === 'object' && 'value' in game.playTime) {
+          game.playTime.value = totalPlayTime
+        } else {
+          game.playTime = totalPlayTime
+        }
         // 清除保存的初始值
         this.gameInitialPlayTimes.delete(gameId)
         this.saveGames()
-        console.log(`[GameView] 游戏 ${game.name} 最终时长已保存: ${totalPlayTime} 秒`)
+        const gameName = game.name?.value || game.name
+        console.log(`[GameView] 游戏 ${gameName} 最终时长已保存: ${totalPlayTime} 秒`)
       }
     }
     
     // 监听游戏时长保存事件
     this.handleGamePlaytimeSave = (event: CustomEvent) => {
       const { gameId } = event.detail
-      const game = this.games.find(g => g.id === gameId)
+      const game = this.games.find(g => (g.id?.value || g.id) === gameId)
       if (game) {
         this.saveGames()
-        console.log(`[GameView] 游戏 ${game.name} 时长已保存`)
+        const gameName = game.name?.value || game.name
+        console.log(`[GameView] 游戏 ${gameName} 时长已保存`)
       }
     }
     

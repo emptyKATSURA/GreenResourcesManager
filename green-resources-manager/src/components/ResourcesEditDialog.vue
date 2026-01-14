@@ -7,6 +7,11 @@
         <button class="btn-close" @click="handleClose">✕</button>
       </div>
       <div class="modal-body">
+        <!-- 调试信息：如果 resourceClass 不可用，显示警告 -->
+        <div v-if="!resourceClass || typeof resourceClass !== 'function'" class="form-error-message">
+          <p>⚠️ 资源类未正确加载，请检查 resourceClass prop 是否正确传递</p>
+          <p>resourceClass: {{ resourceClass }}</p>
+        </div>
         <!-- 根据资源类自动生成表单字段 -->
         <div 
           v-for="(field, key) in formFields" 
@@ -241,7 +246,7 @@
 </template>
 
 <script lang="ts">
-import { computed, PropType } from 'vue'
+import { computed, PropType, nextTick } from 'vue'
 import TagSelectionPanel from './TagSelectionPanel.vue'
 import saveManager from '../utils/SaveManager.ts'
 import notify from '../utils/NotificationService.ts'
@@ -261,8 +266,8 @@ import {
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
   FormField_SelectVideoThumbnail
-} from '../class/FormField.ts'
-import { ResourceField } from '../class/game.ts'
+} from '../class/base/FormField.ts'
+import { ResourceField } from '../class/base/ResourceField.ts'
 
 export default {
   name: 'ResourcesEditDialog',
@@ -361,19 +366,33 @@ export default {
   },
   emits: ['close', 'confirm', 'use-first-image-cover', 'select-from-folder-cover', 'select-from-folder-covers', 'randomize-thumbnail', 'video-file-selected'],
   setup(props) {
-    // 创建资源实例用于提取字段定义
-    const resourceInstance = new props.resourceClass()
-    
     // 提取所有 FormField 类型的字段，保持类中定义的顺序
     // 支持两种形式：直接使用 FormField 或使用 ResourceField（从 editType 中提取）
     const formFields = computed(() => {
+      // 检查 resourceClass 是否是有效的构造函数
+      if (!props.resourceClass || typeof props.resourceClass !== 'function') {
+        console.warn('[ResourcesEditDialog] resourceClass is not a constructor:', props.resourceClass)
+        return {}
+      }
+      
+      // 创建资源实例用于提取字段定义
+      let resourceInstance: any
+      try {
+        resourceInstance = new props.resourceClass()
+      } catch (error) {
+        console.error('[ResourcesEditDialog] Failed to create resource instance:', error)
+        return {}
+      }
+      
       const fields: Record<string, FormFieldType> = {}
       // 遍历资源实例的所有属性，保持定义顺序
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
         if (value instanceof ResourceField) {
-          // 如果是 ResourceField，使用其 editType
-          fields[key] = value.editType
+          // 如果是 ResourceField，使用其 editType（只有当 editType 不为 null 时才添加）
+          if (value.editType) {
+            fields[key] = value.editType
+          }
         } else if (value instanceof FormFieldType) {
           // 如果是 FormField，直接使用
           fields[key] = value
@@ -401,7 +420,17 @@ export default {
   data() {
     // 初始化表单数据的函数（根据字段类型自动生成）
     const initFormData = () => {
-      const resourceInstance = new this.resourceClass()
+      // 检查 resourceClass 是否是有效的构造函数
+      if (!this.resourceClass || typeof this.resourceClass !== 'function') {
+        console.warn('[ResourcesEditDialog] resourceClass is not a constructor in initFormData:', this.resourceClass)
+        return { id: '' }
+      }
+      
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) {
+        return { id: '' }
+      }
+      
       const data: Record<string, any> = { id: '' }
       
       // 遍历资源实例的所有属性
@@ -417,15 +446,20 @@ export default {
         }
         
         if (field) {
-          // 根据字段类型初始化默认值
-          if (field instanceof FormField_Tags) {
-            data[key] = []
-          } else if (field instanceof FormField_Checkbox) {
-            data[key] = false
-          } else if (field instanceof FormField_Number) {
-            data[key] = 0
+          // 如果 ResourceField 有 defaultValue，优先使用它
+          if (value instanceof ResourceField && value.defaultValue !== undefined) {
+            data[key] = value.defaultValue
           } else {
-            data[key] = ''
+            // 根据字段类型初始化默认值
+            if (field instanceof FormField_Tags) {
+              data[key] = []
+            } else if (field instanceof FormField_Checkbox) {
+              data[key] = false
+            } else if (field instanceof FormField_Number) {
+              data[key] = 0
+            } else {
+              data[key] = ''
+            }
           }
         }
       }
@@ -455,7 +489,9 @@ export default {
       }
       
       // 检查必填字段
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return false
+      
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
         let field: FormFieldType | null = null
@@ -482,29 +518,60 @@ export default {
   watch: {
     visible(newVal) {
       if (newVal) {
-        if (this.isEditMode && this.resourceData) {
-          this.loadResourceData()
-        } else {
-          this.resetForm()
-        }
+        // 使用 nextTick 确保 props 已经更新
+        nextTick(() => {
+          // 确保 resourceClass 存在后再执行操作
+          if (!this.resourceClass || typeof this.resourceClass !== 'function') {
+            console.warn('[ResourcesEditDialog] visible changed but resourceClass is not available yet:', this.resourceClass)
+            return
+          }
+          
+          if (this.isEditMode && this.resourceData) {
+            this.loadResourceData()
+          } else {
+            this.resetForm()
+          }
+        })
       }
     },
     resourceData: {
       handler(newVal) {
         if (newVal && this.visible && this.isEditMode) {
+          // 确保 resourceClass 存在后再执行操作
+          if (!this.resourceClass || typeof this.resourceClass !== 'function') {
+            console.warn('[ResourcesEditDialog] resourceData changed but resourceClass is not available yet')
+            return
+          }
           this.loadResourceData()
         }
       },
       immediate: true
     },
     resourceClass: {
-      handler() {
+      handler(newVal) {
         // 资源类变化时重新初始化表单
-        this.formData = this.initFormData()
+        if (newVal && typeof newVal === 'function') {
+          this.formData = this.initFormData()
+        } else {
+          console.warn('[ResourcesEditDialog] resourceClass changed but is not a valid constructor:', newVal)
+        }
       }
     }
   },
   methods: {
+    // 安全地创建资源实例的辅助方法
+    createResourceInstance() {
+      if (!this.resourceClass || typeof this.resourceClass !== 'function') {
+        console.warn('[ResourcesEditDialog] resourceClass is not a constructor:', this.resourceClass)
+        return null
+      }
+      try {
+        return new this.resourceClass()
+      } catch (error) {
+        console.error('[ResourcesEditDialog] Failed to create resource instance:', error)
+        return null
+      }
+    },
     getTitle() {
       if (this.title) return this.title
       if (this.isEditMode) {
@@ -543,10 +610,21 @@ export default {
     },
     // 获取可执行文件路径的值（用于引擎自动识别等功能）
     getExecutablePathValue(): string {
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return ''
+      
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
-        if (value instanceof FormField_SelectFile && this.isExecutableFileField(value)) {
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
+        if (field instanceof FormField_SelectFile && this.isExecutableFileField(field)) {
           return this.formData[key] || ''
         }
       }
@@ -554,11 +632,22 @@ export default {
     },
     // 获取文件夹路径的值（用于漫画封面选择等功能）
     getFolderPathValue(): string {
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return ''
+      
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
-        if (value instanceof FormField_SelectFolder || 
-            (value instanceof FormField_SelectFile && key === 'folderPath')) {
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
+        if (field instanceof FormField_SelectFolder || 
+            (field instanceof FormField_SelectFile && (key === 'folderPath' || key === 'resourcePath'))) {
           return this.formData[key] || ''
         }
       }
@@ -566,10 +655,21 @@ export default {
     },
     // 获取文件路径的值（用于视频缩略图等功能）
     getFilePathValue(): string {
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return ''
+      
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
-        if (value instanceof FormField_SelectFile && key === 'filePath') {
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
+        if (field instanceof FormField_SelectFile && (key === 'filePath' || key === 'resourcePath')) {
           return this.formData[key] || ''
         }
       }
@@ -577,9 +677,20 @@ export default {
     },
     // 获取标签字段的值（用于 TagSelectionPanel）
     getTagsFieldValue(): string[] {
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return []
+      
       for (const key in resourceInstance) {
-        const field = (resourceInstance as any)[key]
+        const value = (resourceInstance as any)[key]
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
         if (field instanceof FormField_Tags) {
           return Array.isArray(this.formData[key]) ? this.formData[key] : []
         }
@@ -587,15 +698,12 @@ export default {
       return []
     },
     // 获取字段标签（必填字段加 *，非必填字段不加标识）
-    getFieldLabel(key: string, field: FormFieldType): string {
+    getFieldLabel(key: string, field: FormFieldType | null): string {
+      if (!field) {
+        return key
+      }
       const fieldName = field.fieldName
       const isRequired = field.required === true
-      
-      // 特殊字段的标签处理
-      if (this.isExecutableFileField(field)) {
-        const label = this.isEditMode ? '游戏可执行文件' : '游戏文件'
-        return isRequired ? `${label} *` : label
-      }
       
       return isRequired ? `${fieldName} *` : fieldName
     },
@@ -608,9 +716,7 @@ export default {
         return '输入简介或描述...'
       }
       if (field instanceof FormField_SelectFile) {
-        if (this.isExecutableFileField(field)) {
-          return this.isEditMode ? '选择游戏可执行文件' : '选择游戏可执行文件或压缩包'
-        }
+        return `选择${field.fieldName}`
       }
       if (field instanceof FormField_SelectFolder) {
         return `选择${field.fieldName}`
@@ -628,6 +734,12 @@ export default {
       return []
     },
     resetForm() {
+      // 确保 resourceClass 存在
+      if (!this.resourceClass || typeof this.resourceClass !== 'function') {
+        console.warn('[ResourcesEditDialog] Cannot reset form: resourceClass is not available')
+        return
+      }
+      
       const initData = this.initFormData()
       initData.id = this.formData.id || ''
       this.formData = initData
@@ -635,10 +747,18 @@ export default {
     loadResourceData() {
       if (!this.resourceData) return
       
+      // 确保 resourceClass 存在
+      if (!this.resourceClass || typeof this.resourceClass !== 'function') {
+        console.warn('[ResourcesEditDialog] Cannot load resource data: resourceClass is not available')
+        return
+      }
+      
       const initData = this.initFormData()
       initData.id = this.resourceData.id || ''
       
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return
+      
       // 首先加载类中定义的字段
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
@@ -737,36 +857,58 @@ export default {
 
           this.formData[key] = filePath
           
-          // 如果是可执行文件字段，自动提取游戏名称（如果名称字段为空）
+          // 如果是可执行文件字段，自动提取名称（如果名称字段为空）
           if (this.isExecutableFileField(field)) {
-            const resourceInstance = new this.resourceClass()
-            for (const nameKey in resourceInstance) {
-              const value = (resourceInstance as any)[nameKey]
-              if (value instanceof FormField_Text && 
-                  (this.formData[nameKey] || '').trim() === '') {
-                this.formData[nameKey] = this.extractGameNameFromPath(filePath)
-                break
+            const resourceInstance = this.createResourceInstance()
+            if (resourceInstance) {
+              for (const nameKey in resourceInstance) {
+                const value = (resourceInstance as any)[nameKey]
+                let nameField: FormFieldType | null = null
+                
+                // 支持 ResourceField 和 FormField 两种形式
+                if (value instanceof ResourceField) {
+                  nameField = value.editType
+                } else if (value instanceof FormFieldType) {
+                  nameField = value
+                }
+                
+                if (nameField instanceof FormField_Text && 
+                    (this.formData[nameKey] || '').trim() === '') {
+                  this.formData[nameKey] = this.extractGameNameFromPath(filePath)
+                  break
+                }
               }
             }
           }
           
           // 如果是图片文件字段（单图片模式），自动提取图片名称（如果名称字段为空）
-          if (this.isImageFile(filePath) && key === 'folderPath') {
-            const resourceInstance = new this.resourceClass()
-            for (const nameKey in resourceInstance) {
-              const value = (resourceInstance as any)[nameKey]
-              if (value instanceof FormField_Text && 
-                  (this.formData[nameKey] || '').trim() === '') {
-                // 从文件名提取名称（不含扩展名）
-                const fileName = filePath.split(/[\\/]/).pop() || ''
-                this.formData[nameKey] = fileName.replace(/\.[^/.]+$/, '')
-                break
+          if (this.isImageFile(filePath) && (key === 'folderPath' || key === 'resourcePath')) {
+            const resourceInstance = this.createResourceInstance()
+            if (resourceInstance) {
+              for (const nameKey in resourceInstance) {
+                const value = (resourceInstance as any)[nameKey]
+                let nameField: FormFieldType | null = null
+                
+                // 支持 ResourceField 和 FormField 两种形式
+                if (value instanceof ResourceField) {
+                  nameField = value.editType
+                } else if (value instanceof FormFieldType) {
+                  nameField = value
+                }
+                
+                if (nameField instanceof FormField_Text && 
+                    (this.formData[nameKey] || '').trim() === '') {
+                  // 从文件名提取名称（不含扩展名）
+                  const fileName = filePath.split(/[\\/]/).pop() || ''
+                  this.formData[nameKey] = fileName.replace(/\.[^/.]+$/, '')
+                  break
+                }
               }
             }
           }
           
           // 如果是视频文件字段，触发事件让父组件处理（提取名称、获取时长、生成缩略图等）
-          if (key === 'filePath' && this.isVideoFile(filePath)) {
+          if ((key === 'filePath' || key === 'resourcePath') && this.isVideoFile(filePath)) {
             this.$emit('video-file-selected', key, filePath, this.formData)
           }
         }
@@ -860,9 +1002,20 @@ export default {
       return cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
     },
     async handleBrowseImage(key: string) {
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return
+      
       for (const fieldKey in resourceInstance) {
-        const field = (resourceInstance as any)[fieldKey]
+        const value = (resourceInstance as any)[fieldKey]
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
         if (fieldKey === key && (field instanceof FormField_SelectFile || this.isCoverField(field))) {
           if (field instanceof FormField_SelectFile) {
             await this.handleBrowseFile(key, field)
@@ -879,10 +1032,21 @@ export default {
     },
     async handleUseScreenshotAsCover(key: string) {
       try {
-        const resourceInstance = new this.resourceClass()
+        const resourceInstance = this.createResourceInstance()
+        if (!resourceInstance) return
+        
         let nameKey = ''
         for (const fieldKey in resourceInstance) {
-          const field = (resourceInstance as any)[fieldKey]
+          const value = (resourceInstance as any)[fieldKey]
+          let field: FormFieldType | null = null
+          
+          // 支持 ResourceField 和 FormField 两种形式
+          if (value instanceof ResourceField) {
+            field = value.editType
+          } else if (value instanceof FormFieldType) {
+            field = value
+          }
+          
           if (field instanceof FormField_Text) {
             nameKey = fieldKey
             break
@@ -1064,7 +1228,9 @@ export default {
         const detectedEngine = await detectGameEngine(gamePath)
         
         if (detectedEngine) {
-          const resourceInstance = new this.resourceClass()
+          const resourceInstance = this.createResourceInstance()
+          if (!resourceInstance) return
+          
           for (const key in resourceInstance) {
             const value = (resourceInstance as any)[key]
             let field: FormFieldType | null = null
@@ -1107,7 +1273,12 @@ export default {
           }
         }
 
-        const resourceInstance = new this.resourceClass()
+        const resourceInstance = this.createResourceInstance()
+        if (!resourceInstance) {
+          console.error('[ResourcesEditDialog] Cannot create resource instance for confirmation')
+          return
+        }
+        
         const resource: Record<string, any> = {
           id: this.formData.id || (this.isEditMode ? this.resourceData?.id : Date.now().toString()),
           fileExists: true
@@ -1180,7 +1351,9 @@ export default {
     handleSelectTag(tag: string) {
       if (!tag) return
       
-      const resourceInstance = new this.resourceClass()
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return
+      
       let tagsKey = ''
       for (const key in resourceInstance) {
         const field = (resourceInstance as any)[key]
@@ -1529,6 +1702,21 @@ export default {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+/* 表单错误消息样式 */
+.form-error-message {
+  padding: 15px;
+  margin-bottom: 20px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 6px;
+  color: #c33;
+}
+
+.form-error-message p {
+  margin: 5px 0;
+  font-size: 0.9rem;
 }
 
 /* 响应式设计 */

@@ -371,7 +371,7 @@ export default {
       // 编辑相关
       showEditDialog: false,
       // SingleImage 类用于 ResourcesEditDialog
-      SingleImage: SingleImage.EditableSingleImageProperties,
+      SingleImage: SingleImage,
       editAlbumForm: {
         id: '',
         name: '',

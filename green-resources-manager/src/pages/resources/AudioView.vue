@@ -373,7 +373,7 @@ export default {
   data() {
     return {
       // Audio 类用于 ResourcesEditDialog
-      Audio: Audio.EditableAudioProperties,
+      Audio: Audio,
     }
   },
   computed: {

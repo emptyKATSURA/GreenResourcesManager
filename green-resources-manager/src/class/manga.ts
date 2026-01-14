@@ -4,25 +4,45 @@ import {
 	FormField_Tags, 
 	FormField_SelectFile, 
 	FormField_SelectMangaCover,
+	FormField_SelectFolder,
 	FormField as FormFieldType,
-	FormField_SelectFolder
-} from './FormField.ts'
+	FormField
+} from './base/FormField.ts'
+import { BaseResources } from './base/ResourcesDataBase.ts'
+import { ResourceField } from './base/ResourceField.ts'
 
 /**
  * 漫画/图片专辑类
- * 用于定义漫画资源的表单字段结构
  */
-export class Manga {
-	// 文本字段
-	name: FormField_Text = new FormField_Text('漫画名称', false)
-	author: FormField_Text = new FormField_Text('作者', false)
-	description: FormField_Textarea = new FormField_Textarea('漫画简介', false)
+export class Manga extends BaseResources {
 	
-	// 标签字段
-	tags: FormField_Tags = new FormField_Tags('漫画标签', false)
+	name: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('漫画名称', false)
+	})
 	
-	folderPath: FormField_SelectFolder = new FormField_SelectFolder('漫画文件夹路径', true)
+	description: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Textarea('漫画简介', false)
+	})
 	
-	// 封面选择字段
-	cover: FormField_SelectMangaCover = new FormField_SelectMangaCover('封面图片', false)
+	author: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('作者', false)
+	})
+	
+	tags: ResourceField<string[]> = new ResourceField<string[]>({
+		saveable: true,
+		editType: new FormField_Tags('漫画标签', false)
+	})
+	
+	resourcePath: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_SelectFolder('漫画文件夹路径', true)
+	})
+	
+	coverPath: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_SelectMangaCover('封面图片', false)
+	})
 }

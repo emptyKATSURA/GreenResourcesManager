@@ -377,7 +377,7 @@ export default {
       showTerminateConfirmDialog: false,
       gameToTerminate: null,
       // Software 类用于 ResourcesEditDialog
-      Software: Software.EditableSoftwareProperties,
+      Software: Software,
       // 分页相关已移至 useGamePagination composable
       // 空状态配置
       gameEmptyStateConfig: {

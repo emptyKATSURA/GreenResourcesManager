@@ -4,11 +4,11 @@
       <div class="detail-header">
         <button 
           class="detail-favorite" 
-          :class="{ 'favorited': item?.isFavorite }"
+          :class="{ 'favorited': item?.isFavorite?.value ?? item?.isFavorite }"
           @click="handleFavoriteClick"
-          :title="item?.isFavorite ? '取消收藏' : '收藏'"
+          :title="(item?.isFavorite?.value ?? item?.isFavorite) ? '取消收藏' : '收藏'"
         >
-          {{ item?.isFavorite ? '⭐' : '☆' }}
+          {{ (item?.isFavorite?.value ?? item?.isFavorite) ? '⭐' : '☆' }}
         </button>
         <button class="detail-close" @click="close">✕</button>
       </div>
@@ -16,8 +16,8 @@
         <div class="detail-left">
           <div class="detail-image">
             <img 
-              :src="resolveImage(item.coverPath || item.image || item.cover || item.thumbnail || item.favicon)" 
-              :alt="item.name"
+              :src="resolveImage((item.coverPath?.value ?? item.coverPath) || (item.image?.value ?? item.image) || (item.cover?.value ?? item.cover) || (item.thumbnail?.value ?? item.thumbnail) || (item.favicon?.value ?? item.favicon))" 
+              :alt="item.name?.value ?? item.name"
               @error="handleImageError"
             >
             <!-- 文件不存在错误图标 -->
@@ -30,8 +30,8 @@
           <div class="detail-rating">
             <h4 class="rating-title">玩家评价</h4>
             <fun-rate
-              :model-value="item.rating || 0"
-              :comment="item.comment || item.notes || ''"
+              :model-value="(item.rating?.value ?? item.rating) || 0"
+              :comment="(item.comment?.value ?? item.comment) || (item.notes?.value ?? item.notes) || ''"
               show-comment
               @update:model-value="handleRatingChange"
               @update:comment="handleCommentChange"
@@ -39,46 +39,51 @@
           </div>
         </div>
         <div class="detail-info">
-          <h2 class="detail-title">{{ item.name }}</h2>
+          <h2 class="detail-title">{{ item.name?.value ?? item.name }}</h2>
           
           <!-- 动态显示作者/开发商信息 -->
-          <p class="detail-author" v-if="item.author">{{ item.author }}</p>
-          <p class="detail-developer" v-if="item.developer">{{ item.developer }}</p>
+          <p class="detail-author" v-if="item.author?.value ?? item.author">{{ item.author?.value ?? item.author }}</p>
+          <p class="detail-developer" v-if="getDevelopersDisplay(item)">
+            {{ getDevelopersDisplay(item) }}
+          </p>
           
           <!-- 动态显示发行商信息 -->
-          <p class="detail-publisher" v-if="item.publisher && item.publisher !== '未知发行商'">{{ item.publisher }}</p>
+          <p class="detail-publisher" v-if="(item.publisher?.value ?? item.publisher) && (item.publisher?.value ?? item.publisher) !== '未知发行商'">{{ item.publisher?.value ?? item.publisher }}</p>
           
-          <!-- 动态显示路径（按优先级：executablePath > filePath > folderPath > url） -->
-          <p class="detail-folder" v-if="item.executablePath" :title="item.executablePath">
-            {{ item.executablePath }}
+          <!-- 动态显示路径（按优先级：resourcePath > executablePath > filePath > folderPath > url） -->
+          <p class="detail-folder" v-if="item.resourcePath?.value ?? item.resourcePath" :title="item.resourcePath?.value ?? item.resourcePath">
+            {{ item.resourcePath?.value ?? item.resourcePath }}
           </p>
-          <p class="detail-folder" v-else-if="item.filePath" :title="item.filePath">
-            {{ item.filePath }}
+          <p class="detail-folder" v-else-if="item.executablePath?.value ?? item.executablePath" :title="item.executablePath?.value ?? item.executablePath">
+            {{ item.executablePath?.value ?? item.executablePath }}
           </p>
-          <p class="detail-folder" v-else-if="item.folderPath" :title="item.folderPath">
-            {{ item.folderPath }}
+          <p class="detail-folder" v-else-if="item.filePath?.value ?? item.filePath" :title="item.filePath?.value ?? item.filePath">
+            {{ item.filePath?.value ?? item.filePath }}
           </p>
-          <p class="detail-folder" v-else-if="item.url" :title="item.url">
-            {{ item.url }}
+          <p class="detail-folder" v-else-if="item.folderPath?.value ?? item.folderPath" :title="item.folderPath?.value ?? item.folderPath">
+            {{ item.folderPath?.value ?? item.folderPath }}
+          </p>
+          <p class="detail-folder" v-else-if="item.url?.value ?? item.url" :title="item.url?.value ?? item.url">
+            {{ item.url?.value ?? item.url }}
           </p>
           
           <!-- 游戏引擎信息（仅游戏类型显示） -->
-          <p class="detail-engine" v-if="type === 'game' && item.engine">
-            <span class="engine-label">引擎：</span>{{ item.engine }}
+          <p class="detail-engine" v-if="type === 'game' && (item.engine?.value ?? item.engine)">
+            <span class="engine-label">引擎：</span>{{ item.engine?.value ?? item.engine }}
           </p>
           
           <!-- 描述信息 -->
-          <div class="detail-description" v-if="item.description">
+          <div class="detail-description" v-if="item.description?.value ?? item.description">
             <h4 class="description-title">{{ descriptionTitle }}</h4>
-            <p class="description-content">{{ item.description }}</p>
+            <p class="description-content">{{ item.description?.value ?? item.description }}</p>
           </div>
           
           <!-- 标签信息 -->
-          <div class="detail-tags" v-if="item.tags && item.tags.length > 0">
+          <div class="detail-tags" v-if="(item.tags?.value ?? item.tags) && (item.tags?.value ?? item.tags).length > 0">
             <h4 class="tags-title">{{ tagsTitle }}</h4>
             <div class="tags-container">
               <fun-tag 
-                v-for="tag in item.tags" 
+                v-for="tag in (item.tags?.value ?? item.tags)" 
                 :key="tag" 
                 :text="tag"
               />
@@ -207,26 +212,26 @@ export default {
       
       if (this.type === 'game') {
         defaultStats.push(
-          { label: '总游戏时长', value: this.formatPlayTime(this.item?.playTime) },
-          { label: '运行次数', value: `${this.item?.playCount || 0} 次` },
-          { label: '最后游玩', value: this.formatLastPlayed(this.item?.lastPlayed) },
-          { label: '第一次游玩', value: this.formatFirstPlayed(this.item?.firstPlayed) },
-          { label: '添加时间', value: this.formatDate(this.item?.addedDate) }
+          { label: '总游戏时长', value: this.formatPlayTime(this.item?.playTime?.value ?? this.item?.playTime) },
+          { label: '运行次数', value: `${(this.item?.playCount?.value ?? this.item?.playCount) || 0} 次` },
+          { label: '最后游玩', value: this.formatLastPlayed(this.item?.lastPlayed?.value ?? this.item?.lastPlayed) },
+          { label: '第一次游玩', value: this.formatFirstPlayed(this.item?.firstPlayed?.value ?? this.item?.firstPlayed) },
+          { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) }
         )
       } else if (this.type === 'software') {
         defaultStats.push(
-          { label: '总运行时长', value: this.formatPlayTime(this.item?.playTime) },
-          { label: '运行次数', value: `${this.item?.playCount || 0} 次` },
-          { label: '最后运行', value: this.formatLastPlayed(this.item?.lastPlayed) },
-          { label: '第一次运行', value: this.formatFirstPlayed(this.item?.firstPlayed) },
-          { label: '添加时间', value: this.formatDate(this.item?.addedDate) }
+          { label: '总运行时长', value: this.formatPlayTime(this.item?.playTime?.value ?? this.item?.playTime) },
+          { label: '运行次数', value: `${(this.item?.playCount?.value ?? this.item?.playCount) || 0} 次` },
+          { label: '最后运行', value: this.formatLastPlayed(this.item?.lastPlayed?.value ?? this.item?.lastPlayed) },
+          { label: '第一次运行', value: this.formatFirstPlayed(this.item?.firstPlayed?.value ?? this.item?.firstPlayed) },
+          { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) }
         )
       } else if (this.type === 'image' || this.type === 'album') {
         defaultStats.push(
-          { label: '总页数', value: this.item?.pageCount || 0 },
-          { label: '浏览次数', value: this.item?.viewCount || 0 },
-          { label: '添加时间', value: this.formatDate(this.item?.addedDate) },
-          { label: '最后查看', value: this.formatDate(this.item?.lastViewed) }
+          { label: '总页数', value: (this.item?.pageCount?.value ?? this.item?.pageCount) || 0 },
+          { label: '浏览次数', value: (this.item?.viewCount?.value ?? this.item?.viewCount) || 0 },
+          { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) },
+          { label: '最后查看', value: this.formatDate(this.item?.lastViewed?.value ?? this.item?.lastViewed) }
         )
       }
       
@@ -252,7 +257,9 @@ export default {
       
       if (this.type === 'game') {
         // 检查是否为压缩包
-        const isArchive = this.item?.isArchive || (this.item?.executablePath && this.isArchiveFile(this.item.executablePath))
+        const resourcePath = this.item?.resourcePath?.value ?? this.item?.resourcePath ?? this.item?.executablePath?.value ?? this.item?.executablePath
+        const itemIsArchive = this.item?.isArchive?.value ?? this.item?.isArchive
+        const isArchive = itemIsArchive || (resourcePath && this.isArchiveFile(resourcePath))
         
         // 如果游戏正在运行，显示"结束游戏"按钮，否则显示"开始游戏"按钮
         // 压缩包不能运行，所以不显示启动按钮
@@ -278,7 +285,9 @@ export default {
         }
       } else if (this.type === 'software') {
         // 检查是否为压缩包
-        const isArchive = this.item?.isArchive || (this.item?.executablePath && this.isArchiveFile(this.item.executablePath))
+        const resourcePath = this.item?.resourcePath?.value ?? this.item?.resourcePath ?? this.item?.executablePath?.value ?? this.item?.executablePath
+        const itemIsArchive = this.item?.isArchive?.value ?? this.item?.isArchive
+        const isArchive = itemIsArchive || (resourcePath && this.isArchiveFile(resourcePath))
         
         // 如果软件正在运行，显示"结束软件"按钮，否则显示"启动软件"按钮
         // 压缩包不能运行，所以不显示启动按钮
@@ -316,7 +325,10 @@ export default {
     },
     hasRating() {
       // 判断是否有评价数据（有星级或评论）
-      return (this.item?.rating && this.item.rating > 0) || this.item?.comment || this.item?.notes
+      const rating = this.item?.rating?.value ?? this.item?.rating
+      const comment = this.item?.comment?.value ?? this.item?.comment
+      const notes = this.item?.notes?.value ?? this.item?.notes
+      return (rating && rating > 0) || comment || notes
     },
     showFileError() {
       // 检查文件是否存在，对于支持文件存在性检查的类型
@@ -325,7 +337,7 @@ export default {
         return false
       }
       // 检查 fileExists 属性，如果明确为 false 则显示错误
-      const fileExists = this.item?.fileExists
+      const fileExists = this.item?.fileExists?.value ?? this.item?.fileExists
       if (fileExists === false) {
         return true
       }
@@ -336,19 +348,42 @@ export default {
     close() {
       this.$emit('close')
     },
+    /**
+     * 获取开发商显示文本
+     * 支持 developers（数组）和 developer（字符串）两种格式
+     */
+    getDevelopersDisplay(item) {
+      // 优先检查 developers（数组）
+      const developers = item?.developers?.value ?? item?.developers
+      if (developers && Array.isArray(developers) && developers.length > 0) {
+        return developers.join('、')
+      }
+      // 兼容 developer（字符串）
+      const developer = item?.developer?.value ?? item?.developer
+      if (developer && typeof developer === 'string') {
+        return developer
+      }
+      return ''
+    },
     async handleFavoriteClick() {
       // 检查 item 是否存在，避免在面板关闭时触发更新
-      if (!this.item || !this.item.id) {
+      const itemId = this.item?.id?.value ?? this.item?.id
+      if (!this.item || !itemId) {
         return
       }
       
       // 如果提供了统一的更新函数，直接调用
       if (this.onUpdateResource && typeof this.onUpdateResource === 'function') {
         try {
-          const newFavoriteStatus = !this.item.isFavorite
-          await this.onUpdateResource(this.item.id, { isFavorite: newFavoriteStatus })
+          const currentFavorite = this.item.isFavorite?.value ?? this.item.isFavorite
+          const newFavoriteStatus = !currentFavorite
+          await this.onUpdateResource(itemId, { isFavorite: newFavoriteStatus })
           // 立即更新UI
-          this.item.isFavorite = newFavoriteStatus
+          if (this.item.isFavorite?.value !== undefined) {
+            this.item.isFavorite.value = newFavoriteStatus
+          } else {
+            this.item.isFavorite = newFavoriteStatus
+          }
         } catch (error) {
           console.error('切换收藏状态失败:', error)
         }
@@ -370,10 +405,12 @@ export default {
       }
     },
     handleAction(actionKey) {
+      const itemId = this.item?.id?.value ?? this.item?.id
+      const itemName = this.item?.name?.value ?? this.item?.name
       console.log('📋 [DetailPanel] handleAction 被调用:', {
         actionKey,
         type: this.type,
-        item: this.item ? { id: this.item.id, name: this.item.name } : null,
+        item: this.item ? { id: itemId, name: itemName } : null,
         actions: this.actions,
         computedActions: this.computedActions,
         timestamp: new Date().toISOString()
@@ -383,16 +420,21 @@ export default {
     },
     async handleRatingChange(rating) {
       // 检查 item 是否存在，避免在面板关闭时触发更新
-      if (!this.item || !this.item.id) {
+      const itemId = this.item?.id?.value ?? this.item?.id
+      if (!this.item || !itemId) {
         return
       }
       
       // 如果提供了统一的更新函数，直接调用
       if (this.onUpdateResource && typeof this.onUpdateResource === 'function') {
         try {
-          await this.onUpdateResource(this.item.id, { rating })
+          await this.onUpdateResource(itemId, { rating })
           // 立即更新UI
-          this.item.rating = rating
+          if (this.item.rating?.value !== undefined) {
+            this.item.rating.value = rating
+          } else {
+            this.item.rating = rating
+          }
         } catch (error) {
           console.error('更新评分失败:', error)
         }
@@ -403,16 +445,21 @@ export default {
     },
     async handleCommentChange(comment) {
       // 检查 item 是否存在，避免在面板关闭时触发更新
-      if (!this.item || !this.item.id) {
+      const itemId = this.item?.id?.value ?? this.item?.id
+      if (!this.item || !itemId) {
         return
       }
       
       // 如果提供了统一的更新函数，直接调用
       if (this.onUpdateResource && typeof this.onUpdateResource === 'function') {
         try {
-          await this.onUpdateResource(this.item.id, { comment })
+          await this.onUpdateResource(itemId, { comment })
           // 立即更新UI
-          this.item.comment = comment
+          if (this.item.comment?.value !== undefined) {
+            this.item.comment.value = comment
+          } else {
+            this.item.comment = comment
+          }
         } catch (error) {
           console.error('更新评论失败:', error)
         }
@@ -428,6 +475,11 @@ export default {
       return archiveExtensions.some(ext => fileName.endsWith(ext))
     },
     resolveImage(imagePath) {
+      // 如果传入的是 ResourceField 对象，提取其 value
+      if (imagePath?.value !== undefined) {
+        imagePath = imagePath.value
+      }
+      
       // 空值返回默认图片
       if (!imagePath || (typeof imagePath === 'string' && imagePath.trim() === '')) {
         const defaultImages = {
