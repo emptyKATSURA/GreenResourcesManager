@@ -16,7 +16,15 @@ const ARCHIVE_EXTENSIONS = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz', '.b
  * @param filePath - 文件路径或文件名
  * @returns 是否为压缩包
  */
-export function isArchiveFile(filePath: string): boolean {
+export function isArchiveFile(filePath: string | null | undefined): boolean {
+  if (!filePath) {
+    return false
+  }
+  
+  if (typeof filePath !== 'string') {
+    return false
+  }
+  
   const fileName = filePath.toLowerCase()
   return ARCHIVE_EXTENSIONS.some(ext => fileName.endsWith(ext))
 }

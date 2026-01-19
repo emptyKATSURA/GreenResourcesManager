@@ -99,13 +99,47 @@ export function useGameManagement(
    * 更新游戏
    */
   async function updateGame(gameId: string, updates: Partial<Game>) {
+    console.log('[updateGame] 开始更新游戏:', {
+      gameId,
+      gameIdType: typeof gameId,
+      gameIdValue: gameId,
+      gamesCount: games.value.length,
+      allGameIds: games.value.map(g => {
+        const id = g.id instanceof ResourceField ? g.id.value : (g as any).id
+        return { id, idType: typeof id, idValue: String(id) }
+      })
+    })
+    
     const index = games.value.findIndex(g => {
       const id = g.id instanceof ResourceField ? g.id.value : (g as any).id
-      return id === gameId
+      const matches = String(id) === String(gameId)
+      if (!matches) {
+        console.log('[updateGame] ID 不匹配:', {
+          gameId: String(gameId),
+          gameIdType: typeof gameId,
+          currentId: String(id),
+          currentIdType: typeof id,
+          strictEqual: id === gameId,
+          stringEqual: String(id) === String(gameId)
+        })
+      }
+      return matches
     })
+    
     if (index === -1) {
+      console.error('[updateGame] 未找到要更新的游戏:', {
+        gameId,
+        gameIdType: typeof gameId,
+        gameIdString: String(gameId),
+        availableIds: games.value.map(g => {
+          const id = g.id instanceof ResourceField ? g.id.value : (g as any).id
+          return String(id)
+        })
+      })
       throw new Error('未找到要更新的游戏')
     }
+    
+    console.log('[updateGame] 找到游戏，索引:', index)
 
     const target = games.value[index]
     
@@ -113,7 +147,7 @@ export function useGameManagement(
     for (const key in updates) {
       const field = (target as any)[key]
       if (field && field instanceof ResourceField) {
-        field.value = (updates as any)[key]
+        field.value = BaseResources.extractPrimitiveValue((updates as any)[key])
       } else {
         // 如果不是 ResourceField，直接赋值（如 folderSize, playTime 等额外字段）
         (target as any)[key] = (updates as any)[key]

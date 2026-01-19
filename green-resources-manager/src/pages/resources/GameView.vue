@@ -126,6 +126,7 @@ import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Game } from '@resources/game.ts'
 import { GamePage } from '../../configs/pages/GamePage.ts'
+import { ResourceField } from '@resources/base/ResourceField.ts'
 import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
 
@@ -146,6 +147,7 @@ import { useArchive, type ArchiveItem, isArchiveFile } from '../../composables/u
 import { useGameRunningStore } from '../../stores/game-running'
 import { createResourcePage } from '../../composables/createResourcePage'
 import { formatPlayTime, formatLastPlayed, formatFirstPlayed } from '../../utils/formatters'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 
 export default {
   name: 'GameView',
@@ -585,17 +587,19 @@ export default {
     async launchGame(game) {
       try {
         // 获取游戏属性值（支持 ResourceField 和普通属性）
-        const executablePath = game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
-        const gameName = game.name?.value || game.name
-        const gameId = game.id?.value || game.id
-        const isArchiveValue = game.isArchive?.value ?? game.isArchive
-        const lastPlayedValue = game.lastPlayed?.value || game.lastPlayed
-        const playCountValue = game.playCount?.value || game.playCount || 0
-        const firstPlayedValue = game.firstPlayed?.value || game.firstPlayed
-        const playTimeValue = game.playTime?.value || game.playTime || 0
+        const executablePath = BaseResources.extractPrimitiveValue(
+          game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
+        )
+        const gameName = BaseResources.extractPrimitiveValue(game.name?.value || game.name)
+        const gameId = BaseResources.extractPrimitiveValue(game.id?.value || game.id)
+        const isArchiveValue = BaseResources.extractPrimitiveValue(game.isArchive?.value ?? game.isArchive)
+        const lastPlayedValue = BaseResources.extractPrimitiveValue(game.lastPlayed?.value || game.lastPlayed)
+        const playCountValue = BaseResources.extractPrimitiveValue(game.playCount?.value || game.playCount) || 0
+        const firstPlayedValue = BaseResources.extractPrimitiveValue(game.firstPlayed?.value || game.firstPlayed)
+        const playTimeValue = BaseResources.extractPrimitiveValue(game.playTime?.value || game.playTime) || 0
         
         // 检查是否为压缩包，压缩包不能运行
-        const isArchive = isArchiveValue || (executablePath && isArchiveFile(executablePath))
+        const isArchive = Boolean(isArchiveValue) || (executablePath && isArchiveFile(executablePath))
         if (isArchive) {
           notify.toast('warning', '无法运行', `压缩包文件无法直接运行。请先解压后再运行游戏。`)
           return
@@ -802,6 +806,24 @@ export default {
     },
     // closeEditGameDialog 已移至工厂函数（closeEdit）
     async handleEditGameConfirm(updatedGame) {
+      console.log('[handleEditGameConfirm] 收到 updatedGame:', {
+        updatedGame,
+        id: updatedGame.id,
+        idType: typeof updatedGame.id,
+        idIsResourceField: updatedGame.id instanceof ResourceField
+      })
+      
+      // 确保 ID 是字符串值，而不是 ResourceField 对象
+      const gameId = updatedGame.id instanceof ResourceField 
+        ? updatedGame.id.value 
+        : String(updatedGame.id || '')
+      
+      console.log('[handleEditGameConfirm] 提取的 gameId:', {
+        gameId,
+        gameIdType: typeof gameId,
+        gameIdString: String(gameId)
+      })
+      
       // 使用工厂函数提供的 handleEditConfirm，但需要保留业务特定逻辑
       const updates = {
         name: updatedGame.name,
@@ -813,7 +835,15 @@ export default {
         executablePath: updatedGame.executablePath,
         coverPath: updatedGame.coverPath || (updatedGame as any).image
       }
-      await this.handleEditConfirm({ ...updatedGame, ...updates })
+      
+      const finalData = { ...updatedGame, ...updates, id: gameId }
+      console.log('[handleEditGameConfirm] 传递给 handleEditConfirm 的数据:', {
+        finalData,
+        finalId: finalData.id,
+        finalIdType: typeof finalData.id
+      })
+      
+      await this.handleEditConfirm(finalData)
     },
     // handleRemoveGame 已移至工厂函数（deleteItem）
     // 格式化函数已在 setup 中通过工厂函数使用，这里不再需要暴露

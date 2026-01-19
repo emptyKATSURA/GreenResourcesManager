@@ -268,6 +268,7 @@ import {
   FormField_SelectVideoThumbnail
 } from '@resources/base/FormField.ts'
 import { ResourceField } from '@resources/base/ResourceField.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 
 export default {
   name: 'ResourcesEditDialog',
@@ -754,7 +755,18 @@ export default {
       }
       
       const initData = this.initFormData()
-      initData.id = this.resourceData.id || ''
+      
+      // 确保 id 是字符串值，而不是 ResourceField 对象
+      const resourceDataId = this.resourceData.id
+      initData.id = resourceDataId instanceof ResourceField 
+        ? resourceDataId.value 
+        : (resourceDataId || '')
+      
+      console.log('[ResourcesEditDialog] loadResourceData 开始加载:', {
+        resourceData: this.resourceData,
+        resourceDataKeys: Object.keys(this.resourceData || {}),
+        initDataKeys: Object.keys(initData)
+      })
       
       const resourceInstance = this.createResourceInstance()
       if (!resourceInstance) return
@@ -774,9 +786,15 @@ export default {
         if (field) {
           let resourceValue = (this.resourceData as any)[key]
           
+          // 如果 resourceValue 是 ResourceField 对象，提取其 value
+          if (resourceValue instanceof ResourceField) {
+            resourceValue = resourceValue.value
+          }
+          
           // 向后兼容：如果字段是 coverPath 但没有值，尝试从 image 字段读取（游戏封面字段迁移）
           if (key === 'coverPath' && (!resourceValue || resourceValue === '') && (this.resourceData as any).image) {
-            resourceValue = (this.resourceData as any).image
+            const imageValue = (this.resourceData as any).image
+            resourceValue = imageValue instanceof ResourceField ? imageValue.value : imageValue
           }
           
           if (resourceValue !== undefined && resourceValue !== null) {
@@ -797,7 +815,12 @@ export default {
       // 这些字段不会显示在表单中，但会在确认时保留
       for (const key in this.resourceData) {
         if (!(key in initData) && key !== 'id' && key !== 'fileExists') {
-          initData[key] = (this.resourceData as any)[key]
+          let value = (this.resourceData as any)[key]
+          // 如果值是 ResourceField 对象，提取其 value
+          if (value instanceof ResourceField) {
+            value = value.value
+          }
+          initData[key] = value
         }
       }
       
@@ -1279,8 +1302,40 @@ export default {
           return
         }
         
+        // 确保 id 是字符串值，而不是 ResourceField 对象
+        let resourceId: string
+        
+        // 首先检查 formData.id，确保它是字符串值
+        const formDataId = this.formData.id
+        if (formDataId) {
+          // 如果 formData.id 是 ResourceField，提取其 value；否则转换为字符串
+          resourceId = formDataId instanceof ResourceField 
+            ? String(formDataId.value || '')
+            : String(formDataId)
+        } else if (this.isEditMode && this.resourceData?.id) {
+          // 如果 resourceData.id 是 ResourceField，提取其 value；否则直接使用
+          const idValue = this.resourceData.id instanceof ResourceField 
+            ? this.resourceData.id.value 
+            : this.resourceData.id
+          resourceId = String(idValue || '')
+        } else {
+          resourceId = Date.now().toString()
+        }
+        
+        console.log('[ResourcesEditDialog] 构建 resource 对象:', {
+          formDataId: this.formData.id,
+          formDataIdType: typeof this.formData.id,
+          formDataIdIsResourceField: this.formData.id instanceof ResourceField,
+          resourceDataId: this.resourceData?.id,
+          resourceDataIdType: typeof this.resourceData?.id,
+          resourceDataIdIsResourceField: this.resourceData?.id instanceof ResourceField,
+          resourceId,
+          resourceIdType: typeof resourceId,
+          isEditMode: this.isEditMode
+        })
+        
         const resource: Record<string, any> = {
-          id: this.formData.id || (this.isEditMode ? this.resourceData?.id : Date.now().toString()),
+          id: resourceId,
           fileExists: true
         }
 
@@ -1297,7 +1352,7 @@ export default {
           }
           
           if (field) {
-            let formValue = this.formData[key]
+            let formValue = BaseResources.extractPrimitiveValue(this.formData[key])
             
             if (field instanceof FormField_Tags) {
               resource[key] = Array.isArray(formValue) ? [...formValue] : []
@@ -1314,7 +1369,8 @@ export default {
             // 编辑模式的特殊处理：如果值为空，保留原有值
             if (this.isEditMode && this.resourceData) {
               if (typeof resource[key] === 'string' && resource[key] === '') {
-                resource[key] = (this.resourceData as any)[key] || ''
+                const originalValue = (this.resourceData as any)[key]
+                resource[key] = BaseResources.extractPrimitiveValue(originalValue) || ''
               }
             }
           }
@@ -1325,7 +1381,7 @@ export default {
           if (!(key in resource) && key !== 'id' && key !== 'fileExists') {
             const value = this.formData[key]
             if (value !== undefined && value !== null) {
-              resource[key] = value
+              resource[key] = BaseResources.extractPrimitiveValue(value)
             }
           }
         }

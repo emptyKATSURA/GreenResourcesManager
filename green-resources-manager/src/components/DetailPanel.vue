@@ -48,28 +48,28 @@
           </p>
           
           <!-- 动态显示发行商信息 -->
-          <p class="detail-publisher" v-if="(item.publisher?.value ?? item.publisher) && (item.publisher?.value ?? item.publisher) !== '未知发行商'">{{ item.publisher?.value ?? item.publisher }}</p>
+          <p class="detail-publisher" v-if="getFieldValue(item.publisher) && getFieldValue(item.publisher) !== '未知发行商'">{{ getFieldValue(item.publisher) }}</p>
           
           <!-- 动态显示路径（按优先级：resourcePath > executablePath > filePath > folderPath > url） -->
-          <p class="detail-folder" v-if="item.resourcePath?.value ?? item.resourcePath" :title="item.resourcePath?.value ?? item.resourcePath">
-            {{ item.resourcePath?.value ?? item.resourcePath }}
+          <p class="detail-folder" v-if="getFieldValue(item.resourcePath)" :title="getFieldValue(item.resourcePath)">
+            {{ getFieldValue(item.resourcePath) }}
           </p>
-          <p class="detail-folder" v-else-if="item.executablePath?.value ?? item.executablePath" :title="item.executablePath?.value ?? item.executablePath">
-            {{ item.executablePath?.value ?? item.executablePath }}
+          <p class="detail-folder" v-else-if="getFieldValue(item.executablePath)" :title="getFieldValue(item.executablePath)">
+            {{ getFieldValue(item.executablePath) }}
           </p>
-          <p class="detail-folder" v-else-if="item.filePath?.value ?? item.filePath" :title="item.filePath?.value ?? item.filePath">
-            {{ item.filePath?.value ?? item.filePath }}
+          <p class="detail-folder" v-else-if="getFieldValue(item.filePath)" :title="getFieldValue(item.filePath)">
+            {{ getFieldValue(item.filePath) }}
           </p>
-          <p class="detail-folder" v-else-if="item.folderPath?.value ?? item.folderPath" :title="item.folderPath?.value ?? item.folderPath">
-            {{ item.folderPath?.value ?? item.folderPath }}
+          <p class="detail-folder" v-else-if="getFieldValue(item.folderPath)" :title="getFieldValue(item.folderPath)">
+            {{ getFieldValue(item.folderPath) }}
           </p>
-          <p class="detail-folder" v-else-if="item.url?.value ?? item.url" :title="item.url?.value ?? item.url">
-            {{ item.url?.value ?? item.url }}
+          <p class="detail-folder" v-else-if="getFieldValue(item.url)" :title="getFieldValue(item.url)">
+            {{ getFieldValue(item.url) }}
           </p>
           
           <!-- 游戏引擎信息（仅游戏类型显示） -->
-          <p class="detail-engine" v-if="type === 'game' && (item.engine?.value ?? item.engine)">
-            <span class="engine-label">引擎：</span>{{ item.engine?.value ?? item.engine }}
+          <p class="detail-engine" v-if="type === 'game' && getFieldValue(item.engine)">
+            <span class="engine-label">引擎：</span>{{ getFieldValue(item.engine) }}
           </p>
           
           <!-- 描述信息 -->
@@ -347,6 +347,31 @@ export default {
   methods: {
     close() {
       this.$emit('close')
+    },
+    /**
+     * 安全获取字段值
+     * 如果字段是 ResourceField，返回其 value；否则直接返回字段值
+     * 如果值是对象（非原始类型），返回 undefined，避免显示 JSON
+     */
+    getFieldValue(field) {
+      if (!field) return undefined
+      // 如果是 ResourceField，提取 value
+      if (field && typeof field === 'object' && 'value' in field) {
+        const value = field.value
+        // 如果 value 是原始类型（字符串、数字、布尔值），返回它
+        if (value !== undefined && value !== null && 
+            (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || Array.isArray(value))) {
+          return value
+        }
+        // 如果 value 是对象，返回 undefined（不显示）
+        return undefined
+      }
+      // 如果字段本身就是原始类型，直接返回
+      if (typeof field === 'string' || typeof field === 'number' || typeof field === 'boolean' || Array.isArray(field)) {
+        return field
+      }
+      // 如果是对象，返回 undefined（不显示）
+      return undefined
     },
     /**
      * 获取开发商显示文本

@@ -110,6 +110,12 @@ export function useResourceCRUD<T>(config: ResourceCRUDConfig<T>) {
    */
   const handleEditConfirm = async (updatedData: Partial<T> & { id: string }) => {
     try {
+      console.log('[handleEditConfirm] 准备更新资源:', {
+        updatedData,
+        id: updatedData.id,
+        idType: typeof updatedData.id,
+        idString: String(updatedData.id)
+      })
       await onUpdate(updatedData.id, updatedData)
       if (onLoad) {
         await onLoad()

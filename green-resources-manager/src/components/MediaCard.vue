@@ -230,9 +230,25 @@ import { ResourceField } from '@resources/base/ResourceField.ts'
  */
 function getFieldValue(field) {
   if (field instanceof ResourceField) {
-    return field.value
+    let result = field.value
+    
+    // 如果提取的值仍然是 ResourceField 对象，递归提取（处理嵌套情况）
+    if (result instanceof ResourceField) {
+      console.warn('[getFieldValue] 检测到嵌套 ResourceField，递归提取')
+      result = getFieldValue(result)
+    }
+    
+    return result
   }
+  
   return field
+}
+
+/**
+ * 获取游戏的可执行路径（使用 resourcePath）
+ */
+function getExecutablePath(item) {
+  return getFieldValue(item?.resourcePath)
 }
 
 export default {
@@ -374,22 +390,12 @@ export default {
       const itemFileExists = getFieldValue(this.item?.fileExists)
       const fileExistsValue = itemFileExists !== undefined ? itemFileExists : this.fileExists
       const shouldShow = ['game', 'audio', 'image', 'novel', 'video', 'folder'].includes(this.type) && fileExistsValue === false
-      if (this.type === 'image' && fileExistsValue === false) {
-        console.log('🔍 MediaCard showFileError:', {
-          type: this.type,
-          fileExists: this.fileExists,
-          itemFileExists: itemFileExists,
-          fileExistsValue: fileExistsValue,
-          shouldShow: shouldShow,
-          itemName: getFieldValue(this.item?.name)
-        })
-      }
       return shouldShow
     },
     isArchive() {
       if (this.type === 'game') {
         const isArchive = getFieldValue(this.item?.isArchive)
-        const executablePath = getFieldValue(this.item?.executablePath)
+        const executablePath = getExecutablePath(this.item)
         return isArchive || (executablePath && this.isArchiveFile(executablePath))
       } else if (this.type === 'image') {
         const isArchive = getFieldValue(this.item?.isArchive)
@@ -403,7 +409,7 @@ export default {
     },
     // 获取 exe 图标
     exeIcon() {
-      const executablePath = getFieldValue(this.item?.executablePath)
+      const executablePath = getExecutablePath(this.item)
       if (this.type !== 'game' || !executablePath) {
         return null
       }
@@ -448,6 +454,7 @@ export default {
     coverImagePath() {
       // 优先使用 coverPath
       const coverPath = getFieldValue(this.item.coverPath)
+      
       if (coverPath) {
         return coverPath
       }
@@ -631,7 +638,7 @@ export default {
     },
     // 加载 exe 图标（使用全局缓存避免重复加载）
     async loadExeIcon() {
-      const executablePath = getFieldValue(this.item?.executablePath)
+      const executablePath = getExecutablePath(this.item)
       if (this.type !== 'game' || !executablePath) {
         return
       }
@@ -727,6 +734,12 @@ export default {
         imagePath = imagePath.value
       }
       
+      // 确保 imagePath 是字符串类型
+      if (imagePath && typeof imagePath !== 'string') {
+        console.warn('[resolveImage] imagePath 不是字符串，尝试转换:', typeof imagePath)
+        imagePath = String(imagePath)
+      }
+      
       // 空值返回默认
       if (!imagePath || (typeof imagePath === 'string' && imagePath.trim() === '')) {
         return this.getDefaultImage()
@@ -740,14 +753,11 @@ export default {
       // 检查是否启用伪装模式（对所有类型有效）
       // 依赖 disguiseModeState 以确保响应式更新
       if (this.disguiseModeState) {
-        // console.log('MediaCard: 伪装模式已启用，处理图片:', imagePath)
         // 检查伪装图片缓存
         if (this.disguiseImageCache[imagePath]) {
-          // console.log('MediaCard: 使用缓存的伪装图片:', this.disguiseImageCache[imagePath])
           return this.disguiseImageCache[imagePath]
         }
         
-        // console.log('MediaCard: 开始异步加载伪装图片')
         // 异步获取伪装图片
         this.loadDisguiseImage(imagePath)
         return this.getDefaultImage() // 先返回默认图片，等异步加载完成
@@ -842,15 +852,12 @@ export default {
      * @param {string} imagePath - 原始图片路径
      */
     async loadDisguiseImage(imagePath) {
-      console.log('MediaCard: 开始加载伪装图片，原始路径:', imagePath)
       try {
         const disguiseImage = await disguiseManager.getRandomDisguiseImage(imagePath)
-        console.log('MediaCard: 获取到伪装图片路径:', disguiseImage)
         // 使用Vue的响应式更新
         this.$set ? this.$set(this.disguiseImageCache, imagePath, disguiseImage) : (this.disguiseImageCache[imagePath] = disguiseImage)
         // 强制更新组件
         this.$forceUpdate()
-        console.log('MediaCard: 伪装图片已更新到缓存')
       } catch (error) {
         console.error('MediaCard: 加载伪装图片失败:', error)
       }
@@ -912,7 +919,6 @@ export default {
      * 清除所有伪装相关的缓存
      */
     clearDisguiseCaches() {
-      console.log('MediaCard: 清除所有伪装缓存')
       this.disguiseImageCache = {}
       this.disguiseTextCache = {}
       this.disguiseTagCache = {}
@@ -934,7 +940,15 @@ export default {
      * 检查文件是否为压缩包
      */
     isArchiveFile(filePath) {
-      if (!filePath) return false
+      if (!filePath) {
+        return false
+      }
+      
+      if (typeof filePath !== 'string') {
+        console.error('[isArchiveFile] filePath 不是字符串类型:', typeof filePath)
+        return false
+      }
+      
       const fileName = filePath.toLowerCase()
       const archiveExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz', '.bz2', '.tar.bz2', '.xz', '.tar.xz']
       return archiveExtensions.some(ext => fileName.endsWith(ext))
@@ -978,7 +992,6 @@ export default {
           // 使用第一张图片作为封面
           const firstImage = result.files[0]
           this.screenshotCoverPath = firstImage
-          console.log(`[MediaCard] 从截图文件夹读取封面: ${firstImage}`)
         } else {
           // 截图文件夹不存在或为空，使用默认图片（screenshotCoverPath 保持为 null）
           this.screenshotCoverPath = null
@@ -996,7 +1009,6 @@ export default {
     
     // 初始化伪装模式状态
     this.disguiseModeState = isDisguiseModeEnabled()
-    //console.log('MediaCard mounted: 初始伪装模式状态:', this.disguiseModeState)
     
     // 监听 storage 事件以响应设置变化
     window.addEventListener('storage', this.handleStorageChange)
@@ -1006,7 +1018,7 @@ export default {
     
     // 延迟加载 exe 图标，避免同时加载太多图标导致卡顿
     // 使用 setTimeout 分批加载，减少并发压力
-    const executablePath = getFieldValue(this.item?.executablePath)
+    const executablePath = getExecutablePath(this.item)
     if (this.type === 'game' && executablePath) {
       const ext = executablePath.toLowerCase().split('.').pop()
       if (ext === 'exe') {
