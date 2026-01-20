@@ -16,126 +16,18 @@
       </div>
 
       <div class="debug-section">
-        <h3>表单测试</h3>
-        <form @submit.prevent="handleFormSubmit" class="form-test">
-          <div 
-            v-for="(field, key) in formFields" 
-            :key="key" 
-            class="form-field"
-          >
-            <label :for="key" class="form-label">
-              {{ field.fieldName }}
-            </label>
-            <fun-input
-              v-if="field instanceof FormField_Text"
-              :id="key"
-              v-model="formData[key]"
-              type="text"
-              :placeholder="`请输入${field.fieldName}`"
-            />
-            <fun-input
-              v-else-if="field instanceof FormField_Number"
-              :id="key"
-              :modelValue="String(formData[key] || '')"
-              type="number"
-              :placeholder="`请输入${field.fieldName}`"
-              @update:modelValue="formData[key] = Number($event) || 0"
-            />
-            <input
-              v-else-if="field instanceof FormField_Date"
-              :id="key"
-              v-model="formData[key]"
-              type="date"
-              class="form-input"
-            />
-            <textarea
-              v-else-if="field instanceof FormField_Textarea"
-              :id="key"
-              v-model="formData[key]"
-              class="form-textarea"
-              :placeholder="`请输入${field.fieldName}`"
-              rows="4"
-            ></textarea>
-            <div v-else-if="field instanceof FormField_Radio" class="form-radio-group">
-              <label v-for="(option, index) in getRadioOptions(key, field)" :key="index" class="form-radio-label">
-                <input
-                  :id="`${key}-${index}`"
-                  v-model="formData[key]"
-                  type="radio"
-                  :value="option"
-                  class="form-radio"
-                />
-                {{ option }}
-              </label>
-            </div>
-            <select
-              v-else-if="field instanceof FormField_Select"
-              :id="key"
-              v-model="formData[key]"
-              class="form-select"
-            >
-              <option value="">请选择{{ field.fieldName }}</option>
-              <option v-for="(option, index) in getSelectOptions(key, field)" :key="index" :value="option">
-                {{ option }}
-              </option>
-            </select>
-            <!-- 文件选择 -->
-            <div v-else-if="field instanceof FormField_SelectFile" class="file-input-group">
-              <fun-input
-                :id="key"
-                type="text"
-                v-model="formData[key]"
-                :placeholder="`请选择${field.fieldName}`"
-                :readonly="true"
-              />
-              <button 
-                type="button" 
-                class="btn-browse" 
-                @click="handleBrowseFile(key, field)"
-                :disabled="!isElectronEnvironment"
-              >
-                浏览
-              </button>
-              <!-- 图片预览 -->
-              <div v-if="isImageFile(formData[key]) && formData[key]" class="image-preview">
-                <img :src="getImageUrl(formData[key])" :alt="field.fieldName" @error="handleImageError" />
-              </div>
-            </div>
-            <!-- 文件夹选择 -->
-            <div v-else-if="field instanceof FormField_SelectFolder" class="file-input-group">
-              <fun-input
-                :id="key"
-                type="text"
-                v-model="formData[key]"
-                :placeholder="`请选择${field.fieldName}`"
-                :readonly="true"
-              />
-              <button 
-                type="button" 
-                class="btn-browse" 
-                @click="handleBrowseFolder(key)"
-                :disabled="!isElectronEnvironment"
-              >
-                浏览
-              </button>
-            </div>
-            <!-- 标签输入 -->
-            <fun-tag-input
-              v-else-if="field instanceof FormField_Tags"
-              :id="key"
-              v-model="formData[key]"
-              :placeholder="`输入${field.fieldName}后按回车或逗号添加`"
-              :allowDuplicate="false"
+        <h3>资源测试</h3>
+        <div class="resources-grid">
+          <div v-for="(resource, index) in exampleResources" :key="`${resource.type}-${index}`" class="resource-item">
+            <h4 class="resource-type-label">{{ resource.typeLabel }}</h4>
+            <MediaCard
+              :item="resource.item"
+              :type="resource.type"
+              :is-electron-environment="isElectronEnvironment"
+              :file-exists="resource.item.fileExists?.value !== false"
+              :scale="100"
             />
           </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">提交表单</button>
-            <button type="button" @click="resetForm" class="btn btn-secondary">重置</button>
-          </div>
-        </form>
-        <div v-if="formResult" class="form-result">
-          <h4>表单提交结果：</h4>
-          <pre>{{ JSON.stringify(formResult, null, 2) }}</pre>
         </div>
       </div>
     </div>
@@ -147,7 +39,16 @@ import { defineComponent, reactive, computed } from 'vue'
 import notificationService from '../utils/NotificationService.ts'
 import alertService from '../utils/AlertService.ts'
 import confirmService from '../utils/ConfirmService.ts'
-import { Game } from '../class/game.ts'
+import MediaCard from '../components/MediaCard.vue'
+import { Game } from '@resources/game.ts'
+import { Video } from '@resources/video.ts'
+import { Audio } from '@resources/audio.ts'
+import { Novel } from '@resources/novel.ts'
+import { Manga } from '@resources/manga.ts'
+import { SingleImage } from '@resources/singleImage.ts'
+import { Software } from '@resources/soft.ts'
+import { Website } from '@resources/website.ts'
+import { VideoFolder } from '@resources/videoFolder.ts'
 import {
   FormField,
   FormField_Text,
@@ -163,6 +64,9 @@ import {
 
 export default defineComponent({
   name: 'DebugView',
+  components: {
+    MediaCard
+  },
   setup() {
     // 创建 Game 实例
     const game = new Game()
@@ -171,6 +75,138 @@ export default defineComponent({
     const isElectronEnvironment = computed(() => {
       return !!(window as any).electronAPI
     })
+    
+    // 创建各资源类型的示例
+    const createExampleResources = () => {
+      // 游戏示例
+      const exampleGame = new Game()
+      exampleGame.name.value = '示例游戏'
+      exampleGame.description.value = '这是一个游戏示例，用于测试 MediaCard 组件的显示效果'
+      exampleGame.developers.value = ['示例开发商']
+      exampleGame.publisher.value = '示例发行商'
+      exampleGame.tags.value = ['动作', '冒险', 'RPG']
+      exampleGame.engine.value = 'Unity'
+      exampleGame.resourcePath.value = 'G:\\下载的数据\\telegram\\悲剧之森\\悲剧之森\\player.exe'
+      exampleGame.coverPath.value = ''
+      exampleGame.rating.value = 4.5
+      exampleGame.isFavorite.value = true
+      exampleGame.addedDate.value = new Date().toISOString()
+      exampleGame.fileExists.value = false
+      
+      // 视频示例
+      const exampleVideo = new Video()
+      exampleVideo.name.value = '示例视频'
+      exampleVideo.description.value = '这是一个视频示例'
+      exampleVideo.series.value = '示例系列'
+      exampleVideo.tags.value = ['电影', '动作']
+      exampleVideo.actors.value = ['演员A', '演员B']
+      exampleVideo.resourcePath.value = 'C:\\example\\video.mp4'
+      exampleVideo.thumbnail.value = ''
+      exampleVideo.rating.value = 4.0
+      exampleVideo.addedDate.value = new Date().toISOString()
+      exampleVideo.fileExists.value = false
+      
+      // 音频示例
+      const exampleAudio = new Audio()
+      exampleAudio.name.value = '示例音频'
+      exampleAudio.description.value = '这是一个音频示例'
+      exampleAudio.artist.value = '示例艺术家'
+      exampleAudio.tags.value = ['流行', '电子']
+      exampleAudio.actors.value = ['歌手A']
+      exampleAudio.resourcePath.value = 'C:\\example\\audio.mp3'
+      exampleAudio.thumbnailPath.value = ''
+      exampleAudio.rating.value = 4.2
+      exampleAudio.addedDate.value = new Date().toISOString()
+      exampleAudio.fileExists.value = false
+      
+      // 小说示例
+      const exampleNovel = new Novel()
+      exampleNovel.name.value = '示例小说'
+      exampleNovel.description.value = '这是一本小说示例'
+      exampleNovel.author.value = '示例作者'
+      exampleNovel.genre.value = '科幻'
+      exampleNovel.tags.value = ['科幻', '未来']
+      exampleNovel.resourcePath.value = 'C:\\example\\novel.epub'
+      exampleNovel.coverPath.value = ''
+      exampleNovel.publishYear.value = '2024'
+      exampleNovel.rating.value = 4.3
+      exampleNovel.addedDate.value = new Date().toISOString()
+      exampleNovel.fileExists.value = false
+      
+      // 漫画示例
+      const exampleManga = new Manga()
+      exampleManga.name.value = '示例漫画'
+      exampleManga.description.value = '这是一个漫画示例'
+      exampleManga.author.value = '示例漫画家'
+      exampleManga.tags.value = ['冒险', '奇幻']
+      exampleManga.resourcePath.value = 'C:\\example\\manga'
+      exampleManga.coverPath.value = ''
+      exampleManga.rating.value = 4.4
+      exampleManga.addedDate.value = new Date().toISOString()
+      exampleManga.fileExists.value = false
+      
+      // 单图片示例
+      const exampleSingleImage = new SingleImage()
+      exampleSingleImage.name.value = '示例图片'
+      exampleSingleImage.description.value = '这是一张图片示例'
+      exampleSingleImage.author.value = '示例摄影师'
+      exampleSingleImage.tags.value = ['风景', '自然']
+      exampleSingleImage.resourcePath.value = 'C:\\example\\image.jpg'
+      exampleSingleImage.rating.value = 4.1
+      exampleSingleImage.addedDate.value = new Date().toISOString()
+      exampleSingleImage.fileExists.value = false
+      
+      // 软件示例
+      const exampleSoftware = new Software()
+      exampleSoftware.name.value = '示例软件'
+      exampleSoftware.description.value = '这是一个软件示例'
+      exampleSoftware.developer.value = '示例软件公司'
+      exampleSoftware.tags.value = ['工具', '实用']
+      exampleSoftware.resourcePath.value = 'C:\\example\\software.exe'
+      exampleSoftware.coverPath.value = ''
+      exampleSoftware.rating.value = 4.0
+      exampleSoftware.addedDate.value = new Date().toISOString()
+      exampleSoftware.fileExists.value = false
+      
+      // 网站示例
+      const exampleWebsite = new Website()
+      exampleWebsite.name.value = '示例网站'
+      exampleWebsite.description.value = '这是一个网站收藏示例'
+      exampleWebsite.resourcePath.value = 'https://example.com'
+      exampleWebsite.tags.value = ['工具', '学习']
+      exampleWebsite.rating.value = 4.5
+      exampleWebsite.addedDate.value = new Date().toISOString()
+      exampleWebsite.fileExists.value = true
+      
+      // 视频文件夹示例
+      const exampleVideoFolder = new VideoFolder()
+      exampleVideoFolder.name.value = '示例视频文件夹'
+      exampleVideoFolder.description.value = '这是一个视频文件夹示例'
+      exampleVideoFolder.series.value = '示例系列'
+      exampleVideoFolder.tags.value = ['动画', '连续剧']
+      exampleVideoFolder.actors.value = ['声优A', '声优B']
+      exampleVideoFolder.voiceActors.value = ['声优C']
+      exampleVideoFolder.productionTeam.value = ['制作组A']
+      exampleVideoFolder.resourcePath.value = 'C:\\example\\videoFolder'
+      exampleVideoFolder.thumbnail.value = ''
+      exampleVideoFolder.rating.value = 4.6
+      exampleVideoFolder.addedDate.value = new Date().toISOString()
+      exampleVideoFolder.fileExists.value = false
+      
+      return [
+        { item: exampleGame, type: 'game', typeLabel: '游戏 (Game)' },
+        { item: exampleVideo, type: 'video', typeLabel: '视频 (Video)' },
+        { item: exampleAudio, type: 'audio', typeLabel: '音频 (Audio)' },
+        { item: exampleNovel, type: 'novel', typeLabel: '小说 (Novel)' },
+        { item: exampleManga, type: 'image', typeLabel: '漫画 (Manga)' },
+        { item: exampleSingleImage, type: 'image', typeLabel: '单图片 (SingleImage)' },
+        { item: exampleSoftware, type: 'game', typeLabel: '软件 (Software)' },
+        { item: exampleWebsite, type: 'image', typeLabel: '网站 (Website)' },
+        { item: exampleVideoFolder, type: 'folder', typeLabel: '视频文件夹 (VideoFolder)' }
+      ]
+    }
+    
+    const exampleResources = reactive(createExampleResources())
     
     // 提取所有 FormField 类型的字段
     const formFields = computed(() => {
@@ -204,6 +240,7 @@ export default defineComponent({
     const formResult = reactive<Record<string, any> | null>(null)
     
     return {
+      exampleResources,
       formFields,
       formData,
       formResult,
@@ -649,6 +686,30 @@ export default defineComponent({
   max-height: 300px;
   object-fit: contain;
   border-radius: var(--radius-sm);
+}
+
+.resources-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-2xl);
+  margin-top: var(--spacing-xl);
+}
+
+.resource-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.resource-type-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  text-align: center;
 }
 
 </style>

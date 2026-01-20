@@ -13,6 +13,11 @@ import { ResourceField } from './base/ResourceField.ts'
  * 单图片类
  */
 export class SingleImage extends BaseResources {
+
+	resourceType: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		defaultValue: 'single-image'
+	})
 	
 	name: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
@@ -84,5 +89,20 @@ export class SingleImage extends BaseResources {
 		icon: '🖼️',
 		label: '打开图片',
 		handlerName: 'openImage' // 组件中对应的方法名
+	}
+
+	// 静态方法：获取显示文本配置（支持多态）
+	static getDisplayTexts() {
+		return {
+			neverAccessed: '从未查看',
+			justAccessed: '刚刚',
+			accessAction: '查看',
+			yesterdayAccessed: '昨天'
+		}
+	}
+
+	// 静态方法：获取默认图标路径
+	static getDefaultIcon() {
+		return './default-image.png'
 	}
 }

@@ -12,6 +12,11 @@ import { ResourceField } from './base/ResourceField.ts'
  * 网站类
  */
 export class Website extends BaseResources {
+
+	resourceType: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		defaultValue: 'website'
+	})
 	
 	name: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
@@ -76,5 +81,20 @@ export class Website extends BaseResources {
 		icon: '🌐',
 		label: '访问网站',
 		handlerName: 'openWebsite' // 组件中对应的方法名
+	}
+
+	// 静态方法：获取显示文本配置（支持多态）
+	static getDisplayTexts() {
+		return {
+			neverAccessed: '从未访问',
+			justAccessed: '刚刚',
+			accessAction: '访问',
+			yesterdayAccessed: '昨天'
+		}
+	}
+
+	// 静态方法：获取默认图标路径
+	static getDefaultIcon() {
+		return './default-image.png'
 	}
 }

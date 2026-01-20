@@ -3,7 +3,10 @@
  * 负责搜索、排序、标签和作者筛选逻辑
  */
 import { ref, computed, type Ref } from 'vue'
-import type { Album, AlbumSortBy } from '../../types/image'
+import { Manga } from '@resources/manga.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+
+export type AlbumSortBy = 'name' | 'count' | 'added' | 'lastViewed' | 'author' | 'viewCount'
 
 export interface FilterItem {
   name: string
@@ -14,7 +17,7 @@ export interface FilterItem {
  * 图片专辑筛选 Composable
  * @param albums - 专辑列表的响应式引用
  */
-export function useImageFilter(albums: Ref<Album[]>) {
+export function useImageFilter(albums: Ref<Manga[]>) {
   // 筛选状态
   const searchQuery = ref('')
   const sortBy = ref<AlbumSortBy>('name')
@@ -32,8 +35,9 @@ export function useImageFilter(albums: Ref<Album[]>) {
     const tagCount: Record<string, number> = {}
     
     albums.value.forEach(album => {
-      if (album.tags && Array.isArray(album.tags)) {
-        album.tags.forEach(tag => {
+      const tags = BaseResources.extractPrimitiveValue(album.tags?.value || album.tags)
+      if (tags && Array.isArray(tags)) {
+        tags.forEach(tag => {
           tagCount[tag] = (tagCount[tag] || 0) + 1
         })
       }
@@ -51,8 +55,9 @@ export function useImageFilter(albums: Ref<Album[]>) {
     const authorCount: Record<string, number> = {}
     
     albums.value.forEach(album => {
-      if (album.author) {
-        authorCount[album.author] = (authorCount[album.author] || 0) + 1
+      const author = BaseResources.extractPrimitiveValue(album.author?.value || album.author)
+      if (author) {
+        authorCount[author] = (authorCount[author] || 0) + 1
       }
     })
     
@@ -69,7 +74,8 @@ export function useImageFilter(albums: Ref<Album[]>) {
     
     albums.value.forEach(album => {
       // 统计丢失的资源
-      if (album.fileExists === false) {
+      const fileExists = BaseResources.extractPrimitiveValue(album.fileExists?.value ?? album.fileExists)
+      if (fileExists === false) {
         missingResourcesCount++
       }
     })
@@ -88,13 +94,17 @@ export function useImageFilter(albums: Ref<Album[]>) {
   /**
    * 筛选后的专辑列表
    */
-  const filteredAlbums = computed<Album[]>(() => {
+  const filteredAlbums = computed<Manga[]>(() => {
     let filtered = albums.value.filter(album => {
+      const name = BaseResources.extractPrimitiveValue(album.name?.value || album.name) || ''
+      const author = BaseResources.extractPrimitiveValue(album.author?.value || album.author) || ''
+      const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath) || ''
+      
       // 搜索筛选 - 搜索名称、作者、路径
       const matchesSearch = searchQuery.value === '' || 
-        (album.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        (album.author || '').toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        (album.folderPath || '').toLowerCase().includes(searchQuery.value.toLowerCase())
+        name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        author.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        resourcePath.toLowerCase().includes(searchQuery.value.toLowerCase())
       
       // 标签筛选 - 必须包含所有选中的标签（AND逻辑）
       const matchesTag = selectedTags.value.length === 0 || 
@@ -135,19 +145,32 @@ export function useImageFilter(albums: Ref<Album[]>) {
     
     // 排序
     filtered.sort((a, b) => {
+      const aName = BaseResources.extractPrimitiveValue(a.name?.value || a.name) || ''
+      const bName = BaseResources.extractPrimitiveValue(b.name?.value || b.name) || ''
+      const aAuthor = BaseResources.extractPrimitiveValue(a.author?.value || a.author) || ''
+      const bAuthor = BaseResources.extractPrimitiveValue(b.author?.value || b.author) || ''
+      const aPagesCount = BaseResources.extractPrimitiveValue(a.pagesCount?.value ?? a.pagesCount) || 0
+      const bPagesCount = BaseResources.extractPrimitiveValue(b.pagesCount?.value ?? b.pagesCount) || 0
+      const aAddedDate = BaseResources.extractPrimitiveValue(a.addedDate?.value || a.addedDate) || ''
+      const bAddedDate = BaseResources.extractPrimitiveValue(b.addedDate?.value || b.addedDate) || ''
+      const aLastViewed = BaseResources.extractPrimitiveValue(a.lastViewed?.value || a.lastViewed) || ''
+      const bLastViewed = BaseResources.extractPrimitiveValue(b.lastViewed?.value || b.lastViewed) || ''
+      const aViewCount = BaseResources.extractPrimitiveValue(a.viewCount?.value ?? a.viewCount) || 0
+      const bViewCount = BaseResources.extractPrimitiveValue(b.viewCount?.value ?? b.viewCount) || 0
+      
       switch (sortBy.value) {
         case 'name':
-          return (a.name || '').localeCompare(b.name || '')
+          return aName.localeCompare(bName)
         case 'count':
-          return (b.pagesCount || 0) - (a.pagesCount || 0)
+          return bPagesCount - aPagesCount
         case 'added':
-          return new Date(b.addedDate || 0).getTime() - new Date(a.addedDate || 0).getTime()
+          return new Date(bAddedDate || 0).getTime() - new Date(aAddedDate || 0).getTime()
         case 'lastViewed':
-          return new Date(b.lastViewed || 0).getTime() - new Date(a.lastViewed || 0).getTime()
+          return new Date(bLastViewed || 0).getTime() - new Date(aLastViewed || 0).getTime()
         case 'author':
-          return (a.author || '').localeCompare(b.author || '')
+          return aAuthor.localeCompare(bAuthor)
         case 'viewCount':
-          return (b.viewCount || 0) - (a.viewCount || 0)
+          return bViewCount - aViewCount
         default:
           return 0
       }

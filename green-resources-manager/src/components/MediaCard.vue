@@ -96,11 +96,11 @@
         <p class="media-subtitle" v-if="itemAuthor && scale >= 50">{{ itemAuthor }}</p>
         <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <span 
+          <fun-tag 
             v-for="tag in displayTags.slice(0, 3)" 
             :key="tag" 
-            class="media-tag"
-          >{{ tag }}</span>
+            :text="tag"
+          />
           <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
         </div>
         <div class="media-stats" v-if="scale >= 40">
@@ -114,11 +114,11 @@
         <p class="media-tertiary" v-if="itemGenre && scale >= 50">{{ itemGenre }}</p>
         <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <span 
+          <fun-tag 
             v-for="tag in displayTags.slice(0, 3)" 
             :key="tag" 
-            class="media-tag"
-          >{{ tag }}</span>
+            :text="tag"
+          />
           <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
         </div>
         <div class="media-stats" v-if="scale >= 40">
@@ -130,8 +130,7 @@
             <span class="stat-item">{{ formatReadTime(item.readTime) }}</span>
           </div>
           <div class="last-read">
-            <span v-if="item.lastRead">{{ formatLastRead(item.lastRead) }}</span>
-            <span v-else>从未阅读</span>
+            <span>{{ formatLastRead(item.lastRead) }}</span>
           </div>
         </div>
       </template>
@@ -141,11 +140,11 @@
         <p class="media-subtitle" v-if="itemSeries && scale >= 50">{{ itemSeries }}</p>
         <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <span 
+          <fun-tag 
             v-for="tag in displayTags.slice(0, 3)" 
             :key="tag" 
-            class="media-tag"
-          >{{ tag }}</span>
+            :text="tag"
+          />
           <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
         </div>
         <div class="media-actors" v-if="item.actors && item.actors.length > 0 && scale >= 50">
@@ -166,11 +165,11 @@
         <p class="media-subtitle" v-if="item.artist && scale >= 50">{{ item.artist }}</p>
         <p class="media-description" v-if="item.notes && scale >= 50">{{ item.notes }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <span 
+          <fun-tag 
             v-for="tag in displayTags.slice(0, 3)" 
             :key="tag" 
-            class="media-tag"
-          >{{ tag }}</span>
+            :text="tag"
+          />
           <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
         </div>
         <div class="media-actors" v-if="item.actors && item.actors.length > 0 && scale >= 50">
@@ -191,11 +190,11 @@
         <p class="media-subtitle" v-if="itemSeries && scale >= 50">{{ itemSeries }}</p>
         <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
         <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <span 
+          <fun-tag 
             v-for="tag in displayTags.slice(0, 3)" 
             :key="tag" 
-            class="media-tag"
-          >{{ tag }}</span>
+            :text="tag"
+          />
           <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
         </div>
         <div class="media-actors" v-if="item.actors && item.actors.length > 0 && scale >= 50">
@@ -221,6 +220,7 @@ import disguiseManager from '../utils/DisguiseManager'
 import { isDisguiseModeEnabled } from '../utils/disguiseMode'
 import { getGameScreenshotFolderPath } from '../composables/game/useGameScreenshot'
 import { ResourceField } from '@resources/base/ResourceField.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 
 /**
  * 安全获取资源属性值的辅助函数
@@ -249,6 +249,30 @@ function getFieldValue(field) {
  */
 function getExecutablePath(item) {
   return getFieldValue(item?.resourcePath)
+}
+
+/**
+ * 获取资源类的显示文本配置
+ * 注意：虽然静态方法的多态由编译时类型决定，但这里通过 item.constructor
+ * 获取的是运行时的实际构造函数，所以能正确调用子类的静态方法
+ * 
+ * 这是因为：
+ * - item.constructor 指向创建该实例的实际类（运行时类型）
+ * - 例如：new Game() 创建的实例，item.constructor 就是 Game
+ * - 调用 item.constructor.getDisplayTexts() 等同于调用 Game.getDisplayTexts()
+ * 
+ * @param item - 资源实例
+ * @returns 显示文本配置
+ */
+function getDisplayTexts(item) {
+  // 通过 item.constructor 获取运行时的实际构造函数
+  // 这样可以绕过 TypeScript 的编译时类型检查，实现真正的运行时多态
+  if (item && item.constructor && typeof item.constructor.getDisplayTexts === 'function') {
+    // 直接调用构造函数上的静态方法（运行时类型）
+    return item.constructor.getDisplayTexts()
+  }
+  // 否则返回默认配置
+  return BaseResources.getDisplayTexts()
 }
 
 export default {
@@ -503,7 +527,12 @@ export default {
   },
   methods: {
     formatPlayTime,
-    formatLastPlayed,
+    // 包装 formatLastPlayed，使其使用配置
+    formatLastPlayed(dateString) {
+      const texts = getDisplayTexts(this.item)
+      if (!dateString) return texts.neverAccessed
+      return formatLastPlayed(dateString, texts)
+    },
     formatReadTime(minutes) {
       if (!minutes) return '未阅读'
       if (minutes < 60) {
@@ -519,7 +548,8 @@ export default {
       }
     },
     formatLastRead(dateString) {
-      if (!dateString) return '从未阅读'
+      const texts = getDisplayTexts(this.item)
+      if (!dateString) return texts.neverAccessed
       const date = new Date(dateString)
       const now = new Date()
       const diffTime = Math.abs(now - date)
@@ -528,18 +558,19 @@ export default {
       const diffMinutes = Math.floor(diffTime / (1000 * 60))
       
       if (diffDays === 0) {
-        if (diffMinutes < 1) return '刚刚'
+        if (diffMinutes < 1) return texts.justAccessed
         if (diffMinutes < 60) return `${diffMinutes}分钟前`
         if (diffHours < 24) return `${diffHours}小时前`
       }
       
-      if (diffDays === 1) return '昨天'
+      if (diffDays === 1) return texts.yesterdayAccessed
       if (diffDays < 7) return `${diffDays}天前`
       if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`
       return this.formatDateTime(date)
     },
     formatLastViewed(dateString) {
-      if (!dateString) return '从未查看'
+      const texts = getDisplayTexts(this.item)
+      if (!dateString) return texts.neverAccessed
       const date = new Date(dateString)
       const now = new Date()
       const diffTime = Math.abs(now - date)
@@ -548,18 +579,19 @@ export default {
       const diffMinutes = Math.floor(diffTime / (1000 * 60))
       
       if (diffDays === 0) {
-        if (diffMinutes < 1) return '刚刚查看'
-        if (diffMinutes < 60) return `${diffMinutes}分钟前查看`
-        if (diffHours < 24) return `${diffHours}小时前查看`
+        if (diffMinutes < 1) return `刚刚${texts.accessAction}`
+        if (diffMinutes < 60) return `${diffMinutes}分钟前${texts.accessAction}`
+        if (diffHours < 24) return `${diffHours}小时前${texts.accessAction}`
       }
       
-      if (diffDays === 1) return '昨天查看'
-      if (diffDays < 7) return `${diffDays}天前查看`
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前查看`
+      if (diffDays === 1) return `昨天${texts.accessAction}`
+      if (diffDays < 7) return `${diffDays}天前${texts.accessAction}`
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前${texts.accessAction}`
       return this.formatDateTime(date)
     },
     formatLastWatched(dateString) {
-      if (!dateString) return '从未观看'
+      const texts = getDisplayTexts(this.item)
+      if (!dateString) return texts.neverAccessed
       const date = new Date(dateString)
       const now = new Date()
       const diffTime = Math.abs(now - date)
@@ -568,14 +600,14 @@ export default {
       const diffMinutes = Math.floor(diffTime / (1000 * 60))
       
       if (diffDays === 0) {
-        if (diffMinutes < 1) return '刚刚观看'
-        if (diffMinutes < 60) return `${diffMinutes}分钟前观看`
-        if (diffHours < 24) return `${diffHours}小时前观看`
+        if (diffMinutes < 1) return `刚刚${texts.accessAction}`
+        if (diffMinutes < 60) return `${diffMinutes}分钟前${texts.accessAction}`
+        if (diffHours < 24) return `${diffHours}小时前${texts.accessAction}`
       }
       
-      if (diffDays === 1) return '昨天观看'
-      if (diffDays < 7) return `${diffDays}天前观看`
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前观看`
+      if (diffDays === 1) return `昨天${texts.accessAction}`
+      if (diffDays < 7) return `${diffDays}天前${texts.accessAction}`
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前${texts.accessAction}`
       return this.formatDateTime(date)
     },
     formatAddedDate(dateString) {
@@ -834,13 +866,12 @@ export default {
       return this.imageCache[imagePath] || this.getDefaultImage()
     },
     getDefaultImage() {
-      if (this.type === 'game') return './default-game.png'
-      if (this.type === 'novel') return './default-novel.png'
-      if (this.type === 'video') return './default-video.png' // 视频使用视频默认图标
-      if (this.type === 'audio') return './default-audio.png' // 音频使用音频默认图标
-      if (this.type === 'image') return './default-image.png' // 图片使用图片默认图标
-      if (this.type === 'folder') return './default-video.png' // 文件夹使用视频默认图标
-      return './icon.svg' // 默认使用小说图标
+      // 使用资源类的配置，如果没有配置则使用基类的默认值
+      if (this.item && this.item.constructor && typeof this.item.constructor.getDefaultIcon === 'function') {
+        return this.item.constructor.getDefaultIcon()
+      }
+      // 使用基类的默认值
+      return BaseResources.getDefaultIcon()
     },
     handleImageError(event) {
       const defaultImage = this.getDefaultImage()

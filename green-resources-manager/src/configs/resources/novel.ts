@@ -16,6 +16,11 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Novel extends BaseResources {
 	
+	resourceType: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		defaultValue: 'novel'
+	})
+
 	name: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		editType: new FormField_Text('小说名称', false)
@@ -101,5 +106,20 @@ export class Novel extends BaseResources {
 		icon: '📖',
 		label: '开始阅读',
 		handlerName: 'openNovelReader' // 组件中对应的方法名
+	}
+
+	// 静态方法：获取显示文本配置（支持多态）
+	static getDisplayTexts() {
+		return {
+			neverAccessed: '从未阅读',
+			justAccessed: '刚刚',
+			accessAction: '阅读',
+			yesterdayAccessed: '昨天'
+		}
+	}
+
+	// 静态方法：获取默认图标路径
+	static getDefaultIcon() {
+		return './default-novel.png'
 	}
 }

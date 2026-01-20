@@ -52,7 +52,7 @@
         :scale="scale"
         @click="showAlbumDetail"
         @contextmenu="(event) => ($refs.baseView as any).showContextMenuHandler(event, album)"
-        @action="openAlbum"
+        @action="handleResourceAction"
       />
     </FunGrid>
 
@@ -71,7 +71,7 @@
       add-button-text="添加"
       edit-button-text="保存修改"
       :custom-validation="(formData, isEditMode) => {
-        return formData.folderPath && formData.folderPath.trim() !== ''
+        return formData.resourcePath && formData.resourcePath.trim() !== ''
       }"
       @close="closeAddAlbumDialog"
       @confirm="handleAddAlbumConfirm"
@@ -144,7 +144,7 @@
       description="发现同名但路径不同的漫画文件夹："
       item-name-label="漫画名称"
       :item-name="pathUpdateInfo.existingAlbum?.name || ''"
-      :old-path="pathUpdateInfo.existingAlbum?.folderPath || ''"
+      :old-path="pathUpdateInfo.existingAlbum ? (pathUpdateInfo.existingAlbum.resourcePath?.value || pathUpdateInfo.existingAlbum.resourcePath || '') : ''"
       :new-path="pathUpdateInfo.newPath || ''"
       missing-label="文件夹丢失"
       found-label="文件夹存在"
@@ -167,6 +167,8 @@ import ComicViewer from '../../components/ComicViewer.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Manga } from '@resources/manga.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+import { ImagePage } from '../../configs/pages/ImagePage'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 import FunGrid from '../../fun-ui/layout/Grid/FunGrid.vue'
 
@@ -185,6 +187,7 @@ import { useImagePages } from '../../composables/image/useImagePages'
 import { useImageCover } from '../../composables/image/useImageCover'
 import { useResourceRating } from '../../composables/useResourceRating'
 import { useDisplayLayout } from '../../composables/useDisplayLayout'
+import { executeActionHandler, type ActionHandlerContext } from '../../utils/ResourceActionHandlers'
 
 const IMAGE_COLLECTION_ACHIEVEMENTS = [
   { threshold: 50, id: 'image_collector_50' },
@@ -214,6 +217,12 @@ export default {
     }
   },
   setup(props) {
+    // 创建页面配置实例
+    const imagePage = new ImagePage()
+    
+    // 获取排序选项配置（用于工具栏显示）
+    const sortOptions = imagePage.getSortOptions()
+    
     // 使用专辑管理 composable
     const imageAlbumComposable = useImageAlbum(props.pageConfig.id)
     
@@ -370,7 +379,12 @@ export default {
       selectImageFromFolderEdit: imageCoverEditComposable.selectImageFromFolder,
       clearCoverEdit: imageCoverEditComposable.clearCover,
       // 统一的资源更新函数
-      updateAlbumResource
+      updateAlbumResource,
+      // 页面配置
+      imagePage,
+      sortOptions,
+      // 工具函数
+      BaseResources
     }
   },
   data() {
@@ -384,8 +398,8 @@ export default {
         author: '',
         description: '',
         tags: [],
-        folderPath: '',
-        cover: '',
+        resourcePath: '',
+        coverPath: '',
         viewCount: 0
       },
       tagInput: '',
@@ -407,18 +421,11 @@ export default {
         author: '',
         description: '',
         tags: [],
-        folderPath: '',
-        cover: '',
+        resourcePath: '',
+        coverPath: '',
         viewCount: 0
       },
       editTagInput: '',
-      // 排序选项
-      imageSortOptions: [
-        { value: 'name', label: '按名称排序' },
-        { value: 'count', label: '按页数' },
-        { value: 'added', label: '按添加时间' },
-        { value: 'lastViewed', label: '按最后查看' }
-      ],
       // 右键菜单配置
       albumContextMenuItems: Manga.contextMenuItems,
       // 漫画阅读器相关（showComicViewer 已在 setup() 中定义）
@@ -435,11 +442,7 @@ export default {
         noPageDataTitle: '当前页没有漫画',
         noPageDataDescription: '请尝试切换到其他页面'
       },
-      // 工具栏配置
-      albumToolbarConfig: {
-        ...Manga.toolbarConfig,
-        pageType: 'images'
-      },
+      // 工具栏配置（将在 computed 中定义，使用 setup 返回的 sortOptions）
     }
   },
   computed: {
@@ -447,8 +450,17 @@ export default {
     filteredAlbums() {
       return this.filteredAlbumsRef || []
     },
+    // 工具栏配置（使用 setup 返回的 sortOptions）
+    albumToolbarConfig() {
+      return {
+        ...Manga.toolbarConfig,
+        pageType: 'images',
+        // 从页面配置获取排序选项（只提取 value 和 label，用于工具栏显示）
+        sortOptions: (this as any).sortOptions || []
+      }
+    },
     canAddAlbum() {
-      return this.newAlbum.folderPath && this.newAlbum.folderPath.trim()
+      return this.newAlbum.resourcePath && this.newAlbum.resourcePath.trim()
     },
     // 动态更新分页配置（使用 composable 的 paginationConfig）
     albumPaginationConfig() {
@@ -524,33 +536,33 @@ export default {
         this.resetToFirstPage()
       }
     },
-    // 同步 newAlbum 的 cover 和 folderPath 到 composable ref
-    'newAlbum.cover'(newVal) {
+    // 同步 newAlbum 的 coverPath 和 resourcePath 到 composable ref
+    'newAlbum.coverPath'(newVal) {
       this.newAlbumCover = newVal
     },
-    'newAlbum.folderPath'(newVal) {
+    'newAlbum.resourcePath'(newVal) {
       this.newAlbumFolderPath = newVal
     },
     // 同步 newAlbumCover 和 newAlbumFolderPath 到 newAlbum
     newAlbumCover(newVal) {
-      this.newAlbum.cover = newVal
+      this.newAlbum.coverPath = newVal
     },
     newAlbumFolderPath(newVal) {
-      this.newAlbum.folderPath = newVal
+      this.newAlbum.resourcePath = newVal
     },
-    // 同步 editAlbumForm 的 cover 和 folderPath 到 composable ref
-    'editAlbumForm.cover'(newVal) {
+    // 同步 editAlbumForm 的 coverPath 和 resourcePath 到 composable ref
+    'editAlbumForm.coverPath'(newVal) {
       this.editAlbumCover = newVal
     },
-    'editAlbumForm.folderPath'(newVal) {
+    'editAlbumForm.resourcePath'(newVal) {
       this.editAlbumFolderPath = newVal
     },
     // 同步 editAlbumCover 和 editAlbumFolderPath 到 editAlbumForm
     editAlbumCover(newVal) {
-      this.editAlbumForm.cover = newVal
+      this.editAlbumForm.coverPath = newVal
     },
     editAlbumFolderPath(newVal) {
-      this.editAlbumForm.folderPath = newVal
+      this.editAlbumForm.resourcePath = newVal
     },
     // 监听 showEditDialog 变化
     showEditDialog() {
@@ -558,6 +570,11 @@ export default {
     }
   },
   methods: {
+    // 辅助方法：获取专辑的 resourcePath
+    getAlbumResourcePath(album: any): string {
+      if (!album) return ''
+      return BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath) || ''
+    },
     // checkImageCollectionAchievements 已移至 useImageAlbum composable
     // loadAlbums 已移至 useImageAlbum composable
     // 此方法保留作为包装，调用 composable 的方法并执行额外逻辑
@@ -687,8 +704,8 @@ export default {
         author: '',
         description: '',
         tags: [],
-        folderPath: '',
-        cover: '',
+        resourcePath: '',
+        coverPath: '',
         viewCount: 0
       }
       // 同步到 composable 的 ref
@@ -703,8 +720,8 @@ export default {
         author: '',
         description: '',
         tags: [],
-        folderPath: '',
-        cover: '',
+        resourcePath: '',
+        coverPath: '',
         viewCount: 0
       }
       // 同步到 composable 的 ref
@@ -719,7 +736,7 @@ export default {
           const result = await window.electronAPI.selectFolder()
           console.log('选择文件夹结果:', result)
           if (result && result.success && result.path) {
-            this.newAlbum.folderPath = result.path
+            this.newAlbum.resourcePath = result.path
             this.newAlbumFolderPath = result.path // 同步到 composable
             if (!this.newAlbum.name.trim()) {
               const parts = result.path.replace(/\\/g, '/').split('/')
@@ -744,17 +761,18 @@ export default {
     },
     
     async addAlbumInternal(formData) {
-      if (!formData || !formData.folderPath || !formData.folderPath.trim()) return
+      const resourcePath = formData?.resourcePath || formData?.folderPath
+      if (!formData || !resourcePath || !resourcePath.trim()) return
       try {
-        console.log('开始添加漫画，文件夹路径:', formData.folderPath)
+        console.log('开始添加漫画，文件夹路径:', resourcePath)
         
         const album = await this.addAlbum({
           name: formData.name || '',
           author: formData.author || '',
           description: formData.description || '',
           tags: formData.tags || [],
-          folderPath: formData.folderPath,
-          cover: formData.cover || ''
+          resourcePath: resourcePath,
+          coverPath: formData.coverPath || formData.cover || ''
         })
         
         await this.checkImageCollectionAchievements()
@@ -793,6 +811,44 @@ export default {
      removeEditTag(index) {
        this.editAlbumForm.tags.splice(index, 1)
      },
+    /**
+     * 统一的资源 action 处理
+     * 根据资源类型自动路由到对应的处理方法
+     * 通过全局 Action Handler 注册系统执行，与页面解耦
+     */
+    async handleResourceAction(resource: any) {
+      // 构建 handler 上下文
+      const context: ActionHandlerContext = {
+        isElectronEnvironment: this.isElectronEnvironment,
+        updateResource: async (id: string, updates: any) => {
+          await this.updateAlbum(id, updates)
+        },
+        setCurrentAlbum: (album: any) => {
+          this.currentAlbum = album
+        },
+        setCurrentPageIndex: (index: number) => {
+          this.currentPageIndex = index
+        },
+        clearPages: () => {
+          this.pages = []
+        },
+        updateViewInfo: async (album: any) => {
+          await this.updateViewInfo(album)
+        },
+        loadAlbumPages: async () => {
+          await this.loadAlbumPages()
+        },
+        showComicViewer: (show: boolean) => {
+          this.showComicViewer = show
+        },
+        closeDetail: () => {
+          this.closeAlbumDetail()
+        }
+      }
+
+      // 执行 handler
+      await executeActionHandler(resource, context)
+    },
     async openAlbum(album) {
       try {
         console.log('开始打开漫画:', album.name)
@@ -836,13 +892,14 @@ export default {
         
         let files = []
         if (window.electronAPI && window.electronAPI.listImageFiles) {
-          const resp = await window.electronAPI.listImageFiles(album.folderPath)
+          const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+          const resp = await window.electronAPI.listImageFiles(resourcePath)
           if (resp.success) files = resp.files || []
         }
         this.pages = files
         // 更新总页数（使用 composable 的方法）
         this.updateTotalPages()
-        album.pagesCount = files.length
+        album.pagesCount.value = files.length
         
         // 注意：这里不再增加浏览次数，只有真正开始阅读时才增加
         // 浏览次数将在 openAlbum() 或 viewPage() 方法中增加
@@ -864,7 +921,7 @@ export default {
     handleDetailAction(actionKey, album) {
       switch (actionKey) {
         case 'open':
-          this.openAlbum(album)
+          this.handleResourceAction(album)
           break
         case 'folder':
           this.openAlbumFolder(album)
@@ -892,7 +949,7 @@ export default {
           this.showAlbumDetail(selectedItem)
           break
         case 'open':
-          this.openAlbum(selectedItem)
+          this.handleResourceAction(selectedItem)
           break
         case 'folder':
           this.openAlbumFolder(selectedItem)
@@ -908,7 +965,8 @@ export default {
     async openAlbumFolder(album) {
       try {
         if (window.electronAPI && window.electronAPI.openFolder) {
-          const result = await window.electronAPI.openFolder(album.folderPath)
+          const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+          const result = await window.electronAPI.openFolder(resourcePath)
           if (!result.success) alertService.error('打开文件夹失败: ' + (result.error || '未知错误'))
         }
       } catch (e) {
@@ -938,19 +996,27 @@ export default {
       }
       
       this.showDetailModal = false
+      const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath) || ''
+      const coverPath = BaseResources.extractPrimitiveValue(album.coverPath?.value || album.coverPath) || ''
+      const name = BaseResources.extractPrimitiveValue(album.name?.value || album.name) || ''
+      const author = BaseResources.extractPrimitiveValue(album.author?.value || album.author) || ''
+      const description = BaseResources.extractPrimitiveValue(album.description?.value || album.description) || ''
+      const tags = BaseResources.extractPrimitiveValue(album.tags?.value || album.tags) || []
+      const viewCount = BaseResources.extractPrimitiveValue(album.viewCount?.value ?? album.viewCount) || 0
+      
       this.editAlbumForm = {
-        id: album.id,
-        name: album.name || '',
-        author: album.author || '',
-        description: album.description || '',
-        tags: Array.isArray(album.tags) ? [...album.tags] : [],
-        folderPath: album.folderPath || '',
-        cover: album.cover || '',
-        viewCount: album.viewCount || 0
+        id: BaseResources.extractPrimitiveValue(album.id?.value || album.id),
+        name: name,
+        author: author,
+        description: description,
+        tags: Array.isArray(tags) ? [...tags] : [],
+        resourcePath: resourcePath,
+        coverPath: coverPath,
+        viewCount: viewCount
       }
       // 同步到 composable 的 ref
-      this.editAlbumFolderPath = album.folderPath || ''
-      this.editAlbumCover = album.cover || ''
+      this.editAlbumFolderPath = resourcePath
+      this.editAlbumCover = coverPath
       this.editTagInput = ''
       
       this.showEditDialog = true
@@ -963,7 +1029,7 @@ export default {
         if (window.electronAPI && window.electronAPI.selectFolder) {
           const result = await window.electronAPI.selectFolder()
           if (result && result.success && result.path) {
-            this.editAlbumForm.folderPath = result.path
+            this.editAlbumForm.resourcePath = result.path
             this.editAlbumFolderPath = result.path // 同步到 composable
           }
         }
@@ -981,13 +1047,15 @@ export default {
     },
     // 处理使用第一张图片作为封面（添加模式）
     async handleUseFirstImageAsCover(key: string, formData: any, updateCover: (path: string) => void) {
-      const folderPath = formData?.folderPath || this.newAlbumFolderPath
-      if (!folderPath) {
+      const resourcePath = formData?.resourcePath || formData?.folderPath || this.newAlbumFolderPath
+      if (!resourcePath) {
         notify.toast('error', '设置失败', '请先选择漫画文件夹')
         return
       }
-      // 更新 folderPath ref 以便 composable 使用
-      if (formData?.folderPath && formData.folderPath !== this.newAlbumFolderPath) {
+      // 更新 resourcePath ref 以便 composable 使用
+      if (formData?.resourcePath && formData.resourcePath !== this.newAlbumFolderPath) {
+        this.newAlbumFolderPath = formData.resourcePath
+      } else if (formData?.folderPath && formData.folderPath !== this.newAlbumFolderPath) {
         this.newAlbumFolderPath = formData.folderPath
       }
       await this.useFirstImageAsCover()
@@ -998,13 +1066,15 @@ export default {
     },
     // 处理从文件夹选择封面（添加模式）
     async handleSelectFromFolderCover(key: string, formData: any, updateCover: (path: string) => void) {
-      const folderPath = formData?.folderPath || this.newAlbumFolderPath
-      if (!folderPath) {
+      const resourcePath = formData?.resourcePath || formData?.folderPath || this.newAlbumFolderPath
+      if (!resourcePath) {
         notify.toast('error', '设置失败', '请先选择漫画文件夹')
         return
       }
-      // 更新 folderPath ref 以便 composable 使用
-      if (formData?.folderPath && formData.folderPath !== this.newAlbumFolderPath) {
+      // 更新 resourcePath ref 以便 composable 使用
+      if (formData?.resourcePath && formData.resourcePath !== this.newAlbumFolderPath) {
+        this.newAlbumFolderPath = formData.resourcePath
+      } else if (formData?.folderPath && formData.folderPath !== this.newAlbumFolderPath) {
         this.newAlbumFolderPath = formData.folderPath
       }
       await this.selectImageFromFolder()
@@ -1015,13 +1085,15 @@ export default {
     },
     // 处理使用第一张图片作为封面（编辑模式）
     async handleUseFirstImageAsCoverEdit(key: string, formData: any, updateCover: (path: string) => void) {
-      const folderPath = formData?.folderPath || this.editAlbumFolderPath
-      if (!folderPath) {
+      const resourcePath = formData?.resourcePath || formData?.folderPath || this.editAlbumFolderPath
+      if (!resourcePath) {
         notify.toast('error', '设置失败', '请先选择漫画文件夹')
         return
       }
-      // 更新 folderPath ref 以便 composable 使用
-      if (formData?.folderPath && formData.folderPath !== this.editAlbumFolderPath) {
+      // 更新 resourcePath ref 以便 composable 使用
+      if (formData?.resourcePath && formData.resourcePath !== this.editAlbumFolderPath) {
+        this.editAlbumFolderPath = formData.resourcePath
+      } else if (formData?.folderPath && formData.folderPath !== this.editAlbumFolderPath) {
         this.editAlbumFolderPath = formData.folderPath
       }
       await this.useFirstImageAsCoverEdit()
@@ -1032,13 +1104,15 @@ export default {
     },
     // 处理从文件夹选择封面（编辑模式）
     async handleSelectFromFolderCoverEdit(key: string, formData: any, updateCover: (path: string) => void) {
-      const folderPath = formData?.folderPath || this.editAlbumFolderPath
-      if (!folderPath) {
+      const resourcePath = formData?.resourcePath || formData?.folderPath || this.editAlbumFolderPath
+      if (!resourcePath) {
         notify.toast('error', '设置失败', '请先选择漫画文件夹')
         return
       }
-      // 更新 folderPath ref 以便 composable 使用
-      if (formData?.folderPath && formData.folderPath !== this.editAlbumFolderPath) {
+      // 更新 resourcePath ref 以便 composable 使用
+      if (formData?.resourcePath && formData.resourcePath !== this.editAlbumFolderPath) {
+        this.editAlbumFolderPath = formData.resourcePath
+      } else if (formData?.folderPath && formData.folderPath !== this.editAlbumFolderPath) {
         this.editAlbumFolderPath = formData.folderPath
       }
       await this.selectImageFromFolderEdit()
@@ -1105,8 +1179,8 @@ export default {
           author: formData.author,
           description: formData.description,
           tags: formData.tags,
-          folderPath: formData.folderPath,
-          cover: formData.cover
+          resourcePath: formData.resourcePath || formData.folderPath,
+          coverPath: formData.coverPath || formData.cover
         })
         
         // 重新提取标签和作者信息，更新筛选器
@@ -1211,10 +1285,11 @@ export default {
     
      async loadAlbumPages() {
        console.log('=== 开始加载专辑页面 ===')
+       const resourcePath = BaseResources.extractPrimitiveValue(this.currentAlbum?.resourcePath?.value || this.currentAlbum?.resourcePath)
        console.log('当前专辑信息:', {
-         id: this.currentAlbum?.id,
-         name: this.currentAlbum?.name,
-         folderPath: this.currentAlbum?.folderPath
+         id: BaseResources.extractPrimitiveValue(this.currentAlbum?.id?.value || this.currentAlbum?.id),
+         name: BaseResources.extractPrimitiveValue(this.currentAlbum?.name?.value || this.currentAlbum?.name),
+         resourcePath: resourcePath
        })
        
        try {
@@ -1225,10 +1300,10 @@ export default {
          
          if (window.electronAPI && window.electronAPI.listImageFiles) {
            console.log('调用 Electron API 扫描图片文件...')
-           console.log('扫描路径:', this.currentAlbum.folderPath)
+           console.log('扫描路径:', resourcePath)
            
            const beforeScanTime = Date.now()
-           const resp = await window.electronAPI.listImageFiles(this.currentAlbum.folderPath)
+           const resp = await window.electronAPI.listImageFiles(resourcePath)
            const afterScanTime = Date.now()
            
            console.log('扫描完成，耗时:', afterScanTime - beforeScanTime, 'ms')
@@ -1278,13 +1353,13 @@ export default {
          })
          
         // 更新专辑的页数信息
-        this.currentAlbum.pagesCount = files.length
+        this.currentAlbum.pagesCount.value = files.length
         // 注意：这里不设置lastViewed和viewCount，这些应该在真正开始阅读时设置
-         
+        
          console.log('专辑信息更新:', {
-           pagesCount: this.currentAlbum.pagesCount,
-           lastViewed: this.currentAlbum.lastViewed,
-           viewCount: this.currentAlbum.viewCount
+           pagesCount: this.currentAlbum.pagesCount.value,
+           lastViewed: BaseResources.extractPrimitiveValue(this.currentAlbum.lastViewed?.value || this.currentAlbum.lastViewed),
+           viewCount: BaseResources.extractPrimitiveValue(this.currentAlbum.viewCount?.value ?? this.currentAlbum.viewCount)
          })
          
          // 注意：这里不保存，由调用方决定是否保存
@@ -1428,13 +1503,15 @@ export default {
           return
         }
         
-        console.log(`更新漫画 "${existingAlbum.name}" 的路径:`)
-        console.log(`旧路径: ${existingAlbum.folderPath}`)
+        const albumName = BaseResources.extractPrimitiveValue(existingAlbum.name?.value || existingAlbum.name)
+        const oldResourcePath = BaseResources.extractPrimitiveValue(existingAlbum.resourcePath?.value || existingAlbum.resourcePath)
+        console.log(`更新漫画 "${albumName}" 的路径:`)
+        console.log(`旧路径: ${oldResourcePath}`)
         console.log(`新路径: ${newPath}`)
         
         // 更新漫画路径
-        existingAlbum.folderPath = newPath
-        existingAlbum.fileExists = true
+        existingAlbum.resourcePath.value = newPath
+        existingAlbum.fileExists.value = true
         
         // 重新扫描图片文件
         if (window.electronAPI && window.electronAPI.listImageFiles) {
@@ -1442,9 +1519,11 @@ export default {
             const resp = await window.electronAPI.listImageFiles(newPath)
             if (resp.success) {
               const files = resp.files || []
-              existingAlbum.pagesCount = files.length
-              existingAlbum.cover = files[0] || ''
-              console.log(`漫画 ${existingAlbum.name} 重新扫描完成: ${files.length} 页`)
+              existingAlbum.pagesCount.value = files.length
+              if (files.length > 0) {
+                existingAlbum.coverPath.value = files[0]
+              }
+              console.log(`漫画 ${albumName} 重新扫描完成: ${files.length} 页`)
             }
           } catch (error) {
             console.error('重新扫描图片文件失败:', error)

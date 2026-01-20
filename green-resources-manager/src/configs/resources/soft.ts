@@ -15,6 +15,11 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Software extends BaseResources {
 	
+	resourceType: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		defaultValue: 'software'
+	})
+	
 	name: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		editType: new FormField_Text('软件名称', false)
@@ -89,6 +94,21 @@ export class Software extends BaseResources {
 		key: 'launch',
 		icon: '▶️',
 		label: '启动软件',
-		handlerName: 'launchSoftware' // 组件中对应的方法名
+		handlerName: 'launchExecutable' // 使用通用的可执行文件启动 handler
+	}
+
+	// 静态方法：获取显示文本配置（支持多态）
+	static getDisplayTexts() {
+		return {
+			neverAccessed: '从未运行',
+			justAccessed: '刚刚',
+			accessAction: '运行',
+			yesterdayAccessed: '昨天'
+		}
+	}
+
+	// 静态方法：获取默认图标路径
+	static getDefaultIcon() {
+		return './default-game.png'
 	}
 }

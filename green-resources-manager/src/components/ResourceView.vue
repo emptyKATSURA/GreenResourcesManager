@@ -1,24 +1,36 @@
 <template>
   <div class="resource-view-wrapper">
-    <component 
+    <!-- 优先使用通用组件（根据配置自动生成） -->
+    <GenericResourceView 
+      v-if="useGenericView"
       ref="innerView"
-      :is="viewComponent" 
-      v-if="viewComponent"
       :key="pageConfig.id"
       :page-config="pageConfig"
       @filter-data-updated="$emit('filter-data-updated', $event)"
     />
-    <div v-else class="error-state">
-      <p>未知资源类型: {{ pageConfig.type }}</p>
-    </div>
+    <!-- 降级到具体的 View 组件（向后兼容） -->
+    <template v-else>
+      <component 
+        ref="innerView"
+        :is="viewComponent" 
+        v-if="viewComponent"
+        :key="pageConfig.id"
+        :page-config="pageConfig"
+        @filter-data-updated="$emit('filter-data-updated', $event)"
+      />
+      <div v-else class="error-state">
+        <p>未知资源类型: {{ pageConfig.type }}</p>
+      </div>
+    </template>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType, computed, defineAsyncComponent, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { PageConfig } from '../types/page';
+import GenericResourceView from './GenericResourceView.vue';
 
-// 异步加载视图组件以避免循环引用和减少初始包大小
+// 异步加载视图组件以避免循环引用和减少初始包大小（向后兼容）
 const GameView = defineAsyncComponent(() => import('../pages/resources/GameView.vue'));
 const SoftwareView = defineAsyncComponent(() => import('../pages/resources/SoftwareView.vue'));
 const ImageView = defineAsyncComponent(() => import('../pages/resources/ImageView.vue'));
@@ -32,6 +44,9 @@ const OtherView = defineAsyncComponent(() => import('../pages/resources/OtherVie
 
 export default defineComponent({
   name: 'ResourceView',
+  components: {
+    GenericResourceView
+  },
   props: {
     pageConfig: {
       type: Object as PropType<PageConfig>,
@@ -42,7 +57,17 @@ export default defineComponent({
   setup(props, { emit, expose: exposeFn }) {
     const innerView = ref(null);
 
+    // 决定是否使用通用组件（根据配置自动生成）
+    // 如果页面配置中有 useGenericView 标记，或者类型在支持列表中，使用通用组件
+    const useGenericView = computed(() => {
+      // TODO: 未来可以根据配置决定是否使用通用组件
+      // 目前先使用具体组件，确保功能正常
+      return false; // 暂时默认使用具体组件
+    });
+
     const viewComponent = computed(() => {
+      if (useGenericView.value) return null; // 使用通用组件时，不加载具体组件
+      
       if (!props.pageConfig || !props.pageConfig.type) return null;
       
       // 直接使用原始类型，因为类型定义中已经是正确的大小写格式
@@ -179,6 +204,7 @@ export default defineComponent({
     });
 
     return {
+      useGenericView,
       viewComponent,
       innerView,
       updateFilterData,

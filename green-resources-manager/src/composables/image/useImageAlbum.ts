@@ -5,7 +5,8 @@
 import { ref, type Ref } from 'vue'
 import saveManager from '../../utils/SaveManager'
 import notify from '../../utils/NotificationService'
-import type { Album } from '../../types/image'
+import { Manga } from '@resources/manga.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 
 const IMAGE_COLLECTION_ACHIEVEMENTS = [
   { threshold: 50, id: 'image_collector_50' },
@@ -15,28 +16,31 @@ const IMAGE_COLLECTION_ACHIEVEMENTS = [
 ]
 
 export function useImageAlbum(pageId: string = 'images') {
-  const albums = ref<Album[]>([])
-  const currentAlbum = ref<Album | null>(null)
+  const albums = ref<Manga[]>([])
+  const currentAlbum = ref<Manga | null>(null)
   const isLoading = ref(false)
 
   /**
    * 加载所有专辑
+   * 将 JSON 对象转换为 Manga 类实例
    */
   const loadAlbums = async () => {
     try {
       isLoading.value = true
-      albums.value = await saveManager.loadPageData(pageId)
+      const jsonData = await saveManager.loadPageData(pageId)
+      albums.value = jsonData.map((data: any) => Manga.fromJSON(data))
       
-      // 修复单图的封面：单图模式下，封面应该直接使用 folderPath（图片文件本身）
+      // 修复单图的封面：单图模式下，封面应该直接使用 resourcePath（图片文件本身）
       // 同时确保 fileExists 属性存在（默认为 true）
       albums.value.forEach(album => {
         // 单图模式：封面就是图片文件本身
-        if (isImageFile(album.folderPath)) {
-          album.cover = album.folderPath
+        const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+        if (isImageFile(resourcePath)) {
+          album.coverPath.value = resourcePath
         }
         // 确保 fileExists 属性存在（如果没有则默认为 true）
-        if (album.fileExists === undefined) {
-          album.fileExists = true
+        if (album.fileExists?.value === undefined) {
+          album.fileExists.value = true
         }
       })
     } catch (error) {
@@ -50,10 +54,15 @@ export function useImageAlbum(pageId: string = 'images') {
 
   /**
    * 保存所有专辑
+   * 使用 BaseResources.getSaveableData 过滤数据，只保存定义的字段
    */
   const saveAlbums = async (): Promise<void> => {
     try {
-      await saveManager.savePageData(pageId, albums.value)
+      // 使用 BaseResources.getSaveableData 提取需要保存的字段
+      const saveableAlbums = albums.value.map(album => 
+        BaseResources.getSaveableData(album)
+      )
+      await saveManager.savePageData(pageId, saveableAlbums)
     } catch (error) {
       console.error('保存专辑失败:', error)
       throw error
@@ -96,7 +105,10 @@ export function useImageAlbum(pageId: string = 'images') {
   /**
    * 检查路径是否为单个图片文件
    */
-  const isImageFile = (path: string): boolean => {
+  const isImageFile = (path: string | null | undefined): boolean => {
+    if (!path || typeof path !== 'string') {
+      return false
+    }
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg']
     const lowerPath = path.toLowerCase()
     return imageExtensions.some(ext => lowerPath.endsWith(ext))
@@ -104,25 +116,30 @@ export function useImageAlbum(pageId: string = 'images') {
 
   /**
    * 添加新专辑
+   * 如果传入的是普通对象，会转换为 Manga 实例
    */
-  const addAlbum = async (albumData: Partial<Album>): Promise<Album> => {
-    if (!albumData.folderPath?.trim()) {
+  const addAlbum = async (albumData: Partial<Manga> | any): Promise<Manga> => {
+    const resourcePath = BaseResources.extractPrimitiveValue(albumData.resourcePath?.value || albumData.resourcePath) || 
+                         BaseResources.extractPrimitiveValue(albumData.folderPath) || 
+                         ''
+    
+    if (!resourcePath.trim()) {
       throw new Error('文件夹路径不能为空')
     }
 
-    const path = albumData.folderPath.trim()
+    const path = resourcePath.trim()
     const isSingleImage = isImageFile(path)
 
     // 检查是否已存在相同路径的专辑
     const existingAlbum = albums.value.find(
-      a => a.folderPath === path
+      a => BaseResources.extractPrimitiveValue(a.resourcePath?.value || a.resourcePath) === path
     )
     if (existingAlbum) {
       throw new Error(`路径 "${path}" 已经存在`)
     }
 
     // 检查是否为压缩包
-    const isArchive = albumData.isArchive || false
+    const isArchive = BaseResources.extractPrimitiveValue(albumData.isArchive?.value ?? albumData.isArchive) || false
     
     // 扫描图片文件
     let pages: string[] = []
@@ -140,7 +157,7 @@ export function useImageAlbum(pageId: string = 'images') {
     }
 
     // 提取名称
-    let albumName = albumData.name?.trim()
+    let albumName = BaseResources.extractPrimitiveValue(albumData.name?.value || albumData.name)?.trim()
     if (!albumName) {
       if (isSingleImage) {
         // 单个图片：使用文件名（不含扩展名）
@@ -153,18 +170,20 @@ export function useImageAlbum(pageId: string = 'images') {
     }
 
     // 单图模式：封面就是图片文件本身
-    const cover = isSingleImage 
-      ? (albumData.cover || path)  // 单图：使用 folderPath 作为封面
-      : (albumData.cover || pages[0] || '')  // 多图：使用第一张图片或提供的封面
+    const coverPath = isSingleImage 
+      ? (BaseResources.extractPrimitiveValue(albumData.coverPath?.value || albumData.coverPath) || 
+         BaseResources.extractPrimitiveValue(albumData.cover) || path)  // 单图：使用 resourcePath 作为封面
+      : (BaseResources.extractPrimitiveValue(albumData.coverPath?.value || albumData.coverPath) || 
+         BaseResources.extractPrimitiveValue(albumData.cover) || pages[0] || '')  // 多图：使用第一张图片或提供的封面
 
-    const album: Album = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    // 创建 Manga 数据对象
+    const mangaData: any = {
       name: albumName,
-      author: albumData.author?.trim() || '',
-      description: albumData.description?.trim() || '',
-      tags: albumData.tags || [],
-      folderPath: path,
-      cover: cover,
+      author: BaseResources.extractPrimitiveValue(albumData.author?.value || albumData.author)?.trim() || '',
+      description: BaseResources.extractPrimitiveValue(albumData.description?.value || albumData.description)?.trim() || '',
+      tags: BaseResources.extractPrimitiveValue(albumData.tags?.value || albumData.tags) || [],
+      resourcePath: path,
+      coverPath: coverPath,
       pagesCount: pages.length,
       addedDate: new Date().toISOString(),
       lastViewed: null,
@@ -173,60 +192,99 @@ export function useImageAlbum(pageId: string = 'images') {
       isArchive: isArchive
     }
 
-    albums.value.push(album)
+    // 使用 fromJSON 创建 Manga 实例（会自动生成 id）
+    const manga = Manga.fromJSON(mangaData)
+    albums.value.push(manga)
     await saveAlbums()
     
-    return album
+    return manga
   }
 
   /**
    * 更新专辑
    */
-  const updateAlbum = async (id: string, updates: Partial<Album>): Promise<void> => {
-    const index = albums.value.findIndex(a => a.id === id)
+  const updateAlbum = async (id: string, updates: Partial<Manga> | any): Promise<void> => {
+    const resourceId = BaseResources.extractPrimitiveValue(id)
+    const index = albums.value.findIndex(a => BaseResources.extractPrimitiveValue(a.id?.value || a.id) === resourceId)
     if (index === -1) {
       throw new Error('未找到要编辑的漫画')
     }
 
     const target = albums.value[index]
-    const oldFolderPath = target.folderPath
-    const isSingleImage = isImageFile(target.folderPath)
+    const oldResourcePath = BaseResources.extractPrimitiveValue(target.resourcePath?.value || target.resourcePath)
+    const isSingleImage = isImageFile(oldResourcePath)
     
-    // 更新字段
-    if (updates.name !== undefined) target.name = updates.name.trim() || target.name
-    if (updates.author !== undefined) target.author = updates.author.trim()
-    if (updates.description !== undefined) target.description = updates.description.trim()
-    if (updates.tags !== undefined) target.tags = [...updates.tags]
-    if (updates.folderPath !== undefined) {
-      target.folderPath = updates.folderPath.trim() || target.folderPath
-      // 单图模式：如果更新了 folderPath，封面也应该更新为新的 folderPath
-      const newIsSingleImage = isImageFile(target.folderPath)
-      if (newIsSingleImage && (!updates.cover || updates.cover === oldFolderPath)) {
-        target.cover = target.folderPath
+    // 更新字段（支持 ResourceField 和普通值）
+    if (updates.name !== undefined) {
+      const nameValue = BaseResources.extractPrimitiveValue(updates.name?.value || updates.name)
+      target.name.value = nameValue?.trim() || target.name.value
+    }
+    if (updates.author !== undefined) {
+      const authorValue = BaseResources.extractPrimitiveValue(updates.author?.value || updates.author)
+      target.author.value = authorValue?.trim() || ''
+    }
+    if (updates.description !== undefined) {
+      const descValue = BaseResources.extractPrimitiveValue(updates.description?.value || updates.description)
+      target.description.value = descValue?.trim() || ''
+    }
+    if (updates.tags !== undefined) {
+      const tagsValue = BaseResources.extractPrimitiveValue(updates.tags?.value || updates.tags)
+      target.tags.value = Array.isArray(tagsValue) ? [...tagsValue] : []
+    }
+    if (updates.resourcePath !== undefined || updates.folderPath !== undefined) {
+      const pathValue = BaseResources.extractPrimitiveValue(
+        updates.resourcePath?.value || updates.resourcePath ||
+        updates.folderPath?.value || updates.folderPath
+      )
+      target.resourcePath.value = pathValue?.trim() || target.resourcePath.value
+      // 单图模式：如果更新了 resourcePath，封面也应该更新为新的 resourcePath
+      const newResourcePath = BaseResources.extractPrimitiveValue(target.resourcePath?.value || target.resourcePath)
+      const newIsSingleImage = isImageFile(newResourcePath)
+      if (newIsSingleImage && (!updates.coverPath || BaseResources.extractPrimitiveValue(updates.coverPath?.value || updates.coverPath) === oldResourcePath)) {
+        target.coverPath.value = newResourcePath
       }
     }
-    if (updates.cover !== undefined) {
-      // 单图模式：如果明确设置了封面，使用设置的封面；否则使用 folderPath
-      const newIsSingleImage = isImageFile(target.folderPath)
-      target.cover = newIsSingleImage && !updates.cover.trim() 
-        ? target.folderPath 
-        : updates.cover.trim()
+    if (updates.coverPath !== undefined || updates.cover !== undefined) {
+      // 单图模式：如果明确设置了封面，使用设置的封面；否则使用 resourcePath
+      const coverValue = BaseResources.extractPrimitiveValue(
+        updates.coverPath?.value || updates.coverPath ||
+        updates.cover?.value || updates.cover
+      )
+      const newResourcePath = BaseResources.extractPrimitiveValue(target.resourcePath?.value || target.resourcePath)
+      const newIsSingleImage = isImageFile(newResourcePath)
+      target.coverPath.value = newIsSingleImage && !coverValue?.trim() 
+        ? newResourcePath 
+        : (coverValue?.trim() || '')
     }
-    if (updates.rating !== undefined) target.rating = updates.rating
-    if (updates.comment !== undefined) target.comment = updates.comment
-    if (updates.isFavorite !== undefined) target.isFavorite = updates.isFavorite
+    if (updates.rating !== undefined) {
+      const ratingValue = BaseResources.extractPrimitiveValue(updates.rating?.value ?? updates.rating)
+      target.rating.value = ratingValue
+    }
+    if (updates.comment !== undefined) {
+      const commentValue = BaseResources.extractPrimitiveValue(updates.comment?.value || updates.comment)
+      target.comment.value = commentValue || ''
+    }
+    if (updates.isFavorite !== undefined) {
+      const favoriteValue = BaseResources.extractPrimitiveValue(updates.isFavorite?.value ?? updates.isFavorite)
+      target.isFavorite.value = Boolean(favoriteValue)
+    }
     
     // 保持浏览次数不变
-    if (!target.viewCount) {
-      target.viewCount = 0
+    if (!target.viewCount.value) {
+      target.viewCount.value = 0
     }
 
     // 如果更换了文件夹，重新扫描图片
-    if (updates.folderPath && updates.folderPath.trim() && updates.folderPath !== oldFolderPath) {
+    const newResourcePath = BaseResources.extractPrimitiveValue(
+      updates.resourcePath?.value || updates.resourcePath ||
+      updates.folderPath?.value || updates.folderPath
+    )
+    if (newResourcePath && newResourcePath.trim() && newResourcePath !== oldResourcePath) {
       await refreshAlbumPages(target)
-      // 单图模式：更新封面为新的 folderPath
-      if (isImageFile(target.folderPath)) {
-        target.cover = target.folderPath
+      // 单图模式：更新封面为新的 resourcePath
+      const currentResourcePath = BaseResources.extractPrimitiveValue(target.resourcePath?.value || target.resourcePath)
+      if (isImageFile(currentResourcePath)) {
+        target.coverPath.value = currentResourcePath
       }
     }
 
@@ -237,29 +295,33 @@ export function useImageAlbum(pageId: string = 'images') {
    * 删除专辑
    */
   const removeAlbum = async (id: string): Promise<void> => {
-    const index = albums.value.findIndex(a => a.id === id)
+    const resourceId = BaseResources.extractPrimitiveValue(id)
+    const index = albums.value.findIndex(a => BaseResources.extractPrimitiveValue(a.id?.value || a.id) === resourceId)
     if (index === -1) {
       throw new Error('漫画不存在')
     }
 
     const album = albums.value[index]
+    const albumName = BaseResources.extractPrimitiveValue(album.name?.value || album.name)
     albums.value.splice(index, 1)
     await saveAlbums()
     
-    notify.toast('success', '删除成功', `已成功删除漫画 "${album.name}"`)
+    notify.toast('success', '删除成功', `已成功删除漫画 "${albumName}"`)
   }
 
   /**
    * 刷新专辑的页面信息
    */
-  const refreshAlbumPages = async (album: Album): Promise<void> => {
-    const isSingleImage = isImageFile(album.folderPath)
+  const refreshAlbumPages = async (album: Manga): Promise<void> => {
+    const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+    const isSingleImage = isImageFile(resourcePath)
     
     if (isSingleImage) {
       // 单个图片文件，直接使用该文件
-      album.pagesCount = 1
-      if (!album.cover) {
-        album.cover = album.folderPath
+      album.pagesCount.value = 1
+      const coverPath = BaseResources.extractPrimitiveValue(album.coverPath?.value || album.coverPath)
+      if (!coverPath) {
+        album.coverPath.value = resourcePath
       }
       return
     }
@@ -267,12 +329,13 @@ export function useImageAlbum(pageId: string = 'images') {
     if (!window.electronAPI?.listImageFiles) return
 
     try {
-      const resp = await window.electronAPI.listImageFiles(album.folderPath)
+      const resp = await window.electronAPI.listImageFiles(resourcePath)
       if (resp.success) {
         const files = resp.files || []
-        album.pagesCount = files.length
-        if (!album.cover && files.length > 0) {
-          album.cover = files[0]
+        album.pagesCount.value = files.length
+        const coverPath = BaseResources.extractPrimitiveValue(album.coverPath?.value || album.coverPath)
+        if (!coverPath && files.length > 0) {
+          album.coverPath.value = files[0]
         }
       }
     } catch (error) {
@@ -283,9 +346,9 @@ export function useImageAlbum(pageId: string = 'images') {
   /**
    * 更新专辑的查看信息
    */
-  const updateViewInfo = async (album: Album): Promise<void> => {
-    album.viewCount = (album.viewCount || 0) + 1
-    album.lastViewed = new Date().toISOString()
+  const updateViewInfo = async (album: Manga): Promise<void> => {
+    album.viewCount.value = (album.viewCount.value || 0) + 1
+    album.lastViewed.value = new Date().toISOString()
     await saveAlbums()
   }
 
@@ -310,29 +373,32 @@ export function useImageAlbum(pageId: string = 'images') {
     console.log(`[useImageAlbum] 开始检测 ${albums.value.length} 个图片项的存在性（单图模式：检测单个图片文件）`)
 
     for (const album of albums.value) {
-      if (!album.folderPath) {
-        album.fileExists = false
-        missingFiles.push({ name: album.name, path: '未设置路径' })
+      const albumName = BaseResources.extractPrimitiveValue(album.name?.value || album.name)
+      const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+      
+      if (!resourcePath) {
+        album.fileExists.value = false
+        missingFiles.push({ name: albumName || '未知', path: '未设置路径' })
         continue
       }
 
       // 判断是否为单图文件
-      const isSingleImage = isImageFile(album.folderPath)
+      const isSingleImage = isImageFile(resourcePath)
       const fileType = isSingleImage ? '单图文件' : '文件夹'
       
       try {
-        console.log(`[useImageAlbum] 🔍 [checkFileExists] 准备调用 API，类型: ${fileType}，图片名称: ${album.name}, 文件路径: ${album.folderPath}`)
-        const result = await window.electronAPI.checkFileExists(album.folderPath)
+        console.log(`[useImageAlbum] 🔍 [checkFileExists] 准备调用 API，类型: ${fileType}，图片名称: ${albumName}, 文件路径: ${resourcePath}`)
+        const result = await window.electronAPI.checkFileExists(resourcePath)
         console.log(`[useImageAlbum] ✅ [checkFileExists] API 调用成功，${fileType}，返回结果:`, JSON.stringify(result))
-        album.fileExists = result.exists
-        console.log(`[useImageAlbum] 🔍 检测${fileType}存在性完成: ${album.name} - fileExists=${result.exists}, path=${album.folderPath}`)
+        album.fileExists.value = result.exists
+        console.log(`[useImageAlbum] 🔍 检测${fileType}存在性完成: ${albumName} - fileExists=${result.exists}, path=${resourcePath}`)
         if (!result.exists) {
-          missingFiles.push({ name: album.name, path: album.folderPath })
+          missingFiles.push({ name: albumName || '未知', path: resourcePath })
         }
       } catch (error) {
-        console.error(`[useImageAlbum] ❌ [checkFileExists] API 调用失败，${fileType}，图片: ${album.name}, 路径: ${album.folderPath}`, error)
-        album.fileExists = false
-        missingFiles.push({ name: album.name, path: album.folderPath || '路径检测失败' })
+        console.error(`[useImageAlbum] ❌ [checkFileExists] API 调用失败，${fileType}，图片: ${albumName}, 路径: ${resourcePath}`, error)
+        album.fileExists.value = false
+        missingFiles.push({ name: albumName || '未知', path: resourcePath || '路径检测失败' })
       }
     }
 

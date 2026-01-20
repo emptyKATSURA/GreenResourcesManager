@@ -855,10 +855,11 @@ export default {
         await this.loadImageSettings()
         
         // 单个图片文件，直接使用该文件
-        const files = [album.folderPath]
+        const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath) || BaseResources.extractPrimitiveValue(album.folderPath) || ''
+        const files = [resourcePath]
         this.pages = files
         this.updateTotalPages()
-        album.pagesCount = files.length
+        album.pagesCount.value = files.length
         
         // 注意：这里不再增加浏览次数，只有真正开始查看时才增加
         // 浏览次数将在 openAlbum() 或 viewPage() 方法中增加
@@ -1215,13 +1216,13 @@ export default {
          })
          
         // 更新图片的页数信息
-        this.currentAlbum.pagesCount = files.length
+        this.currentAlbum.pagesCount.value = files.length
         // 注意：这里不设置lastViewed和viewCount，这些应该在真正开始查看时设置
-         
+        
          console.log('图片信息更新:', {
-           pagesCount: this.currentAlbum.pagesCount,
-           lastViewed: this.currentAlbum.lastViewed,
-           viewCount: this.currentAlbum.viewCount
+           pagesCount: this.currentAlbum.pagesCount.value,
+           lastViewed: this.currentAlbum.lastViewed?.value || this.currentAlbum.lastViewed,
+           viewCount: this.currentAlbum.viewCount?.value ?? this.currentAlbum.viewCount
          })
          
          // 加载当前页（确保索引在有效范围内）
@@ -1362,11 +1363,11 @@ export default {
         
         // 更新图片路径
         existingAlbum.folderPath = newPath
-        existingAlbum.fileExists = true
+        existingAlbum.fileExists.value = true
         
         // 更新封面为新的文件路径
-        existingAlbum.pagesCount = 1
-        existingAlbum.cover = newPath
+        existingAlbum.pagesCount.value = 1
+        existingAlbum.coverPath.value = newPath
         
         // 保存更新后的数据
         await this.saveAlbums()

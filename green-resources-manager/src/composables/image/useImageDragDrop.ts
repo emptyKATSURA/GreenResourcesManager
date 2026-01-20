@@ -5,7 +5,15 @@
 import { ref, type Ref } from 'vue'
 import { useDragAndDrop } from '../useDragAndDrop'
 import notify from '../../utils/NotificationService'
-import type { Album, FolderInfo, ProcessResult, PathUpdateInfo } from '../../types/image'
+import { Manga } from '@resources/manga.ts'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+import type { FolderInfo, ProcessResult } from '../../types/image'
+
+export interface PathUpdateInfo {
+  existingAlbum: Manga | null
+  newPath: string
+  newFolderName: string
+}
 
 /**
  * 压缩包文件扩展名列表
@@ -26,12 +34,12 @@ export interface ImageDragDropOptions {
   /**
    * 专辑列表（响应式）
    */
-  albums: Ref<Album[]>
+  albums: Ref<Manga[]>
   
   /**
    * 添加专辑的回调函数
    */
-  onAddAlbum: (albumData: Partial<Album>) => Promise<Album>
+  onAddAlbum: (albumData: Partial<Manga> | any) => Promise<Manga>
   
   /**
    * 显示路径更新对话框的回调函数
@@ -404,25 +412,31 @@ export function useImageDragDrop(options: ImageDragDropOptions) {
       
       try {
         // 检查是否已经存在相同的文件夹路径
-        const existingAlbumByPath = currentAlbums.find(album => album.folderPath === folder.path)
+        const existingAlbumByPath = currentAlbums.find(album => {
+          const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+          return resourcePath === folder.path
+        })
         if (existingAlbumByPath) {
           console.log('文件夹已存在，跳过:', folder.name)
+          const albumId = BaseResources.extractPrimitiveValue(existingAlbumByPath.id?.value || existingAlbumByPath.id)
           results.push({
             success: false,
             folderName: folder.name,
             error: `文件夹 "${folder.name}" 已经存在`,
             folderPath: folder.path,
-            existingAlbumId: existingAlbumByPath.id
+            existingAlbumId: albumId
           })
           continue
         }
         
         // 检查是否存在同名但路径不同的丢失文件夹
         const existingAlbumByName = currentAlbums.find(album => {
-          const albumFolderName = album.folderPath.split(/[\\/]/).pop()?.toLowerCase() || ''
+          const resourcePath = BaseResources.extractPrimitiveValue(album.resourcePath?.value || album.resourcePath)
+          const albumFolderName = resourcePath.split(/[\\/]/).pop()?.toLowerCase() || ''
           const newFolderName = folder.name.toLowerCase()
           const isSameName = albumFolderName === newFolderName
-          const isFolderMissing = !album.fileExists
+          const fileExists = BaseResources.extractPrimitiveValue(album.fileExists?.value ?? album.fileExists)
+          const isFolderMissing = fileExists === false
           
           return isSameName && isFolderMissing
         })
@@ -460,8 +474,8 @@ export function useImageDragDrop(options: ImageDragDropOptions) {
           author: '',
           description: '',
           tags: [],
-          folderPath: folder.path,
-          cover: '',
+          resourcePath: folder.path,
+          coverPath: '',
           isArchive: isArchive
         })
         

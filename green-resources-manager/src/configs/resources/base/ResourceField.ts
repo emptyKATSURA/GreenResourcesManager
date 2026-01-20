@@ -25,10 +25,10 @@ import { FormField } from './FormField.ts'
  */
 export class ResourceField<T = any> {
 	
-	value: T  // 字段的值
+	value: T | undefined  // 字段的值（可能为 undefined）
 	defaultValue?: T // 字段的默认值
 	saveable: boolean // 是否可保存到文件
-	editType: FormField // 编辑类型（表单字段）
+	editType: FormField | null // 编辑类型（表单字段）
 
 	/**
 	 * 构造函数
@@ -40,6 +40,12 @@ export class ResourceField<T = any> {
 	 */
 	constructor(params: {defaultValue?: T; saveable: boolean; editType?: FormField }) {
 		this.defaultValue = params.defaultValue
+		// 如果提供了 defaultValue，自动将其赋值给 value
+		if (params.defaultValue !== undefined) {
+			this.value = params.defaultValue
+		} else {
+			this.value = undefined
+		}
 		this.saveable = params.saveable ?? true
 		this.editType = params.editType ?? null
 	}

@@ -2,11 +2,74 @@ import { ResourceField } from './ResourceField.ts'
 import { FormField_Text } from './FormField.ts'
 
 /**
+ * 资源显示文本配置接口
+ */
+export interface ResourceDisplayTexts {
+	/**
+	 * 从未访问的默认文本（当没有访问记录时显示）
+	 */
+	neverAccessed: string
+	
+	/**
+	 * 刚刚访问的文本（1分钟内）
+	 */
+	justAccessed: string
+	
+	/**
+	 * 访问动作的文本（用于"X分钟前访问"等）
+	 */
+	accessAction: string
+	
+	/**
+	 * 昨天访问的文本
+	 */
+	yesterdayAccessed: string
+}
+
+/**
  * 资源基类（抽象类）
  * 定义所有资源类型必须实现的基础字段
  * 子类必须实现或重写这些抽象属性
  */
 export abstract class BaseResources {
+	
+	/**
+	 * 静态方法：获取显示文本配置
+	 * 子类可以覆盖此方法来自定义显示文本
+	 * 使用静态方法而不是静态字段，支持真正的多态
+	 * @returns 显示文本配置
+	 */
+	static getDisplayTexts(): ResourceDisplayTexts {
+		return {
+			neverAccessed: '从未访问',
+			justAccessed: '刚刚',
+			accessAction: '访问',
+			yesterdayAccessed: '昨天'
+		}
+	}
+
+	/**
+	 * 静态方法：获取默认图标路径
+	 * 子类可以覆盖此方法来自定义默认图标
+	 * @returns 默认图标路径
+	 */
+	static getDefaultIcon(): string {
+		return './default-image.png'
+	}
+
+	/**
+	 * 静态方法：获取 action handler 名称
+	 * 子类可以覆盖此方法来自定义 action handler
+	 * 这个方法返回页面组件中处理资源打开/启动的方法名
+	 * @returns action handler 方法名
+	 */
+	static getActionHandlerName(): string | null {
+		// 如果子类定义了 actionConfig，返回其 handlerName
+		if ((this as any).actionConfig && (this as any).actionConfig.handlerName) {
+			return (this as any).actionConfig.handlerName
+		}
+		return null
+	}
 	
 	//内部字段
 
@@ -66,6 +129,8 @@ export abstract class BaseResources {
 	abstract description: ResourceField<string> // 资源描述
 	abstract resourcePath: ResourceField<string> // 资源路径
 
+	abstract resourceType: ResourceField<string> // 资源类型
+
 	/**
 	 * 生成唯一的资源ID
 	 * @returns {string} 资源ID
@@ -97,11 +162,11 @@ export abstract class BaseResources {
 	static extractPrimitiveValue(value: any): any {
 		// 如果是 ResourceField 对象，递归提取
 		if (value instanceof ResourceField) {
-			return this.extractPrimitiveValue(value.value)
+			return BaseResources.extractPrimitiveValue(value.value)
 		}
 		// 如果是普通对象且包含 value 属性，递归提取
 		if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in value) {
-			return this.extractPrimitiveValue(value.value)
+			return BaseResources.extractPrimitiveValue(value.value)
 		}
 		// 否则直接返回（原始类型或数组）
 		return value
@@ -117,8 +182,10 @@ export abstract class BaseResources {
 		for (const key in instance) {
 			const field = (instance as any)[key]
 			if (field instanceof ResourceField && field.saveable) {
+				// 如果 value 是 undefined 但 defaultValue 存在，使用 defaultValue
+				const valueToSave = field.value !== undefined ? field.value : field.defaultValue
 				// 使用 extractPrimitiveValue 确保保存的是原始值
-				saveableData[key] = this.extractPrimitiveValue(field.value)
+				saveableData[key] = BaseResources.extractPrimitiveValue(valueToSave)
 			}
 		}
 		return saveableData
@@ -148,7 +215,7 @@ export abstract class BaseResources {
 				// 如果 JSON 数据中有这个字段，赋值给 ResourceField.value
 				if (jsonData[key] !== undefined && jsonData[key] !== null) {
 					// 使用 extractPrimitiveValue 确保提取的是原始值
-					const value = this.extractPrimitiveValue(jsonData[key])
+					const value = BaseResources.extractPrimitiveValue(jsonData[key])
 					
 					console.log('[BaseResources.fromJSON] 处理字段:', {
 						key,

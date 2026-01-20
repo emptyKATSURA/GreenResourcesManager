@@ -41,10 +41,11 @@ export function formatPlayTime(seconds) {
 /**
  * 格式化最后游玩时间
  * @param {string} dateString - 日期字符串
+ * @param {object} texts - 可选的文本配置，包含 neverAccessed, justAccessed, yesterdayAccessed, accessAction
  * @returns {string} 格式化后的相对时间字符串
  */
-export function formatLastPlayed(dateString) {
-  if (!dateString) return '从未游玩'
+export function formatLastPlayed(dateString, texts?: { neverAccessed?: string; justAccessed?: string; yesterdayAccessed?: string; accessAction?: string }) {
+  if (!dateString) return texts?.neverAccessed || '从未游玩'
   const date = new Date(dateString)
   const now = new Date()
   const diffTime = Math.abs(now.getTime() - date.getTime())
@@ -54,13 +55,13 @@ export function formatLastPlayed(dateString) {
   
   // 如果是今天（同一天）
   if (diffDays === 0) {
-    if (diffMinutes < 1) return '刚刚'
+    if (diffMinutes < 1) return texts?.justAccessed || '刚刚'
     if (diffMinutes < 60) return `${diffMinutes}分钟前`
     if (diffHours < 24) return `${diffHours}小时前`
   }
   
   // 如果是昨天
-  if (diffDays === 1) return '昨天'
+  if (diffDays === 1) return texts?.yesterdayAccessed || '昨天'
   if (diffDays < 7) return `${diffDays}天前`
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`
   return formatDateTime(date)

@@ -15,6 +15,11 @@ import { ResourceField } from './base/ResourceField.ts'
  * 漫画/图片专辑类
  */
 export class Manga extends BaseResources {
+
+	resourceType: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		defaultValue: 'manga'
+	})
 	
 	name: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
@@ -46,6 +51,22 @@ export class Manga extends BaseResources {
 		editType: new FormField_SelectMangaCover('封面图片', false)
 	})
 
+	// 图片专辑特有字段
+	pagesCount: ResourceField<number> = new ResourceField<number>({
+		saveable: false,
+		defaultValue: 0
+	})
+
+	lastViewed: ResourceField<string | null> = new ResourceField<string | null>({
+		saveable: true,
+		defaultValue: null
+	})
+
+	viewCount: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
 	// 静态配置：编辑对话框配置
 	static editDialogConfig = {
 		addTitle: '添加漫画',
@@ -71,15 +92,10 @@ export class Manga extends BaseResources {
 	}
 
 	// 静态配置：工具栏配置
+	// 注意：sortOptions 已移至页面配置（ImagePage.getSortOptions），这里不再包含
 	static toolbarConfig = {
 		addButtonText: '添加漫画',
-		searchPlaceholder: '搜索漫画...',
-		sortOptions: [
-			{ value: 'name', label: '按名称排序' },
-			{ value: 'author', label: '按作者排序' },
-			{ value: 'added', label: '按添加时间' },
-			{ value: 'viewCount', label: '按查看次数' }
-		]
+		searchPlaceholder: '搜索漫画...'
 	}
 
 	// 静态配置：启动方式配置
@@ -88,5 +104,20 @@ export class Manga extends BaseResources {
 		icon: '📖',
 		label: '打开漫画',
 		handlerName: 'openAlbum' // 组件中对应的方法名
+	}
+
+	// 静态方法：获取显示文本配置（支持多态）
+	static getDisplayTexts() {
+		return {
+			neverAccessed: '从未观看',
+			justAccessed: '刚刚',
+			accessAction: '观看',
+			yesterdayAccessed: '昨天'
+		}
+	}
+
+	// 静态方法：获取默认图标路径
+	static getDefaultIcon() {
+		return './default-image.png'
 	}
 }

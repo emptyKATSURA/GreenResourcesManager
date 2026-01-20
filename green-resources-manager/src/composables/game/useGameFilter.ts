@@ -3,10 +3,17 @@ import type { FilterItem, GameSortBy } from '../../types/game'
 import { ResourceField } from '@resources/base/ResourceField.ts'
 import { Game as GameClass } from '@resources/game.ts'
 import { sortBy as sortByUtil } from '../../utils/sortBy'
-import type { GamePage } from '../../configs/pages/GamePage'
+import type { SortConfig } from '../../utils/sortBy'
 
 // Game 类型就是 GameClass 的实例类型
 type Game = InstanceType<typeof GameClass>
+
+/**
+ * 页面配置接口，需要提供 getSortConfig 方法
+ */
+export interface PageConfigWithSort {
+  getSortConfig(sortValue: string): SortConfig<any> | null
+}
 
 /**
  * 安全获取游戏属性值的辅助函数
@@ -26,7 +33,7 @@ export function useGameFilter(
   games: Ref<Game[]>, 
   searchQuery: Ref<string>, 
   sortBy: Ref<GameSortBy>,
-  gamePage: GamePage,
+  pageConfig: PageConfigWithSort,
   isGameRunning?: (game: Game) => boolean
 ) {
   // 筛选状态
@@ -226,7 +233,7 @@ export function useGameFilter(
     })
 
     // 排序 - 使用 sortBy 工具函数
-    const sortConfig = gamePage.getSortConfig(sortBy.value)
+    const sortConfig = pageConfig.getSortConfig(sortBy.value)
     if (sortConfig) {
       return sortByUtil(filtered, sortConfig)
     }

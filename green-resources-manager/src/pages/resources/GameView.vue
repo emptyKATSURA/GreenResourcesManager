@@ -21,7 +21,7 @@
         :layout-styles="layoutStyles"
         @game-click="showGameDetail"
         @game-contextmenu="handleGameContextMenu"
-        @game-action="launchGame"
+        @game-action="handleResourceAction"
       />
 
 
@@ -148,6 +148,7 @@ import { useGameRunningStore } from '../../stores/game-running'
 import { createResourcePage } from '../../composables/createResourcePage'
 import { formatPlayTime, formatLastPlayed, formatFirstPlayed } from '../../utils/formatters'
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+import { executeActionHandler, type ActionHandlerContext } from '../../utils/ResourceActionHandlers'
 
 export default {
   name: 'GameView',
@@ -584,112 +585,47 @@ export default {
     async handleAddGameConfirm(game) {
       await this.handleAddConfirm(game)
     },
-    async launchGame(game) {
-      try {
-        // 获取游戏属性值（支持 ResourceField 和普通属性）
-        const executablePath = BaseResources.extractPrimitiveValue(
-          game.resourcePath?.value || game.executablePath?.value || game.resourcePath || game.executablePath
-        )
-        const gameName = BaseResources.extractPrimitiveValue(game.name?.value || game.name)
-        const gameId = BaseResources.extractPrimitiveValue(game.id?.value || game.id)
-        const isArchiveValue = BaseResources.extractPrimitiveValue(game.isArchive?.value ?? game.isArchive)
-        const lastPlayedValue = BaseResources.extractPrimitiveValue(game.lastPlayed?.value || game.lastPlayed)
-        const playCountValue = BaseResources.extractPrimitiveValue(game.playCount?.value || game.playCount) || 0
-        const firstPlayedValue = BaseResources.extractPrimitiveValue(game.firstPlayed?.value || game.firstPlayed)
-        const playTimeValue = BaseResources.extractPrimitiveValue(game.playTime?.value || game.playTime) || 0
-        
-        // 检查是否为压缩包，压缩包不能运行
-        const isArchive = Boolean(isArchiveValue) || (executablePath && isArchiveFile(executablePath))
-        if (isArchive) {
-          notify.toast('warning', '无法运行', `压缩包文件无法直接运行。请先解压后再运行游戏。`)
-          return
-        }
-
-        // 检查游戏是否正在运行
-        if (this.isGameRunning(game)) {
-          // 如果游戏正在运行，显示确认对话框
+    /**
+     * 统一的资源 action 处理
+     * 根据资源类型自动路由到对应的处理方法
+     * 通过全局 Action Handler 注册系统执行，与页面解耦
+     */
+    async handleResourceAction(resource: any) {
+      // 构建 handler 上下文
+      const context: ActionHandlerContext = {
+        isElectronEnvironment: this.isElectronEnvironment,
+        updateResource: async (id: string, updates: any) => {
+          await this.updateGame(id, updates)
+        },
+        isResourceRunning: (resource: any) => {
+          return this.isGameRunning(resource)
+        },
+        addRunningResource: (resourceInfo: any) => {
+          this.addRunningGame(resourceInfo)
+        },
+        removeRunningResource: (resourceId: string) => {
+          this.removeRunningGame(resourceId)
+        },
+        getInitialPlayTime: (resourceId: string) => {
+          return this.gameInitialPlayTimes?.get(resourceId) || 0
+        },
+        saveInitialPlayTime: (resourceId: string, playTime: number) => {
+          if (!this.gameInitialPlayTimes) {
+            this.gameInitialPlayTimes = new Map()
+          }
+          this.gameInitialPlayTimes.set(resourceId, playTime)
+        },
+        closeDetail: () => {
+          this.closeGameDetail()
+        },
+        showTerminateConfirmDialog: (resource: any) => {
           this.showTerminateConfirmDialog = true
-          this.gameToTerminate = game
-          return
+          this.gameToTerminate = resource
         }
-
-        console.log('启动游戏:', gameName, executablePath)
-        console.log('更新前 - lastPlayed:', lastPlayedValue)
-        console.log('更新前 - playCount:', playCountValue)
-
-        // 更新游戏统计（启动时也更新 lastPlayed，记录开始游玩的时间）
-        const updates: any = {
-          lastPlayed: new Date().toISOString(),
-          playCount: playCountValue + 1
-        }
-
-        // 如果是第一次启动，记录第一次游玩时间
-        if (!firstPlayedValue) {
-          updates.firstPlayed = new Date().toISOString()
-          console.log(`游戏 ${gameName} 第一次启动，记录时间:`, updates.firstPlayed)
-        }
-
-        await this.updateGame(gameId, updates)
-        console.log('更新后 - lastPlayed:', updates.lastPlayed)
-        console.log('更新后 - playCount:', updates.playCount)
-        console.log('游戏数据已保存')
-
-        if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.launchGame) {
-          console.log('使用 Electron API 启动游戏')
-          const result = await window.electronAPI.launchGame(executablePath, gameName)
-
-          if (result.success) {
-            console.log('------------------------------')
-            console.log('游戏启动成功，进程ID:', result.pid)
-            console.log('游戏窗口标题列表:', result.windowTitles)
-            console.log('------------------------------')
-
-            // 将游戏添加到全局运行列表中（包含完整信息）
-            this.addRunningGame({
-              id: gameId,
-              pid: result.pid,
-              windowTitles: result.windowTitles || [],
-              gameName: gameName
-            })
-            
-            // 保存游戏启动时的初始 playTime
-            if (!this.gameInitialPlayTimes) {
-              this.gameInitialPlayTimes = new Map()
-            }
-            this.gameInitialPlayTimes.set(gameId, playTimeValue)
-
-            // 显示成功提示
-            notify.toast('success', '游戏启动成功', `${gameName} 已启动`)
-          } else {
-            console.error('游戏启动失败:', result.error)
-            notify.toast('error', '游戏启动失败', `启动游戏失败: ${result.error}`)
-            return
-          }
-        } else {
-          // 提供更详细的错误信息
-          let errorMessage = `无法启动游戏: ${gameName}\n\n`
-          if (!this.isElectronEnvironment) {
-            errorMessage += `❌ 错误：未检测到 Electron 环境\n`
-            errorMessage += `当前环境：${navigator.userAgent.includes('Electron') ? 'Electron 但 API 未加载' : '浏览器环境'}\n\n`
-            errorMessage += `解决方案：\n`
-            errorMessage += `1. 确保在打包后的应用中运行\n`
-            errorMessage += `2. 检查 preload.js 是否正确加载\n`
-            errorMessage += `3. 重新构建应用\n\n`
-          } else {
-            errorMessage += `❌ 错误：Electron API 不可用\n`
-            errorMessage += `请检查应用是否正确打包\n\n`
-          }
-          errorMessage += `游戏路径: ${executablePath}`
-          notify.toast('error', '游戏启动失败', errorMessage)
-          return
-        }
-
-        // 关闭详情页面
-        this.closeGameDetail()
-      } catch (error) {
-        console.error('启动游戏失败:', error)
-        notify.toast('error', '游戏启动失败', `启动游戏失败: ${error.message}`)
       }
+
+      // 执行 handler
+      await executeActionHandler(resource, context)
     },
     
     showGameDetail(game) {
@@ -706,7 +642,7 @@ export default {
     handleDetailAction(actionKey, game) {
       switch (actionKey) {
         case 'launch':
-          this.launchGame(game)
+          this.handleResourceAction(game)
           break
         case 'terminate':
           // 显示确认对话框
@@ -1422,7 +1358,7 @@ export default {
       const screenshotComposable = (this as any)._screenshotComposable
       // 直接修改对象的属性，而不是创建新对象
       contextMenuHandlers.detail = (game: any) => this.showGameDetail(game)
-      contextMenuHandlers.launch = (game: any) => this.launchGame(game)
+      contextMenuHandlers.launch = (game: any) => this.handleResourceAction(game)
       contextMenuHandlers.folder = (game: any) => this.openGameFolder(game)
       contextMenuHandlers['screenshot-folder'] = (game: any) => {
         if (screenshotComposable && screenshotComposable.openGameScreenshotFolder) {

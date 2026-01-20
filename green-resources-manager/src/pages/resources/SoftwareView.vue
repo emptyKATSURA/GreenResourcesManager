@@ -20,7 +20,7 @@
         :layout-styles="layoutStyles"
         @game-click="showGameDetail"
         @game-contextmenu="handleGameContextMenu"
-        @game-action="launchGame"
+        @game-action="handleResourceAction"
       />
 
 
@@ -142,6 +142,8 @@ import { useGameDragAndDrop } from '../../composables/game/useGameDragAndDrop'
 import { isArchiveFile } from '../../composables/useArchive'
 import { useGameRunningStore } from '../../stores/game-running'
 import { useDisplayLayout } from '../../composables/useDisplayLayout'
+import { executeActionHandler, type ActionHandlerContext } from '../../utils/ResourceActionHandlers'
+import { SoftwarePage } from '../../configs/pages/SoftwarePage'
 
 export default {
   name: 'SoftwareView',
@@ -162,14 +164,25 @@ export default {
   },
   emits: ['filter-data-updated'],
   setup(props) {
+    // 创建页面配置实例
+    const softwarePage = new SoftwarePage()
+    
     // 响应式数据
     const games = ref([])
     const isElectronEnvironment = ref(false)
     const searchQuery = ref('')
     const sortBy = ref<'name' | 'lastPlayed' | 'playTime' | 'added'>('name')
 
+    // 使用游戏运行状态 store（暴露给组件使用）
+    const gameRunningStore = useGameRunningStore()
+
+    // 创建用于筛选的 isGameRunning 函数（接受 Game 对象）
+    const isGameRunningForFilter = (game: any) => {
+      return gameRunningStore.isGameRunning(game.id?.value || game.id)
+    }
+
     // 使用筛选 composable
-    const filterComposable = useGameFilter(games, searchQuery, sortBy as any)
+    const filterComposable = useGameFilter(games, searchQuery, sortBy as any, softwarePage as any, isGameRunningForFilter)
 
     // 使用管理 composable
     const managementComposable = useGameManagement(
@@ -178,9 +191,6 @@ export default {
       isElectronEnvironment,
       props.pageConfig.id
     )
-
-    // 使用游戏运行状态 store（暴露给组件使用）
-    const gameRunningStore = useGameRunningStore()
 
     // 使用显示布局 composable
     const displayLayoutComposable = useDisplayLayout(80, 400)
@@ -494,100 +504,47 @@ export default {
       await this.addGame(game)
       this.closeAddGameDialog()
     },
-    async launchGame(game) {
-      try {
-        // 检查是否为压缩包，压缩包不能运行
-        const isArchive = game.isArchive || (game.executablePath && isArchiveFile(game.executablePath))
-        if (isArchive) {
-          notify.toast('warning', '无法运行', `压缩包文件无法直接运行。请先解压后再运行游戏。`)
-          return
-        }
-
-        // 检查游戏是否正在运行
-        if (this.isGameRunning(game)) {
-          // 如果游戏正在运行，显示确认对话框
+    /**
+     * 统一的资源 action 处理
+     * 根据资源类型自动路由到对应的处理方法
+     * 通过全局 Action Handler 注册系统执行，与页面解耦
+     */
+    async handleResourceAction(resource: any) {
+      // 构建 handler 上下文
+      const context: ActionHandlerContext = {
+        isElectronEnvironment: this.isElectronEnvironment,
+        updateResource: async (id: string, updates: any) => {
+          await this.updateGame(id, updates)
+        },
+        isResourceRunning: (resource: any) => {
+          return this.isGameRunning(resource)
+        },
+        addRunningResource: (resourceInfo: any) => {
+          this.addRunningGame(resourceInfo)
+        },
+        removeRunningResource: (resourceId: string) => {
+          this.removeRunningGame(resourceId)
+        },
+        getInitialPlayTime: (resourceId: string) => {
+          return this.gameInitialPlayTimes?.get(resourceId) || 0
+        },
+        saveInitialPlayTime: (resourceId: string, playTime: number) => {
+          if (!this.gameInitialPlayTimes) {
+            this.gameInitialPlayTimes = new Map()
+          }
+          this.gameInitialPlayTimes.set(resourceId, playTime)
+        },
+        closeDetail: () => {
+          this.closeGameDetail()
+        },
+        showTerminateConfirmDialog: (resource: any) => {
           this.showTerminateConfirmDialog = true
-          this.gameToTerminate = game
-          return
+          this.gameToTerminate = resource
         }
-
-        console.log('启动游戏:', game.name, game.executablePath)
-        console.log('更新前 - lastPlayed:', game.lastPlayed)
-        console.log('更新前 - playCount:', game.playCount)
-
-        // 更新游戏统计（启动时也更新 lastPlayed，记录开始游玩的时间）
-        const updates: any = {
-          lastPlayed: new Date().toISOString(),
-          playCount: (game.playCount || 0) + 1
-        }
-
-        // 如果是第一次启动，记录第一次游玩时间
-        if (!game.firstPlayed) {
-          updates.firstPlayed = new Date().toISOString()
-          console.log(`游戏 ${game.name} 第一次启动，记录时间:`, updates.firstPlayed)
-        }
-
-        await this.updateGame(game.id, updates)
-        console.log('更新后 - lastPlayed:', updates.lastPlayed)
-        console.log('更新后 - playCount:', updates.playCount)
-        console.log('游戏数据已保存')
-
-        if (this.isElectronEnvironment && window.electronAPI && window.electronAPI.launchGame) {
-          console.log('使用 Electron API 启动游戏')
-          const result = await window.electronAPI.launchGame(game.executablePath, game.name)
-
-          if (result.success) {
-            console.log('------------------------------')
-            console.log('游戏启动成功，进程ID:', result.pid)
-            console.log('游戏窗口标题列表:', result.windowTitles)
-            console.log('------------------------------')
-
-            // 将游戏添加到全局运行列表中（包含完整信息）
-            this.addRunningGame({
-              id: game.id,
-              pid: result.pid,
-              windowTitles: result.windowTitles || [],
-              gameName: game.name
-            })
-            
-            // 保存游戏启动时的初始 playTime
-            if (!this.gameInitialPlayTimes) {
-              this.gameInitialPlayTimes = new Map()
-            }
-            this.gameInitialPlayTimes.set(game.id, game.playTime || 0)
-
-            // 显示成功提示
-            notify.toast('success', '游戏启动成功', `${game.name} 已启动`)
-          } else {
-            console.error('游戏启动失败:', result.error)
-            notify.toast('error', '游戏启动失败', `启动游戏失败: ${result.error}`)
-            return
-          }
-        } else {
-          // 提供更详细的错误信息
-          let errorMessage = `无法启动游戏: ${game.name}\n\n`
-          if (!this.isElectronEnvironment) {
-            errorMessage += `❌ 错误：未检测到 Electron 环境\n`
-            errorMessage += `当前环境：${navigator.userAgent.includes('Electron') ? 'Electron 但 API 未加载' : '浏览器环境'}\n\n`
-            errorMessage += `解决方案：\n`
-            errorMessage += `1. 确保在打包后的应用中运行\n`
-            errorMessage += `2. 检查 preload.js 是否正确加载\n`
-            errorMessage += `3. 重新构建应用\n\n`
-          } else {
-            errorMessage += `❌ 错误：Electron API 不可用\n`
-            errorMessage += `请检查应用是否正确打包\n\n`
-          }
-          errorMessage += `游戏路径: ${game.executablePath}`
-          notify.toast('error', '游戏启动失败', errorMessage)
-          return
-        }
-
-        // 关闭详情页面
-        this.closeGameDetail()
-      } catch (error) {
-        console.error('启动游戏失败:', error)
-        notify.toast('error', '游戏启动失败', `启动游戏失败: ${error.message}`)
       }
+
+      // 执行 handler
+      await executeActionHandler(resource, context)
     },
     
     showGameDetail(game) {
@@ -605,7 +562,7 @@ export default {
     handleDetailAction(actionKey, game) {
       switch (actionKey) {
         case 'launch':
-          this.launchGame(game)
+          this.handleResourceAction(game)
           break
         case 'terminate':
           // 显示确认对话框
@@ -636,7 +593,7 @@ export default {
           this.showGameDetail(selectedItem)
           break
         case 'launch':
-          this.launchGame(selectedItem)
+          this.handleResourceAction(selectedItem)
           break
         case 'folder':
           this.openGameFolder(selectedItem)
