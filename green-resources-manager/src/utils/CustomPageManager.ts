@@ -140,6 +140,7 @@ class CustomPageManager {
       { id: 'websites', name: '网站', icon: '🌐', type: 'Website', description: '可以管理网站，需要手动传入网址，也可以拖拽收藏夹进来', isDefault: true, order: 8, createdAt: now, updatedAt: now },
       { id: 'audio', name: '声音', icon: '🎵', type: 'Audio', description: '可以管理mp3、wav等常见音频文件', isDefault: true, order: 9, createdAt: now, updatedAt: now },
       { id: 'other', name: '其它', icon: '📦', type: 'Other', description: '可以管理任何类型的文件和文件夹', isDefault: true, order: 10, createdAt: now, updatedAt: now },
+      { id: 'test-game', name: '测试游戏', icon: '🧪', type: 'Game', description: '测试游戏页面，包含模拟数据用于测试通用 ResourceView 组件', isDefault: false, order: 11, createdAt: now, updatedAt: now },
     ];
   }
 

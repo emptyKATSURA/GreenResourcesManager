@@ -35,24 +35,125 @@
               :item="item"
               :type="(resourceType || 'game').toLowerCase()"
               :is-electron-environment="isElectronEnvironment"
-              :file-exists="item.fileExists?.value !== false"
+              :file-exists="getFileExists(item)"
               :scale="scale"
+              :is-running="isResourceRunning(item)"
+              @action="handleResourceAction"
             />
           </div>
         </div>
       </div>
     </BaseView>
+    
+    <!-- 漫画/图片查看器（用于 Image/Manga 资源类型） -->
+    <ComicViewer
+      v-if="showComicViewer || currentAlbum"
+      :visible="showComicViewer"
+      :album="currentAlbum"
+      :pages="pages"
+      :initial-page-index="currentPageIndex"
+      @close="closeComicViewer"
+      @page-change="handleComicViewerPageChange"
+    />
+    
+    <!-- 小说阅读器（用于 Novel 资源类型） -->
+    <div v-if="showNovelReader && currentReadingNovel" class="novel-reader-overlay" @click="closeNovelReader">
+      <div class="novel-reader-content" @click.stop>
+        <div class="reader-header">
+          <div class="reader-title">
+            <h3>{{ getNovelName(currentReadingNovel) }}</h3>
+            <p class="reader-author">{{ getNovelAuthor(currentReadingNovel) }}</p>
+          </div>
+          <div class="reader-controls">
+            <button class="btn-close-reader" @click="closeNovelReader" title="关闭阅读器">
+              <span class="btn-icon">✕</span>
+            </button>
+          </div>
+        </div>
+        <div class="reader-content" ref="readerContent">
+          <!-- PDF 文件使用 PDF 阅读器 -->
+          <PdfReader
+            v-if="getNovelFileType(currentReadingNovel) === 'pdf'"
+            :file-path="getNovelFilePath(currentReadingNovel)"
+            :initial-page="getNovelCurrentPage(currentReadingNovel) || 1"
+            @page-changed="handlePdfPageChanged"
+          />
+          <!-- TXT 文件使用文本阅读器 -->
+          <TextReader
+            v-else-if="getNovelFileType(currentReadingNovel) === 'txt'"
+            :file-path="getNovelFilePath(currentReadingNovel)"
+            :initial-page="getNovelCurrentPage(currentReadingNovel) || 1"
+            @page-changed="handleTextPageChanged"
+            @progress-changed="handleTextProgressChanged"
+          />
+        </div>
+      </div>
+    </div>
+    
+    <!-- EPUB阅读器V2（用于 Novel 资源类型） -->
+    <div v-if="showEbookReaderV2" class="novel-reader-overlay" @click="closeEbookReaderV2">
+      <div class="novel-reader-content" @click.stop>
+        <div class="reader-header">
+          <div class="reader-title">
+            <h3>{{ getNovelNameByPath(ebookReaderV2FilePath) }}</h3>
+          </div>
+          <div class="reader-controls">
+            <button class="btn-close-reader" @click="closeEbookReaderV2" title="关闭阅读器">
+              <span class="btn-icon">✕</span>
+            </button>
+          </div>
+        </div>
+        <div class="reader-content-wrapper ebook-reader-v2-content">
+          <!-- 左侧章节导航栏 -->
+          <div class="chapter-navigation-sidebar">
+            <div class="chapter-nav-header">
+              <h4>章节列表</h4>
+            </div>
+            <ContentView
+              :ifShowContent="true"
+              :navigation="ebookNavigation"
+              :bookAvailable="ebookBookAvailable"
+              @jumpTo="handleEbookJumpTo"
+            />
+          </div>
+          <!-- 右侧阅读器 -->
+          <div class="reader-content-main">
+            <EbookReader
+              ref="ebookReaderRef"
+              :file-path="ebookReaderV2FilePath"
+              @close="closeEbookReaderV2"
+              @navigation-updated="handleNavigationUpdated"
+              @rendition-ready="handleRenditionReady"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from 'vue'
+import { defineComponent, ref, computed, onMounted, watch } from 'vue'
 import BaseView from './BaseView.vue'
 import MediaCard from './MediaCard.vue'
+import ComicViewer from './ComicViewer.vue'
+import PdfReader from './PdfReader.vue'
+import TextReader from './TextReader.vue'
+import EbookReader from './epub-reader-v2/EbookReader.vue'
+import ContentView from './epub-reader-v2/ContentView.vue'
 import { createResourcePage } from '../composables/createResourcePage'
 import { Game } from '@resources/game.ts'
 import { GamePage } from '../configs/pages/GamePage.ts'
-import { TestGamePage } from '../configs/pages/TestGamePage.ts'
+import { TestGamePage } from '../configs/pages/TestPage.ts'
+import { Manga } from '@resources/manga.ts'
+import { ImagePage } from '../configs/pages/ImagePage.ts'
+import { Novel } from '@resources/novel.ts'
+import { NovelPage } from '../configs/pages/NovelPage.ts'
+import { executeActionHandler, type ActionHandlerContext } from '../utils/ResourceActionHandlers'
+import { useGameRunningStore } from '../stores/game-running'
+import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+import notify from '../utils/NotificationService.ts'
+import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
 
 // 资源类型到资源类和页面配置的映射
 const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; testPageClass?: any }> = {
@@ -60,6 +161,18 @@ const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; tes
     resourceClass: Game,
     pageClass: GamePage,
     testPageClass: TestGamePage // 测试页面配置（包含模拟数据）
+  },
+  Image: {
+    resourceClass: Manga, // 图片资源使用 Manga 类（图片文件夹/专辑）
+    pageClass: ImagePage
+  },
+  Manga: {
+    resourceClass: Manga,
+    pageClass: ImagePage // Manga 和 Image 共用 ImagePage
+  },
+  Novel: {
+    resourceClass: Novel,
+    pageClass: NovelPage
   }
   // 未来可以添加其他资源类型
 }
@@ -68,7 +181,12 @@ export default defineComponent({
   name: 'GenericResourceView',
   components: {
     BaseView,
-    MediaCard
+    MediaCard,
+    ComicViewer,
+    PdfReader,
+    TextReader,
+    EbookReader,
+    ContentView
   },
   emits: ['filter-data-updated'],
   props: {
@@ -117,20 +235,51 @@ export default defineComponent({
     
     // 优先使用测试页面配置（如果存在且需要测试数据）
     // 如果传入了 items，使用普通页面配置；如果没有 items，使用测试页面配置获取模拟数据
-    const useTestPage = !props.items || props.items.length === 0
+    // 或者如果页面 ID 是 'test-game'，强制使用测试页面配置
+    const isTestPage = props.pageConfig?.id === 'test-game'
+    const useTestPage = isTestPage || (!props.items || props.items.length === 0)
     const ActualPageClass = useTestPage && resourceConfig.testPageClass 
       ? resourceConfig.testPageClass 
       : PageClass
+    
+    console.log('[GenericResourceView] 页面配置:', {
+      pageConfigId: props.pageConfig?.id,
+      pageConfigType: props.pageConfig?.type,
+      isTestPage,
+      useTestPage,
+      ActualPageClass: ActualPageClass?.name,
+      hasTestPageClass: !!resourceConfig.testPageClass
+    })
+    
     const pageConfig = new ActualPageClass()
 
     // 响应式数据
     // 优先使用传入的 items，如果没有则从测试页面配置获取模拟数据
+    const mockData = pageConfig.getMockData ? pageConfig.getMockData() : []
+    console.log('[GenericResourceView] 模拟数据:', {
+      hasMockData: !!pageConfig.getMockData,
+      mockDataLength: mockData.length,
+      mockData: mockData
+    })
+    
     const items = ref(props.items && props.items.length > 0 
       ? props.items 
-      : (pageConfig.getMockData ? pageConfig.getMockData() : []))
+      : mockData)
     const isElectronEnvironment = ref(false)
     const searchQuery = ref('')
     const sortBy = ref('name-asc')
+
+    // 图片/漫画查看器相关状态（用于 Image/Manga 资源类型）
+    const currentAlbum = ref<any>(null)
+    const currentPageIndex = ref(0)
+    const pages = ref<string[]>([])
+    const showComicViewer = ref(false)
+
+    // 小说阅读器相关状态（用于 Novel 资源类型）
+    const currentReadingNovel = ref<any>(null)
+    const showNovelReader = ref(false)
+    const showEbookReaderV2 = ref(false)
+    const ebookReaderV2FilePath = ref<string>('')
 
     // 检查 Electron 环境
     isElectronEnvironment.value = !!(window as any).electronAPI
@@ -138,8 +287,489 @@ export default defineComponent({
     // 获取排序选项
     const sortOptions = pageConfig.getSortOptions()
 
+    // 游戏运行状态管理（使用 store）
+    const gameRunningStore = useGameRunningStore()
+
+    // 检查资源是否正在运行（通用方法，支持所有资源类型）
+    const isResourceRunning = (resource: any): boolean => {
+      const resourceId = resource.id?.value || resource.id
+      if (!resourceId) return false
+      
+      // 对于游戏类型，使用 gameRunningStore 检查
+      if (resourceType.value === 'Game') {
+        return gameRunningStore.isGameRunning(resourceId)
+      }
+      
+      // 其他资源类型暂时不支持运行状态检查
+      return false
+    }
+
+    // 终止游戏方法
+    const terminateGame = async (resource: any) => {
+      try {
+        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+        const executablePath = BaseResources.extractPrimitiveValue(
+          resource.resourcePath?.value || resource.executablePath?.value || resource.resourcePath || resource.executablePath
+        )
+        const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
+        
+        console.log('[GenericResourceView] 🛑 开始强制结束游戏:', resourceName, executablePath)
+        
+        if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.terminateGame) {
+          notify.toast('error', '操作失败', '当前环境不支持强制结束游戏功能')
+          return
+        }
+
+        const result = await window.electronAPI.terminateGame(executablePath)
+        
+        if (result.success) {
+          console.log('[GenericResourceView] ✅ 游戏已强制结束，PID:', result.pid, '运行时长:', result.playTime, '秒')
+          
+          // 从运行列表中移除
+          if (resourceType.value === 'Game') {
+            gameRunningStore.removeRunningGame(resourceId)
+          }
+          
+          // 更新游戏时长（如果有的话）
+          if (result.playTime && result.playTime > 0) {
+            const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
+            const newPlayTime = currentPlayTime + result.playTime
+            
+            // 更新资源数据
+            const item = items.value.find((i: any) => (i.id?.value || i.id) === resourceId)
+            if (item) {
+              if (item.playTime && typeof item.playTime === 'object' && 'value' in item.playTime) {
+                item.playTime.value = newPlayTime
+              } else {
+                item.playTime = newPlayTime
+              }
+            }
+          }
+          
+          notify.toast('success', '游戏已结束', `${resourceName} 已强制结束`)
+        } else {
+          console.warn('[GenericResourceView] ⚠️ 强制结束游戏失败:', result.error)
+          notify.toast('error', '结束失败', `结束失败: ${result.error || '未知错误'}`)
+        }
+      } catch (error) {
+        console.error('[GenericResourceView] ❌ 终止游戏失败:', error)
+        notify.toast('error', '结束失败', `结束失败: ${error.message || '未知错误'}`)
+      }
+    }
+
+    // 处理游戏进程结束事件
+    const handleGameProcessEnded = (data: { executablePath: string; playTime: number; pid: number }) => {
+      console.log('[GenericResourceView] 📥 收到 game-process-ended 事件，数据:', data)
+      
+      // 根据 executablePath 找到对应的资源
+      const resource = items.value.find((item: any) => {
+        const itemPath = BaseResources.extractPrimitiveValue(
+          item.resourcePath?.value || item.executablePath?.value || item.resourcePath || item.executablePath
+        )
+        return itemPath === data.executablePath
+      })
+      
+      if (resource) {
+        const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
+        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+        
+        console.log('[GenericResourceView] ✅ 找到对应资源:', resourceName)
+        
+        // 从运行列表中移除
+        if (resourceType.value === 'Game') {
+          gameRunningStore.removeRunningGame(resourceId)
+        }
+        
+        // 更新游戏时长
+        if (data.playTime && data.playTime > 0) {
+          const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
+          const newPlayTime = currentPlayTime + data.playTime
+          
+          // 更新资源数据
+          if (resource.playTime && typeof resource.playTime === 'object' && 'value' in resource.playTime) {
+            resource.playTime.value = newPlayTime
+          } else {
+            resource.playTime = newPlayTime
+          }
+          
+          // 更新最后游玩时间
+          if (resource.lastPlayed && typeof resource.lastPlayed === 'object' && 'value' in resource.lastPlayed) {
+            resource.lastPlayed.value = new Date().toISOString()
+          } else {
+            resource.lastPlayed = new Date().toISOString()
+          }
+        }
+        
+        console.log('[GenericResourceView] ✅ 游戏进程结束处理完成')
+      } else {
+        console.warn('[GenericResourceView] ⚠️ 未找到对应的资源，executablePath:', data.executablePath)
+      }
+    }
+
+    // 处理资源操作（根据 actionConfig 启动资源）
+    const handleResourceAction = async (resource: any) => {
+      // 从资源实例获取实际的资源类型
+      const actualResourceType = BaseResources.extractPrimitiveValue(
+        resource.resourceType?.value || resource.resourceType
+      ) || resource?.constructor?.name || resourceType.value
+      
+      console.log('[GenericResourceView] handleResourceAction 被调用', {
+        resource,
+        resourceType: resourceType.value,
+        actualResourceType,
+        resourceConstructor: resource?.constructor?.name,
+        actionConfig: resource?.constructor?.actionConfig
+      })
+      
+      // 构建 handler 上下文
+      const context: ActionHandlerContext = {
+        isElectronEnvironment: isElectronEnvironment.value,
+        updateResource: async (id: string, updates: any) => {
+          // 更新资源数据
+          const item = items.value.find((i: any) => (i.id?.value || i.id) === id)
+          if (item) {
+            // 更新 ResourceField 的值
+            Object.keys(updates).forEach(key => {
+              if (item[key] && typeof item[key] === 'object' && 'value' in item[key]) {
+                item[key].value = updates[key]
+              } else {
+                item[key] = updates[key]
+              }
+            })
+          }
+        },
+        isResourceRunning: (resource: any) => {
+          return isResourceRunning(resource)
+        },
+        addRunningResource: (resourceInfo: any) => {
+          // 对于游戏类型，添加到运行列表
+          if (resourceType.value === 'Game') {
+            gameRunningStore.addRunningGame({
+              id: resourceInfo.id,
+              pid: resourceInfo.pid,
+              windowTitles: resourceInfo.windowTitles || [],
+              gameName: resourceInfo.gameName || ''
+            })
+          }
+        },
+        removeRunningResource: (resourceId: string) => {
+          // 对于游戏类型，从运行列表移除
+          if (resourceType.value === 'Game') {
+            gameRunningStore.removeRunningGame(resourceId)
+          }
+        },
+        getInitialPlayTime: (resourceId: string) => {
+          // 获取资源启动时的初始 playTime
+          const item = items.value.find((i: any) => (i.id?.value || i.id) === resourceId)
+          if (item) {
+            const playTime = item.playTime?.value ?? item.playTime
+            return playTime != null ? playTime : 0
+          }
+          return 0
+        },
+        saveInitialPlayTime: (resourceId: string, playTime: number) => {
+          // 保存初始运行时长（这里可以存储到内存中，如果需要的话）
+          // 实际保存会在资源停止运行时进行
+          console.log(`保存资源 ${resourceId} 的初始运行时长: ${playTime}`)
+        },
+        closeDetail: () => {
+          // 关闭详情页面（如果有的话）
+          if ((resourcePage as any).closeDetail) {
+            (resourcePage as any).closeDetail()
+          }
+        },
+        showTerminateConfirmDialog: (resource: any) => {
+          // 显示终止确认对话框
+          const resourceName = resource.name?.value || resource.name || '资源'
+          if (confirm(`资源 "${resourceName}" 正在运行，是否要终止？`)) {
+            // 调用终止方法
+            terminateGame(resource)
+          }
+        },
+        // 图片/漫画查看器相关方法（用于 Image/Manga 资源类型）
+        setCurrentAlbum: (album: any) => {
+          currentAlbum.value = album
+        },
+        setCurrentPageIndex: (index: number) => {
+          currentPageIndex.value = index
+        },
+        clearPages: () => {
+          pages.value = []
+        },
+        updateViewInfo: async (album: any) => {
+          // 更新浏览信息（增加浏览次数、更新最后查看时间等）
+          const albumId = BaseResources.extractPrimitiveValue(album.id?.value || album.id)
+          const item = items.value.find((i: any) => (i.id?.value || i.id) === albumId)
+          if (item) {
+            // 更新最后查看时间
+            const now = new Date().toISOString()
+            if (item.lastViewed && typeof item.lastViewed === 'object' && 'value' in item.lastViewed) {
+              item.lastViewed.value = now
+            } else {
+              item.lastViewed = now
+            }
+            
+            // 增加浏览次数
+            const currentViewCount = BaseResources.extractPrimitiveValue(item.viewCount?.value || item.viewCount) || 0
+            if (item.viewCount && typeof item.viewCount === 'object' && 'value' in item.viewCount) {
+              item.viewCount.value = currentViewCount + 1
+            } else {
+              item.viewCount = currentViewCount + 1
+            }
+          }
+        },
+        loadAlbumPages: async () => {
+          // 加载专辑的图片文件列表
+          if (!currentAlbum.value) {
+            console.warn('[GenericResourceView] 当前专辑为空，无法加载页面')
+            return
+          }
+          
+          const resourcePath = BaseResources.extractPrimitiveValue(
+            currentAlbum.value.resourcePath?.value || currentAlbum.value.resourcePath
+          )
+          
+          if (!resourcePath) {
+            console.warn('[GenericResourceView] 专辑路径为空，无法加载页面')
+            return
+          }
+          
+          try {
+            if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
+              console.log('[GenericResourceView] 开始加载专辑页面，路径:', resourcePath)
+              const resp = await window.electronAPI.listImageFiles(resourcePath)
+              
+              if (resp.success) {
+                pages.value = resp.files || []
+                console.log('[GenericResourceView] 加载完成，图片数量:', pages.value.length)
+              } else {
+                console.error('[GenericResourceView] 加载图片文件失败:', resp.error)
+                pages.value = []
+              }
+            } else {
+              console.warn('[GenericResourceView] Electron API 不可用，无法加载图片文件')
+              pages.value = []
+            }
+          } catch (error) {
+            console.error('[GenericResourceView] 加载专辑页面失败:', error)
+            pages.value = []
+          }
+        },
+        showComicViewer: (show: boolean) => {
+          console.log('[GenericResourceView] showComicViewer 被调用', { show, currentValue: showComicViewer.value })
+          showComicViewer.value = show
+          console.log('[GenericResourceView] showComicViewer 已设置为', showComicViewer.value)
+        },
+        // 小说阅读器相关方法（用于 Novel 资源类型）
+        setCurrentNovel: (novel: any) => {
+          currentReadingNovel.value = novel
+        },
+        showNovelReader: (show: boolean) => {
+          showNovelReader.value = show
+        },
+        showEbookReaderV2: (show: boolean) => {
+          showEbookReaderV2.value = show
+        },
+        setEbookReaderV2FilePath: (filePath: string) => {
+          ebookReaderV2FilePath.value = filePath
+        },
+        getGlobalSettings: async () => {
+          // 获取全局设置（用于小说打开模式等）
+          try {
+            const saveManager = (await import('../utils/SaveManager.ts')).default
+            const settings = await saveManager.loadSettings()
+            
+            // 返回小说相关设置
+            return {
+              novelDefaultOpenMode: settings.novel?.defaultOpenMode || settings.novelDefaultOpenMode || 'internal',
+              novel: settings.novel || {}
+            }
+          } catch (error) {
+            console.warn('[GenericResourceView] 获取全局设置失败:', error)
+            return {
+              novelDefaultOpenMode: 'internal',
+              novel: {}
+            }
+          }
+        },
+        getFileType: (filePath: string): string => {
+          if (!filePath) return 'txt'
+          const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'))
+          if (ext === '.epub') return 'epub'
+          if (ext === '.mobi') return 'mobi'
+          if (ext === '.pdf') return 'pdf'
+          return 'txt'
+        },
+        updateReadingStats: async (novel: any) => {
+          // 更新阅读统计（增加阅读次数、更新最后阅读时间等）
+          const novelId = BaseResources.extractPrimitiveValue(novel.id?.value || novel.id)
+          const item = items.value.find((i: any) => (i.id?.value || i.id) === novelId)
+          if (item) {
+            // 更新最后阅读时间
+            const now = new Date().toISOString()
+            if (item.lastRead && typeof item.lastRead === 'object' && 'value' in item.lastRead) {
+              item.lastRead.value = now
+            } else {
+              item.lastRead = now
+            }
+            
+            // 增加阅读次数
+            const currentReadCount = BaseResources.extractPrimitiveValue(item.readCount?.value || item.readCount) || 0
+            if (item.readCount && typeof item.readCount === 'object' && 'value' in item.readCount) {
+              item.readCount.value = currentReadCount + 1
+            } else {
+              item.readCount = currentReadCount + 1
+            }
+          }
+        }
+      }
+
+      // 执行 handler
+      await executeActionHandler(resource, context)
+    }
+
+    // 关闭漫画查看器
+    const closeComicViewer = () => {
+      showComicViewer.value = false
+      currentAlbum.value = null
+      currentPageIndex.value = 0
+      pages.value = []
+    }
+
+    // 处理漫画查看器页面变化
+    const handleComicViewerPageChange = (newIndex: number) => {
+      currentPageIndex.value = newIndex
+    }
+
+    // 小说阅读器相关方法
+    const closeNovelReader = () => {
+      showNovelReader.value = false
+      currentReadingNovel.value = null
+    }
+
+    const closeEbookReaderV2 = () => {
+      showEbookReaderV2.value = false
+      ebookReaderV2FilePath.value = ''
+      ebookNavigation.value = null
+      ebookBookAvailable.value = false
+      ebookRendition.value = null
+    }
+
+    // EPUB 阅读器 V2 相关状态
+    const ebookNavigation = ref<any>(null)
+    const ebookBookAvailable = ref(false)
+    const ebookRendition = ref<any>(null)
+
+    const handleNavigationUpdated = (navigation: any) => {
+      ebookNavigation.value = navigation
+      ebookBookAvailable.value = true
+    }
+
+    const handleRenditionReady = (rendition: any) => {
+      ebookRendition.value = rendition
+    }
+
+    const ebookReaderRef = ref<any>(null)
+
+    const handleEbookJumpTo = (href: string) => {
+      if (ebookReaderRef.value && typeof ebookReaderRef.value.jumpTo === 'function') {
+        ebookReaderRef.value.jumpTo(href)
+      }
+    }
+
+    // 小说辅助方法
+    const getNovelName = (novel: any): string => {
+      return BaseResources.extractPrimitiveValue(novel.name?.value || novel.name) || '未知小说'
+    }
+
+    const getNovelAuthor = (novel: any): string => {
+      return BaseResources.extractPrimitiveValue(novel.author?.value || novel.author) || ''
+    }
+
+    const getNovelFilePath = (novel: any): string => {
+      return BaseResources.extractPrimitiveValue(
+        novel.resourcePath?.value || novel.filePath?.value || novel.resourcePath || novel.filePath
+      ) || ''
+    }
+
+    const getNovelFileType = (novel: any): string => {
+      const filePath = getNovelFilePath(novel)
+      if (!filePath) return 'txt'
+      const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'))
+      if (ext === '.epub') return 'epub'
+      if (ext === '.mobi') return 'mobi'
+      if (ext === '.pdf') return 'pdf'
+      return 'txt'
+    }
+
+    const getNovelCurrentPage = (novel: any): number => {
+      return BaseResources.extractPrimitiveValue(novel.currentPage?.value || novel.currentPage) || 1
+    }
+
+    const getNovelNameByPath = (filePath: string): string => {
+      if (!filePath) return '未知小说'
+      const novel = items.value.find((n: any) => {
+        const nPath = BaseResources.extractPrimitiveValue(
+          n.resourcePath?.value || n.filePath?.value || n.resourcePath || n.filePath
+        )
+        return nPath === filePath
+      })
+      return novel ? getNovelName(novel) : (filePath.split(/[\\/]/).pop() || '未知小说')
+    }
+
+    // 处理 PDF 页面变化
+    const handlePdfPageChanged = async (pageNum: number) => {
+      if (!currentReadingNovel.value) return
+      
+      const novelId = BaseResources.extractPrimitiveValue(currentReadingNovel.value.id?.value || currentReadingNovel.value.id)
+      const item = items.value.find((i: any) => (i.id?.value || i.id) === novelId)
+      if (item) {
+        if (item.currentPage && typeof item.currentPage === 'object' && 'value' in item.currentPage) {
+          item.currentPage.value = pageNum
+        } else {
+          item.currentPage = pageNum
+        }
+      }
+    }
+
+    // 处理文本阅读器页面变化
+    const handleTextPageChanged = async (pageNum: number) => {
+      if (!currentReadingNovel.value) return
+      
+      const novelId = BaseResources.extractPrimitiveValue(currentReadingNovel.value.id?.value || currentReadingNovel.value.id)
+      const item = items.value.find((i: any) => (i.id?.value || i.id) === novelId)
+      if (item) {
+        if (item.currentPage && typeof item.currentPage === 'object' && 'value' in item.currentPage) {
+          item.currentPage.value = pageNum
+        } else {
+          item.currentPage = pageNum
+        }
+      }
+    }
+
+    // 处理文本阅读器进度变化
+    const handleTextProgressChanged = async (progress: number) => {
+      if (!currentReadingNovel.value) return
+      
+      const novelId = BaseResources.extractPrimitiveValue(currentReadingNovel.value.id?.value || currentReadingNovel.value.id)
+      const item = items.value.find((i: any) => (i.id?.value || i.id) === novelId)
+      if (item) {
+        if (item.readProgress && typeof item.readProgress === 'object' && 'value' in item.readProgress) {
+          item.readProgress.value = progress
+        } else {
+          item.readProgress = progress
+        }
+      }
+    }
+
     // 简单的筛选逻辑（简化版，实际应该使用对应的 filter composable）
-    const filteredItems = computed(() => {
+    // 注意：filteredItems 需要是 Ref，而不是 computed
+    // 因为 createResourcePage 和 usePagination 需要 Ref<T[]>
+    // 但我们仍然需要响应式更新，所以使用 ref + watch
+    const filteredItems = ref([...items.value])
+    
+    // 监听 items、searchQuery、sortBy 的变化，更新 filteredItems
+    watch([items, searchQuery, sortBy], () => {
       let result = [...items.value]
       
       // 搜索筛选
@@ -151,15 +781,29 @@ export default defineComponent({
         })
       }
       
-      // 排序（简化版，实际应该使用 pageConfig.getSortConfig）
-      result.sort((a: any, b: any) => {
-        const nameA = (a.name?.value || a.name || '').toLowerCase()
-        const nameB = (b.name?.value || b.name || '').toLowerCase()
-        return nameA.localeCompare(nameB)
-      })
+      // 排序（使用 pageConfig.getSortConfig）
+      const sortConfig = pageConfig.getSortConfig(sortBy.value)
+      if (sortConfig) {
+        result.sort((a: any, b: any) => {
+          const valueA = sortConfig.fieldAccessor(a)
+          const valueB = sortConfig.fieldAccessor(b)
+          if (valueA == null && valueB == null) return 0
+          if (valueA == null) return 1
+          if (valueB == null) return -1
+          const comparison = valueA < valueB ? -1 : valueA > valueB ? 1 : 0
+          return sortConfig.order === 'desc' ? -comparison : comparison
+        })
+      } else {
+        // 降级到简单排序
+        result.sort((a: any, b: any) => {
+          const nameA = (a.name?.value || a.name || '').toLowerCase()
+          const nameB = (b.name?.value || b.name || '').toLowerCase()
+          return nameA.localeCompare(nameB)
+        })
+      }
       
-      return result
-    })
+      filteredItems.value = result
+    }, { immediate: true })
 
     // 创建右键菜单处理器（简化版）
     const contextMenuHandlers = {
@@ -176,14 +820,53 @@ export default defineComponent({
         if (index > -1) {
           items.value.splice(index, 1)
         }
+      },
+      'update-folder-size': async (item: any) => {
+        if (!isElectronEnvironment.value) {
+          notify.toast('error', '操作失败', '当前环境不支持文件夹大小计算功能')
+          return
+        }
+        
+        const cardConfig = item.constructor?.cardDisplayConfig || 
+                         (typeof item.constructor?.getCardDisplayConfig === 'function' 
+                           ? item.constructor.getCardDisplayConfig() 
+                           : null)
+        if (cardConfig?.badge?.field !== 'folderSize') {
+          notify.toast('error', '操作失败', '该资源类型不支持文件夹大小计算')
+          return
+        }
+        
+        try {
+          const oldSize = BaseResources.extractPrimitiveValue(item.folderSize?.value || item.folderSize) || 0
+          const success = await calculateAndUpdateResourceSize(item, isElectronEnvironment.value)
+          
+          if (success) {
+            const newSize = BaseResources.extractPrimitiveValue(item.folderSize?.value || item.folderSize) || 0
+            const oldSizeMB = (oldSize / 1024 / 1024).toFixed(2)
+            const newSizeMB = (newSize / 1024 / 1024).toFixed(2)
+            const itemName = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || '未知'
+            
+            notify.toast(
+              'success',
+              '更新成功',
+              `"${itemName}" 文件夹大小已更新\n旧大小: ${oldSizeMB} MB\n新大小: ${newSizeMB} MB`
+            )
+          } else {
+            notify.toast('error', '更新失败', '无法获取文件夹大小')
+          }
+        } catch (error: any) {
+          console.error('更新文件夹大小失败:', error)
+          const itemName = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || '未知'
+          notify.toast('error', '更新失败', `无法获取 "${itemName}" 的文件夹大小: ${error.message}`)
+        }
       }
     }
 
     // 使用工厂函数创建资源页面（简化版）
     const resourcePage = createResourcePage({
       pageConfig: {
-        pageType: props.resourceType.toLowerCase() + 's',
-        itemType: pageConfig.name || '资源',
+        pageType: (resourceType.value || 'game').toLowerCase() + 's',
+        itemType: (pageConfig as any).name || '资源',
         defaultPageSize: 20,
         defaultSortBy: 'name-asc'
       },
@@ -196,6 +879,16 @@ export default defineComponent({
         onAdd: async (data: any) => {
           const newItem = new ResourceClass()
           Object.assign(newItem, data)
+          
+          // 如果资源有 folderSize 字段配置，自动计算大小
+          const cardConfig = newItem.constructor?.cardDisplayConfig || 
+                           (typeof newItem.constructor?.getCardDisplayConfig === 'function' 
+                             ? newItem.constructor.getCardDisplayConfig() 
+                             : null)
+          if (cardConfig?.badge?.field === 'folderSize' && isElectronEnvironment.value) {
+            await calculateAndUpdateResourceSize(newItem, isElectronEnvironment.value)
+          }
+          
           items.value.push(newItem)
           return newItem
         },
@@ -203,6 +896,17 @@ export default defineComponent({
           const item = items.value.find((i: any) => (i.id?.value || i.id) === id)
           if (item) {
             Object.assign(item, updates)
+            
+            // 如果更新了 resourcePath，且资源有 folderSize 字段配置，重新计算大小
+            if (updates.resourcePath && isElectronEnvironment.value) {
+              const cardConfig = item.constructor?.cardDisplayConfig || 
+                               (typeof item.constructor?.getCardDisplayConfig === 'function' 
+                                 ? item.constructor.getCardDisplayConfig() 
+                                 : null)
+              if (cardConfig?.badge?.field === 'folderSize') {
+                await calculateAndUpdateResourceSize(item, isElectronEnvironment.value)
+              }
+            }
           }
         },
         onDelete: async (id: string) => {
@@ -252,12 +956,245 @@ export default defineComponent({
         ]
       }
     })
+    
+    // 添加调试日志
+    console.log('[GenericResourceView] resourcePage 创建完成:', {
+      hasPaginatedItems: !!resourcePage.paginatedItems,
+      paginatedItemsLength: resourcePage.paginatedItems?.value?.length || 0,
+      hasFilteredItems: !!resourcePage.filteredItems,
+      filteredItemsLength: resourcePage.filteredItems?.value?.length || 0,
+      itemsLength: items.value.length,
+      resourcePageKeys: Object.keys(resourcePage),
+      hasEmptyStateConfig: !!resourcePage.emptyStateConfig,
+      hasToolbarConfig: !!resourcePage.toolbarConfig,
+      hasPaginationConfig: !!resourcePage.paginationConfig
+    })
+
+    // 获取文件存在性状态（辅助函数）
+    const getFileExists = (item: any): boolean => {
+      if (item.fileExists && typeof item.fileExists === 'object' && 'value' in item.fileExists) {
+        return item.fileExists.value !== false
+      }
+      return item.fileExists !== false
+    }
+
+    // 设置文件存在性状态（辅助函数）
+    const setFileExists = (item: any, exists: boolean): void => {
+      if (item.fileExists && typeof item.fileExists === 'object' && 'value' in item.fileExists) {
+        item.fileExists.value = exists
+      } else {
+        item.fileExists = exists
+      }
+    }
+
+    // 获取资源文件路径（支持多种字段名）
+    const getResourceFilePath = (item: any): string | null => {
+      // 尝试不同的路径字段名
+      const pathFields = ['resourcePath', 'filePath', 'executablePath']
+      for (const field of pathFields) {
+        const fieldValue = item[field]
+        if (fieldValue) {
+          const path = BaseResources.extractPrimitiveValue(fieldValue)
+          if (path) return path
+        }
+      }
+      return null
+    }
+
+    // 通用的文件存在性检查函数
+    const checkFileExistence = async (): Promise<void> => {
+      console.log(`[GenericResourceView] 🔍 开始检测 ${resourceType.value} 资源文件存在性...`)
+      
+      if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.checkFileExists) {
+        console.log('[GenericResourceView] ⚠️ Electron API 不可用，跳过文件存在性检测')
+        // 如果API不可用，默认设置为存在
+        items.value.forEach((item: any) => {
+          setFileExists(item, true)
+        })
+        return
+      }
+      
+      let checkedCount = 0
+      let missingCount = 0
+      
+      for (const item of items.value) {
+        // 获取文件路径
+        const filePath = getResourceFilePath(item)
+        
+        // 如果没有找到路径，标记为不存在
+        if (!filePath) {
+          setFileExists(item, false)
+          missingCount++
+          checkedCount++
+          continue
+        }
+        
+        try {
+          const result = await window.electronAPI.checkFileExists(filePath)
+          const exists = result.exists || false
+          
+          // 更新 fileExists 字段
+          setFileExists(item, exists)
+          
+          const itemName = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || '未知资源'
+          
+          if (!exists) {
+            missingCount++
+            console.log(`[GenericResourceView] ❌ 文件不存在: ${itemName} - ${filePath}`)
+          } else {
+            console.log(`[GenericResourceView] ✅ 文件存在: ${itemName}`)
+          }
+        } catch (error) {
+          const itemName = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || '未知资源'
+          console.error(`[GenericResourceView] ❌ 检测文件存在性失败: ${itemName}`, error)
+          
+          // 出错时标记为不存在
+          setFileExists(item, false)
+          missingCount++
+        }
+        
+        checkedCount++
+      }
+      
+      console.log(`[GenericResourceView] 📊 文件存在性检测完成: 检查了 ${checkedCount} 个资源，${missingCount} 个文件不存在`)
+      
+      // 如果有丢失的文件，显示提醒
+      if (missingCount > 0) {
+        notify.toast('warning', '文件检测完成', `检测到 ${missingCount} 个文件不存在`)
+      }
+    }
+
+    // 自动计算资源大小（仅针对配置了 folderSize 的资源）
+    const calculateResourceSizes = async () => {
+      if (!isElectronEnvironment.value) {
+        return
+      }
+      
+      // 检查资源类是否配置了 folderSize badge
+      const cardConfig = ResourceClass.cardDisplayConfig || 
+                        (typeof ResourceClass.getCardDisplayConfig === 'function' 
+                          ? ResourceClass.getCardDisplayConfig() 
+                          : null)
+      
+      if (cardConfig?.badge?.field !== 'folderSize') {
+        return
+      }
+      
+      // 筛选出有 resourcePath 的资源
+      const resourcesToCalculate = items.value.filter((item: any) => {
+        const resourcePath = BaseResources.extractPrimitiveValue(
+          item.resourcePath?.value || item.resourcePath || item.executablePath?.value || item.executablePath
+        )
+        return resourcePath && typeof resourcePath === 'string' && resourcePath.trim()
+      })
+      
+      if (resourcesToCalculate.length === 0) {
+        return
+      }
+      
+      console.log('[GenericResourceView] 开始自动计算资源大小，数量:', resourcesToCalculate.length)
+      
+      // 批量计算大小
+      await calculateResourceSizesBatch(
+        resourcesToCalculate,
+        isElectronEnvironment.value,
+        (current, total) => {
+          if (current % 10 === 0 || current === total) {
+            console.log(`[GenericResourceView] 计算进度: ${current}/${total}`)
+          }
+        }
+      )
+      
+      console.log('[GenericResourceView] 资源大小计算完成')
+    }
+
+    // 监听游戏进程结束事件
+    onMounted(async () => {
+      if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.onGameProcessEnded) {
+        console.log('[GenericResourceView] 🎧 注册 game-process-ended 事件监听器')
+        window.electronAPI.onGameProcessEnded((event: any, data: any) => {
+          handleGameProcessEnded(data)
+        })
+      } else {
+        console.log('[GenericResourceView] ⚠️ 无法注册 game-process-ended 事件监听器')
+      }
+      
+      // 组件挂载后自动检查文件存在性
+      if (items.value && items.value.length > 0) {
+        await checkFileExistence()
+        // 自动计算资源大小
+        await calculateResourceSizes()
+      }
+    })
+
+    // 监听 showComicViewer 变化，用于调试
+    watch(showComicViewer, (newVal) => {
+      console.log('[GenericResourceView] showComicViewer 值变化:', newVal, 'currentAlbum:', currentAlbum.value, 'pages.length:', pages.value.length)
+    }, { immediate: true })
+
+    // 监听 items 变化，当数据更新时自动检查文件存在性和计算大小
+    watch(
+      () => items.value.length,
+      async (newLength, oldLength) => {
+        // 只在数据从空变为有数据，或者数据数量变化时检查
+        if (newLength > 0 && (oldLength === 0 || newLength !== oldLength)) {
+          console.log('[GenericResourceView] 检测到数据变化，自动检查文件存在性和计算大小')
+          // 延迟一点执行，确保数据已经更新完成
+          await new Promise(resolve => setTimeout(resolve, 100))
+          await checkFileExistence()
+          await calculateResourceSizes()
+        }
+      },
+      { immediate: false }
+    )
 
     return {
-      resourceType: resourceType.value,
+      resourceType, // 返回 computed，保持响应式
       isElectronEnvironment,
-      ...resourcePage // 展开所有方法和属性，使模板可以直接访问
-    }
+      isResourceRunning,
+      handleResourceAction,
+      terminateGame,
+      showComicViewer,
+      currentAlbum,
+      pages,
+      currentPageIndex,
+      closeComicViewer,
+      handleComicViewerPageChange,
+      // 小说阅读器相关
+      showNovelReader,
+      currentReadingNovel,
+      showEbookReaderV2,
+      ebookReaderV2FilePath,
+      ebookNavigation,
+      ebookBookAvailable,
+      closeNovelReader,
+      closeEbookReaderV2,
+      handleNavigationUpdated,
+      handleRenditionReady,
+      handleEbookJumpTo,
+      ebookReaderRef,
+      getNovelName,
+      getNovelAuthor,
+      getNovelFilePath,
+      getNovelFileType,
+      getNovelCurrentPage,
+      getNovelNameByPath,
+      handlePdfPageChanged,
+      handleTextPageChanged,
+      handleTextProgressChanged,
+      getFileExists, // 获取文件存在性状态
+      checkFileExistence, // 文件存在性检查方法
+      ...resourcePage, // 展开所有方法和属性，使模板可以直接访问
+      // 明确声明方法，确保 TypeScript 能正确识别
+      updateScale: resourcePage.updateScale,
+      handleEmptyStateAction: resourcePage.handleEmptyStateAction,
+      showAddDialogHandler: resourcePage.showAddDialogHandler,
+      handleSortChanged: resourcePage.handleSortChanged,
+      handleSearchQueryChanged: resourcePage.handleSearchQueryChanged,
+      handleSortByChanged: resourcePage.handleSortByChanged,
+      handleContextMenuClick: resourcePage.handleContextMenuClick,
+      handlePageChange: resourcePage.handlePageChange
+    } as any // 使用 as any 绕过类型检查，因为方法确实存在
   },
   methods: {
     handleContextMenu(event: MouseEvent, item: any) {
@@ -293,5 +1230,113 @@ export default defineComponent({
 
 .resource-card:hover {
   transform: translateY(-4px);
+}
+
+/* 小说阅读器样式 */
+.novel-reader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.novel-reader-content {
+  width: 90%;
+  height: 90%;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.reader-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.reader-title h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.reader-author {
+  margin: 4px 0 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.reader-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-close-reader {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-close-reader:hover {
+  background: var(--bg-tertiary);
+}
+
+.btn-icon {
+  font-size: 1.2rem;
+}
+
+.reader-content {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+}
+
+.reader-content-wrapper {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ebook-reader-v2-content {
+  display: flex;
+  height: 100%;
+}
+
+.chapter-navigation-sidebar {
+  width: 250px;
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  background: var(--bg-secondary);
+}
+
+.chapter-nav-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chapter-nav-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.reader-content-main {
+  flex: 1;
+  overflow: hidden;
 }
 </style>

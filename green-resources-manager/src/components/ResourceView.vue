@@ -59,7 +59,12 @@ export default defineComponent({
 
     // 决定是否使用通用组件（根据配置自动生成）
     // 如果页面配置中有 useGenericView 标记，或者类型在支持列表中，使用通用组件
+    // 测试页面（test-game）强制使用通用组件
     const useGenericView = computed(() => {
+      // 测试页面强制使用通用组件
+      if (props.pageConfig?.id === 'test-game') {
+        return true
+      }
       // TODO: 未来可以根据配置决定是否使用通用组件
       // 目前先使用具体组件，确保功能正常
       return false; // 暂时默认使用具体组件

@@ -97,4 +97,26 @@ export class Website extends BaseResources {
 	static getDefaultIcon() {
 		return './default-image.png'
 	}
+
+	// 静态配置：卡片显示配置
+	static cardDisplayConfig = {
+		title: 'name', // 标题：使用 name 字段
+		subtitle: 'description', // 副标题：描述字段
+		tags: 'tags', // 标签字段
+		maxTags: 3, // 最多显示 3 个标签
+		stats: [
+			{
+				type: 'count' as const,
+				field: 'visitCount',
+				label: '访问',
+				formatter: 'formatVisitCount'
+			},
+			{
+				type: 'date' as const,
+				field: 'lastVisited',
+				label: '',
+				formatter: 'formatLastVisited'
+			}
+		]
+	}
 }

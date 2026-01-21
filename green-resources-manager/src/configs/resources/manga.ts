@@ -120,4 +120,27 @@ export class Manga extends BaseResources {
 	static getDefaultIcon() {
 		return './default-image.png'
 	}
+
+	// 静态配置：卡片显示配置
+	static cardDisplayConfig = {
+		title: 'name', // 标题：使用 name 字段
+		subtitle: 'description', // 副标题：作者字段
+		extra: 'author', // 额外信息：描述字段
+		tags: 'tags', // 标签字段
+		maxTags: 3, // 最多显示 3 个标签
+		stats: [
+			{
+				type: 'count' as const,
+				field: 'viewCount',
+				label: '浏览',
+				formatter: 'formatViewCount'
+			},
+			{
+				type: 'date' as const,
+				field: 'lastViewed',
+				label: '',
+				formatter: 'formatLastViewed'
+			}
+		]
+	}
 }

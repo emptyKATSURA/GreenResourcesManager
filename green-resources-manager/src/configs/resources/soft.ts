@@ -111,4 +111,28 @@ export class Software extends BaseResources {
 	static getDefaultIcon() {
 		return './default-game.png'
 	}
+
+	// 静态配置：卡片显示配置
+	static cardDisplayConfig = {
+		title: 'name', // 标题：使用 name 字段
+		subtitle: 'developer', // 副标题：开发商字段
+		extra: 'description', // 额外信息：描述字段
+		tags: 'tags', // 标签字段
+		maxTags: 9, // 最多显示 9 个标签
+		stats: [
+			{
+				type: 'text' as const,
+				field: 'playTime',
+				label: '总时长:',
+				formatter: 'formatPlayTime'
+			},
+			{
+				type: 'text' as const,
+				field: 'lastPlayed',
+				label: '',
+				formatter: 'formatLastPlayed',
+				showRunningStatus: true // 显示运行状态
+			}
+		]
+	}
 }

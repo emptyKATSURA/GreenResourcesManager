@@ -47,37 +47,83 @@
       </div>
     </div>
     <div class="media-info">
-      <h3 class="media-title" v-if="scale >= 30 || (type === 'game' && exeIcon && scale >= 20)">
+      <h3 class="media-title" v-if="scale >= 30 || (cardDisplayConfig?.showExeIcon && exeIcon && scale >= 20)">
         <img 
-          v-if="type === 'game' && exeIcon && scale >= 20" 
+          v-if="cardDisplayConfig?.showExeIcon && exeIcon && scale >= 20" 
           :src="exeIcon" 
           class="exe-icon"
           alt=""
           loading="lazy"
         >
-        <span v-if="scale >= 30" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">{{ displayName }}</span>
+        <span v-if="scale >= 30" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">{{ cardTitle || displayName }}</span>
       </h3>
       
-      <!-- 游戏特有信息 -->
-      <template v-if="type === 'game'">
-        <p class="media-subtitle" v-if="scale >= 50">{{ itemDeveloper }}</p>
-        <p class="media-tertiary" v-if="itemPublisher && itemPublisher !== '未知发行商' && scale >= 50">{{ itemPublisher }}</p>
-        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
-        <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <fun-tag 
-            v-for="tag in displayTags.slice(0, 9)" 
-            :key="tag" 
-            :text="tag"
-          />
-          <span v-if="displayTags.length > 9" class="media-tag-more">+{{ displayTags.length - 9 }}</span>
+      <!-- 配置驱动的通用信息显示 -->
+      <!-- 副标题 -->
+      <!-- 如果是数组，用标签显示 -->
+      <div class="media-tags" v-if="Array.isArray(cardSubtitle) && cardSubtitle.length > 0 && scale >= 50">
+        <fun-tag 
+          v-for="(item, index) in cardSubtitle" 
+          :key="index" 
+          :text="item"
+        />
+      </div>
+      <!-- 如果是字符串，正常显示 -->
+      <p class="media-subtitle" v-else-if="cardSubtitle && !Array.isArray(cardSubtitle) && scale >= 50">{{ cardSubtitle }}</p>
+      
+      <!-- 额外信息 -->
+      <!-- 如果是数组，用标签显示 -->
+      <div class="media-tags" v-if="Array.isArray(cardExtra) && cardExtra.length > 0 && scale >= 50">
+        <fun-tag 
+          v-for="(item, index) in cardExtra" 
+          :key="index" 
+          :text="item"
+        />
+      </div>
+      <!-- 如果是字符串，正常显示 -->
+      <p class="media-tertiary" v-else-if="cardExtra && !Array.isArray(cardExtra) && scale >= 50">{{ cardExtra }}</p>
+      
+      <!-- 描述（如果 subtitle 和 extra 都不是 description，则显示 description） -->
+      <p class="media-description" v-if="cardDescription && scale >= 50">{{ cardDescription }}</p>
+      
+      <!-- 标签 -->
+      <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
+        <fun-tag 
+          v-for="tag in displayTags.slice(0, maxDisplayTags)" 
+          :key="tag" 
+          :text="tag"
+        />
+        <span v-if="displayTags.length > maxDisplayTags" class="media-tag-more">+{{ displayTags.length - maxDisplayTags }}</span>
+      </div>
+      
+      <!-- 特殊项（如演员列表等） -->
+      <template v-for="specialItem in cardSpecialItems" :key="specialItem.field">
+        <div class="media-actors" v-if="getSpecialItemValue(specialItem) && scale >= 50">
+          <span class="actors-label">{{ specialItem.label }}</span>
+          <span class="actors-list">{{ formatSpecialItem(specialItem) }}</span>
         </div>
-        <div class="media-stats" v-if="scale >= 40">
-          <span class="stat-item">
-            <span class="play-time-label">总时长:</span>
-            {{ formatPlayTime(item.playTime) }}
-          </span>
-          <span class="stat-item" :class="{ 'running-status': isRunning }">
-            <span v-if="isRunning" class="running-info">
+      </template>
+      
+      <!-- 进度条（如果有配置） -->
+      <div class="media-stats" v-if="cardProgress && scale >= 40">
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: (cardProgressValue || 0) + '%' }"></div>
+        </div>
+        <div class="stats-row" v-if="cardProgressText">
+          <span class="stat-item">{{ cardProgressText }}</span>
+        </div>
+      </div>
+      
+      <!-- 统计信息（根据配置动态渲染） -->
+      <div class="media-stats" v-if="cardStats.length > 0 && scale >= 40">
+        <template v-for="(stat, index) in cardStats" :key="index">
+          <span 
+            v-if="stat.rendered" 
+            class="stat-item" 
+            :class="{ 'running-status': stat.showRunningStatus && isRunning }"
+          >
+            <span v-if="stat.label" class="stat-label">{{ stat.label }}</span>
+            <span v-if="stat.showRunningStatus && isRunning" class="running-info">
               <span class="running-indicator">
                 <span class="running-icon">▶️</span>
                 <span class="running-text">运行中</span>
@@ -86,129 +132,10 @@
                 本次: {{ formatPlayTime(sessionDuration) }}
               </span>
             </span>
-            <span v-else>{{ formatLastPlayed(item.lastPlayed) }}</span>
+            <span v-else>{{ stat.rendered }}</span>
           </span>
-        </div>
-      </template>
-      
-      <!-- 图片特有信息 -->
-      <template v-if="type === 'image'">
-        <p class="media-subtitle" v-if="itemAuthor && scale >= 50">{{ itemAuthor }}</p>
-        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
-        <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <fun-tag 
-            v-for="tag in displayTags.slice(0, 3)" 
-            :key="tag" 
-            :text="tag"
-          />
-          <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
-        </div>
-        <div class="media-stats" v-if="scale >= 40">
-          <span class="stat-item">{{ formatLastViewed(item.lastViewed) }}</span>
-        </div>
-      </template>
-      
-      <!-- 小说特有信息 -->
-      <template v-if="type === 'novel'">
-        <p class="media-subtitle" v-if="itemAuthor && scale >= 50">{{ itemAuthor }}</p>
-        <p class="media-tertiary" v-if="itemGenre && scale >= 50">{{ itemGenre }}</p>
-        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
-        <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <fun-tag 
-            v-for="tag in displayTags.slice(0, 3)" 
-            :key="tag" 
-            :text="tag"
-          />
-          <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
-        </div>
-        <div class="media-stats" v-if="scale >= 40">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: (item.readProgress || 0) + '%' }"></div>
-          </div>
-          <div class="stats-row">
-            <span class="stat-item">{{ item.readProgress || 0 }}%</span>
-            <span class="stat-item">{{ formatReadTime(item.readTime) }}</span>
-          </div>
-          <div class="last-read">
-            <span>{{ formatLastRead(item.lastRead) }}</span>
-          </div>
-        </div>
-      </template>
-      
-      <!-- 视频特有信息 -->
-      <template v-if="type === 'video'">
-        <p class="media-subtitle" v-if="itemSeries && scale >= 50">{{ itemSeries }}</p>
-        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
-        <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <fun-tag 
-            v-for="tag in displayTags.slice(0, 3)" 
-            :key="tag" 
-            :text="tag"
-          />
-          <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
-        </div>
-        <div class="media-actors" v-if="item.actors && item.actors.length > 0 && scale >= 50">
-          <span class="actors-label">演员:</span>
-          <span class="actors-list">{{ item.actors.slice(0, 2).join(', ') }}</span>
-          <span v-if="item.actors.length > 2" class="actors-more">等{{ item.actors.length }}人</span>
-        </div>
-        <div class="media-stats" v-if="scale >= 40">
-          <div class="stats-row">
-            <span class="watch-count">观看 {{ item.watchCount || 0 }} 次</span>
-            <span class="last-watched">{{ formatLastWatched(item.lastWatched) }}</span>
-          </div>
-        </div>
-      </template>
-      
-      <!-- 音频特有信息 -->
-      <template v-if="type === 'audio'">
-        <p class="media-subtitle" v-if="item.artist && scale >= 50">{{ item.artist }}</p>
-        <p class="media-description" v-if="item.notes && scale >= 50">{{ item.notes }}</p>
-        <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <fun-tag 
-            v-for="tag in displayTags.slice(0, 3)" 
-            :key="tag" 
-            :text="tag"
-          />
-          <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
-        </div>
-        <div class="media-actors" v-if="item.actors && item.actors.length > 0 && scale >= 50">
-          <span class="actors-label">演员:</span>
-          <span class="actors-list">{{ item.actors.slice(0, 2).join(', ') }}</span>
-          <span v-if="item.actors.length > 2" class="actors-more">等{{ item.actors.length }}人</span>
-        </div>
-        <div class="media-stats" v-if="scale >= 40">
-          <div class="stats-row">
-            <span class="play-count">播放 {{ item.playCount || 0 }} 次</span>
-            <span class="last-played">{{ formatLastPlayed(item.lastPlayed) }}</span>
-          </div>
-        </div>
-      </template>
-      
-      <!-- 文件夹特有信息 -->
-      <template v-if="type === 'folder'">
-        <p class="media-subtitle" v-if="itemSeries && scale >= 50">{{ itemSeries }}</p>
-        <p class="media-description" v-if="itemDescription && scale >= 50">{{ itemDescription }}</p>
-        <div class="media-tags" v-if="displayTags.length > 0 && scale >= 40">
-          <fun-tag 
-            v-for="tag in displayTags.slice(0, 3)" 
-            :key="tag" 
-            :text="tag"
-          />
-          <span v-if="displayTags.length > 3" class="media-tag-more">+{{ displayTags.length - 3 }}</span>
-        </div>
-        <div class="media-actors" v-if="item.actors && item.actors.length > 0 && scale >= 50">
-          <span class="actors-label">演员:</span>
-          <span class="actors-list">{{ item.actors.slice(0, 2).join(', ') }}</span>
-          <span v-if="item.actors.length > 2" class="actors-more">等{{ item.actors.length }}人</span>
-        </div>
-        <div class="media-stats" v-if="scale >= 40">
-          <div class="stats-row">
-            <span class="stat-item">{{ item.videoCount || 0 }} 个视频</span>
-            <span class="stat-item">{{ formatAddedDate(item.addedDate) }}</span>
-          </div>
-        </div>
-      </template>
+        </template>
+      </div>
     </div>
   </fun-card>
 </template>
@@ -273,6 +200,79 @@ function getDisplayTexts(item) {
   }
   // 否则返回默认配置
   return BaseResources.getDisplayTexts()
+}
+
+/**
+ * 获取资源类的卡片显示配置
+ * @param item - 资源实例
+ * @returns 卡片显示配置
+ */
+function getCardDisplayConfig(item) {
+  if (!item) {
+    return null
+  }
+  
+  if (item.constructor) {
+    // 优先使用 getCardDisplayConfig 静态方法
+    if (typeof item.constructor.getCardDisplayConfig === 'function') {
+      const methodResult = item.constructor.getCardDisplayConfig()
+      // 如果方法返回的不是 null，使用方法的返回值
+      if (methodResult !== null) {
+        return methodResult
+      }
+    }
+    // 如果方法返回 null 或不存在，尝试直接访问 cardDisplayConfig 静态属性
+    if (item.constructor.cardDisplayConfig) {
+      return item.constructor.cardDisplayConfig
+    }
+    // 检查原型链
+    let proto = Object.getPrototypeOf(item.constructor)
+    while (proto && proto !== Object) {
+      if (proto.cardDisplayConfig) {
+        return proto.cardDisplayConfig
+      }
+      proto = Object.getPrototypeOf(proto)
+    }
+  }
+  return null
+}
+
+/**
+ * 获取嵌套字段值（支持 'developers.0' 这样的路径）
+ * @param item - 资源实例
+ * @param fieldPath - 字段路径
+ * @returns 字段值
+ */
+function getNestedFieldValue(item, fieldPath) {
+  if (!item || !fieldPath) return null
+  
+  const parts = fieldPath.split('.')
+  let value = item
+  
+  for (const part of parts) {
+    if (value == null) return null
+    value = getFieldValue(value[part])
+  }
+  
+  return value
+}
+
+/**
+ * 从字段列表中获取第一个有值的字段
+ * @param item - 资源实例
+ * @param fields - 字段名列表
+ * @returns 第一个有值的字段值
+ */
+function getFirstAvailableField(item, fields) {
+  if (!fields || !Array.isArray(fields)) return null
+  
+  for (const field of fields) {
+    const value = getNestedFieldValue(item, field)
+    if (value != null && value !== '') {
+      return value
+    }
+  }
+  return null
 }
 
 export default {
@@ -360,9 +360,153 @@ export default {
       return getFieldValue(this.item.name)
     },
     
-    // 获取显示的标签（支持伪装模式）
+    // 获取卡片显示配置
+    cardDisplayConfig() {
+      return getCardDisplayConfig(this.item)
+    },
+    
+    // 获取标题（根据配置，默认使用 name）
+    cardTitle() {
+      const config = this.cardDisplayConfig
+      if (config && config.title) {
+        return getNestedFieldValue(this.item, config.title)
+      }
+      // 默认使用 name 字段
+      return getFieldValue(this.item.name)
+    },
+    
+    // 获取副标题（根据配置）
+    cardSubtitle() {
+      const config = this.cardDisplayConfig
+      if (!config || !config.subtitle) return null
+      const value = getNestedFieldValue(this.item, config.subtitle)
+      
+      // 如果没有值或值为空，返回 null（不显示）
+      if (value == null || value === '') return null
+      
+      // 如果是数组，返回数组（用于标签显示）
+      if (Array.isArray(value)) {
+        return value.length > 0 ? value : null
+      }
+      
+      // 字符串直接返回
+      return String(value)
+    },
+    
+    // 获取额外信息（根据配置，替代原来的 tertiary）
+    cardExtra() {
+      const config = this.cardDisplayConfig
+      if (!config || !config.extra) return null
+      
+      const value = getNestedFieldValue(this.item, config.extra)
+      
+      // 如果没有值或值为空，返回 null（不显示）
+      if (value == null || value === '') return null
+      
+      // 如果是数组，返回数组（用于标签显示）
+      if (Array.isArray(value)) {
+        return value.length > 0 ? value : null
+      }
+      
+      // 字符串直接返回
+      return String(value)
+    },
+    
+    // 获取描述（根据配置，如果 subtitle 或 extra 不是 description，则显示 description）
+    cardDescription() {
+      const config = this.cardDisplayConfig
+      // 如果没有配置，使用默认的 description 字段
+      if (!config) {
+        return getFieldValue(this.item.description)
+      }
+      
+      // 如果 subtitle 或 extra 已经是 description，就不重复显示
+      if (config.subtitle === 'description' || config.extra === 'description') {
+        return null
+      }
+      
+      // 否则显示 description 字段
+      const desc = getFieldValue(this.item.description)
+      return desc && desc !== '' ? desc : null
+    },
+    
+    // 获取最大标签显示数量
+    maxDisplayTags() {
+      const config = this.cardDisplayConfig
+      return config?.maxTags || 3
+    },
+    
+    // 获取特殊项列表
+    cardSpecialItems() {
+      const config = this.cardDisplayConfig
+      return config?.specialItems || []
+    },
+    
+    // 获取进度条配置
+    cardProgress() {
+      const config = this.cardDisplayConfig
+      return config?.progress || null
+    },
+    
+    // 获取进度条值
+    cardProgressValue() {
+      const progress = this.cardProgress
+      if (!progress) return null
+      const value = getNestedFieldValue(this.item, progress.field)
+      return value != null ? Number(value) : 0
+    },
+    
+    // 获取进度条文本
+    cardProgressText() {
+      const progress = this.cardProgress
+      if (!progress || !progress.textField) return null
+      const value = getNestedFieldValue(this.item, progress.textField)
+      const progressValue = this.cardProgressValue
+      const unit = progress.unit || '%'
+      return value || `${progressValue}${unit}`
+    },
+    
+    // 获取统计信息列表（已渲染）
+    cardStats() {
+      const config = this.cardDisplayConfig
+      if (!config || !config.stats || !Array.isArray(config.stats)) {
+        return []
+      }
+      
+      return config.stats.map(statConfig => {
+        const fieldValue = getNestedFieldValue(this.item, statConfig.field)
+        let rendered = ''
+        
+        if (statConfig.render) {
+          // 使用自定义渲染函数
+          rendered = statConfig.render(fieldValue, this.item)
+        } else if (statConfig.formatter) {
+          // 使用格式化函数
+          const formatter = this[statConfig.formatter]
+          if (typeof formatter === 'function') {
+            rendered = formatter(fieldValue)
+          } else {
+            rendered = String(fieldValue || '')
+          }
+        } else {
+          // 默认显示
+          rendered = String(fieldValue || '')
+        }
+        
+        return {
+          ...statConfig,
+          rendered,
+          value: fieldValue
+        }
+      }).filter(stat => stat.rendered !== '' && stat.rendered != null)
+    },
+    
+    // 获取显示的标签（支持伪装模式和配置）
     displayTags() {
-      const tags = getFieldValue(this.item.tags)
+      const config = this.cardDisplayConfig
+      const tagsField = config?.tags || 'tags'
+      const tags = getNestedFieldValue(this.item, tagsField)
+      
       if (!tags || tags.length === 0) {
         return []
       }
@@ -393,6 +537,57 @@ export default {
       return tags
     },
     badgeText() {
+      const config = this.cardDisplayConfig
+      
+      // 优先使用配置的 badge
+      if (config && config.badge) {
+        // folderSize 可能是普通属性，不是 ResourceField
+        // 先尝试直接访问，如果是 ResourceField 就用 getFieldValue，否则直接使用
+        let fieldValue = null
+        const rawField = this.item[config.badge.field]
+        
+        if (rawField != null) {
+          // 如果是 ResourceField，使用 getFieldValue 提取值
+          if (rawField instanceof ResourceField) {
+            fieldValue = getFieldValue(rawField)
+          } else {
+            // 否则直接使用
+            fieldValue = rawField
+          }
+        }
+        
+        // 如果直接访问失败，尝试用 getNestedFieldValue（支持嵌套路径）
+        if (fieldValue == null) {
+          fieldValue = getNestedFieldValue(this.item, config.badge.field)
+        }
+        
+        console.log('[MediaCard] badgeText - 字段值:', {
+          field: config.badge.field,
+          fieldValue,
+          rawValue: rawField,
+          isResourceField: rawField instanceof ResourceField,
+          itemId: getFieldValue(this.item.id)
+        })
+        
+        if (config.badge.render) {
+          // 使用自定义渲染函数
+          const result = config.badge.render(fieldValue, this.item)
+          return result
+        } else if (config.badge.formatter) {
+          // 使用格式化函数
+          const formatter = this[config.badge.formatter]
+          if (typeof formatter === 'function') {
+            const result = formatter(fieldValue)
+            console.log('[MediaCard] badgeText - 格式化结果:', result)
+            return result
+          }
+        }
+        
+        // 如果没有格式化函数，返回字段值
+        return fieldValue != null ? String(fieldValue) : ''
+      }
+      
+      // 如果没有配置，使用旧的类型判断逻辑（向后兼容）
       if (this.type === 'game') {
         return this.formatFolderSize(getFieldValue(this.item.folderSize))
       } else if (this.type === 'image') {
@@ -433,8 +628,14 @@ export default {
     },
     // 获取 exe 图标
     exeIcon() {
+      const config = this.cardDisplayConfig
+      // 只有配置了 showExeIcon 才显示
+      if (!config?.showExeIcon) {
+        return null
+      }
+      
       const executablePath = getExecutablePath(this.item)
-      if (this.type !== 'game' || !executablePath) {
+      if (!executablePath) {
         return null
       }
       
@@ -454,12 +655,14 @@ export default {
       // 加载逻辑移到 mounted 和 watch 中
       return null
     },
-    // 获取本次游玩时间（仅在游戏运行时）
+    // 获取本次游玩时间（仅在资源运行时且配置了运行状态显示）
     sessionDuration() {
       // 依赖 updateTrigger 确保响应式更新
       void this.updateTrigger
       
-      if (this.type !== 'game' || !this.isRunning || !this.item?.id || !this.gameRunningStore) {
+      const config = this.cardDisplayConfig
+      const hasRunningStatus = config?.stats?.some(stat => stat.showRunningStatus)
+      if (!hasRunningStatus || !this.isRunning || !this.item?.id || !this.gameRunningStore) {
         return 0
       }
       
@@ -526,6 +729,33 @@ export default {
     }
   },
   methods: {
+    // 获取特殊项的值
+    getSpecialItemValue(specialItem) {
+      const value = getNestedFieldValue(this.item, specialItem.field)
+      if (specialItem.isArray) {
+        return Array.isArray(value) && value.length > 0 ? value : null
+      }
+      return value != null && value !== '' ? value : null
+    },
+    
+    // 格式化特殊项显示
+    formatSpecialItem(specialItem) {
+      const value = getNestedFieldValue(this.item, specialItem.field)
+      if (!value) return ''
+      
+      if (specialItem.isArray && Array.isArray(value)) {
+        const maxItems = specialItem.maxArrayItems || 2
+        const join = specialItem.arrayJoin || ', '
+        const displayItems = value.slice(0, maxItems)
+        let result = displayItems.join(join)
+        if (value.length > maxItems) {
+          result += `等${value.length}人`
+        }
+        return result
+      }
+      
+      return String(value)
+    },
     formatPlayTime,
     // 包装 formatLastPlayed，使其使用配置
     formatLastPlayed(dateString) {
@@ -567,6 +797,10 @@ export default {
       if (diffDays < 7) return `${diffDays}天前`
       if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`
       return this.formatDateTime(date)
+    },
+    formatViewCount(count) {
+      if (!count || count === 0) return '未浏览'
+      return `已浏览 ${count} 次`
     },
     formatLastViewed(dateString) {
       const texts = getDisplayTexts(this.item)
@@ -1049,26 +1283,30 @@ export default {
     
     // 延迟加载 exe 图标，避免同时加载太多图标导致卡顿
     // 使用 setTimeout 分批加载，减少并发压力
-    const executablePath = getExecutablePath(this.item)
-    if (this.type === 'game' && executablePath) {
-      const ext = executablePath.toLowerCase().split('.').pop()
-      if (ext === 'exe') {
-        // 随机延迟 0-500ms，分散加载时间
-        const delay = Math.random() * 500
-        setTimeout(() => {
-          this.loadExeIcon()
-        }, delay)
+    const cardConfig = getCardDisplayConfig(this.item)
+    if (cardConfig?.showExeIcon) {
+      const executablePath = getExecutablePath(this.item)
+      if (executablePath) {
+        const ext = executablePath.toLowerCase().split('.').pop()
+        if (ext === 'exe') {
+          // 随机延迟 0-500ms，分散加载时间
+          const delay = Math.random() * 500
+          setTimeout(() => {
+            this.loadExeIcon()
+          }, delay)
+        }
       }
     }
     
-    // 如果游戏正在运行，启动定时器实时更新会话时长显示
-    if (this.type === 'game' && this.isRunning) {
+    // 如果资源正在运行且配置了运行状态显示，启动定时器实时更新会话时长显示
+    const hasRunningStatus = cardConfig?.stats?.some(stat => stat.showRunningStatus)
+    if (hasRunningStatus && this.isRunning) {
       this.sessionUpdateTimer = setInterval(() => {
         this.updateTrigger = Date.now()
       }, 1000) // 每秒更新一次
     }
     
-    // 如果游戏没有封面，尝试从截图文件夹读取第一张图片
+    // 如果游戏没有封面，尝试从截图文件夹读取第一张图片（保持向后兼容）
     if (this.type === 'game' && !getFieldValue(this.item.coverPath)) {
       // 延迟加载，避免阻塞渲染
       setTimeout(() => {
@@ -1090,14 +1328,16 @@ export default {
   watch: {
     // 监听 isRunning 变化，动态启动/停止定时器
     isRunning(newVal) {
-      if (this.type === 'game') {
+      const config = getCardDisplayConfig(this.item)
+      const hasRunningStatus = config?.stats?.some(stat => stat.showRunningStatus)
+      if (hasRunningStatus) {
         if (newVal && !this.sessionUpdateTimer) {
-          // 游戏开始运行，启动定时器
+          // 资源开始运行，启动定时器
           this.sessionUpdateTimer = setInterval(() => {
             this.updateTrigger = Date.now()
           }, 1000)
         } else if (!newVal && this.sessionUpdateTimer) {
-          // 游戏停止运行，清理定时器
+          // 资源停止运行，清理定时器
           clearInterval(this.sessionUpdateTimer)
           this.sessionUpdateTimer = null
         }

@@ -49,6 +49,15 @@ export abstract class BaseResources {
 	}
 
 	/**
+	 * 静态方法：获取卡片显示配置
+	 * 子类可以覆盖此方法来自定义卡片显示
+	 * @returns 卡片显示配置
+	 */
+	static getCardDisplayConfig(): any {
+		return null // 默认无配置，子类需要实现
+	}
+
+	/**
 	 * 静态方法：获取默认图标路径
 	 * 子类可以覆盖此方法来自定义默认图标
 	 * @returns 默认图标路径

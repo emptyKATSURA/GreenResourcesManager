@@ -64,6 +64,15 @@ export interface ActionHandlerContext {
   
   // 显示阅读器的方法（用于图片/漫画资源）
   showComicViewer?: (show: boolean) => void
+  
+  // 小说阅读器相关方法
+  setCurrentNovel?: (novel: any) => void
+  showNovelReader?: (show: boolean) => void
+  showEbookReaderV2?: (show: boolean) => void
+  setEbookReaderV2FilePath?: (filePath: string) => void
+  getGlobalSettings?: () => Promise<any>
+  getFileType?: (filePath: string) => string
+  updateReadingStats?: (novel: any) => Promise<void>
 }
 
 /**
@@ -100,28 +109,58 @@ export async function executeActionHandler(
   resource: any,
   context: ActionHandlerContext
 ): Promise<boolean> {
+  console.log('[ResourceActionHandlers] executeActionHandler 被调用', {
+    resource,
+    resourceConstructor: resource?.constructor?.name,
+    hasConstructor: !!resource?.constructor
+  })
+  
   // 通过 resource.constructor 获取运行时的实际构造函数
   if (!resource || !resource.constructor) {
-    console.warn('[ResourceActionHandlers] 资源或构造函数不存在')
+    console.warn('[ResourceActionHandlers] 资源或构造函数不存在', {
+      hasResource: !!resource,
+      hasConstructor: !!resource?.constructor
+    })
     return false
   }
 
   // 获取 handler 名称
-  const handlerName = resource.constructor.getActionHandlerName?.()
+  const hasGetActionHandlerName = typeof resource.constructor.getActionHandlerName === 'function'
+  console.log('[ResourceActionHandlers] 检查 getActionHandlerName 方法', {
+    hasMethod: hasGetActionHandlerName,
+    actionConfig: resource.constructor.actionConfig
+  })
+  
+  const handlerName = hasGetActionHandlerName ? resource.constructor.getActionHandlerName() : null
+  console.log('[ResourceActionHandlers] 获取到的 handlerName', { handlerName })
+  
   if (!handlerName) {
-    console.warn('[ResourceActionHandlers] 资源类型未配置 action handler')
+    console.warn('[ResourceActionHandlers] 资源类型未配置 action handler', {
+      constructorName: resource.constructor.name,
+      actionConfig: resource.constructor.actionConfig
+    })
     return false
   }
 
   // 查找并执行 handler
   const handler = getActionHandler(handlerName)
+  console.log('[ResourceActionHandlers] 查找 handler', {
+    handlerName,
+    found: !!handler,
+    registeredHandlers: Array.from(actionHandlers.keys())
+  })
+  
   if (!handler) {
-    console.warn(`[ResourceActionHandlers] 未找到 handler: ${handlerName}`)
+    console.warn(`[ResourceActionHandlers] 未找到 handler: ${handlerName}`, {
+      availableHandlers: Array.from(actionHandlers.keys())
+    })
     return false
   }
 
   try {
+    console.log('[ResourceActionHandlers] 开始执行 handler', { handlerName })
     await handler(resource, context)
+    console.log('[ResourceActionHandlers] handler 执行成功', { handlerName })
     return true
   } catch (error) {
     console.error(`[ResourceActionHandlers] 执行 handler ${handlerName} 失败:`, error)
@@ -297,6 +336,113 @@ export const openAlbumHandler: ActionHandler = async (resource, context) => {
   }
 }
 
+/**
+ * 打开小说阅读器的通用 Handler
+ * 适用于小说资源类型
+ */
+export const openNovelReaderHandler: ActionHandler = async (resource, context) => {
+  try {
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    const filePath = BaseResources.extractPrimitiveValue(
+      resource.resourcePath?.value || resource.filePath?.value || resource.resourcePath || resource.filePath
+    )
+    
+    console.log('[ResourceActionHandlers] 开始打开小说:', resourceName, filePath)
+    
+    if (!filePath) {
+      notify.toast('warning', '打开失败', '小说文件路径不存在')
+      return
+    }
+    
+    // 获取全局设置（打开模式）
+    let openMode = 'internal'
+    if (context.getGlobalSettings) {
+      try {
+        const globalSettings = await context.getGlobalSettings()
+        openMode = globalSettings.novelDefaultOpenMode || globalSettings.novel?.defaultOpenMode || 'internal'
+      } catch (error) {
+        console.warn('[ResourceActionHandlers] 获取全局设置失败，使用默认模式:', error)
+      }
+    }
+    
+    console.log('[ResourceActionHandlers] 打开模式:', openMode)
+    
+    if (openMode === 'external') {
+      // 使用外部应用打开
+      if (context.isElectronEnvironment && window.electronAPI && window.electronAPI.openExternal) {
+        const result = await window.electronAPI.openExternal(filePath)
+        if (result.success) {
+          notify.native('打开成功', `"${resourceName}" 已用默认程序打开`)
+          // 更新阅读统计
+          if (context.updateReadingStats) {
+            await context.updateReadingStats(resource)
+          }
+        } else {
+          notify.toast('error', '打开失败', `打开失败: ${result.error || '未知错误'}`)
+        }
+      } else {
+        notify.toast('info', '文件位置', `小说文件位置:\n${filePath}\n\n请手动打开此文件进行阅读`)
+      }
+      
+      // 关闭详情页面
+      if (context.closeDetail) {
+        context.closeDetail()
+      }
+    } else {
+      // 使用应用内阅读器
+      // 检查文件类型
+      let fileType = 'txt'
+      if (context.getFileType) {
+        fileType = context.getFileType(filePath)
+      } else {
+        // 简单的文件类型检测
+        const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'))
+        if (ext === '.epub') fileType = 'epub'
+        else if (ext === '.mobi') fileType = 'mobi'
+        else if (ext === '.pdf') fileType = 'pdf'
+        else fileType = 'txt'
+      }
+      
+      console.log('[ResourceActionHandlers] 文件类型:', fileType)
+      
+      if (fileType === 'epub') {
+        // EPUB 文件使用 EPUB 阅读器 V2
+        if (context.setEbookReaderV2FilePath) {
+          context.setEbookReaderV2FilePath(filePath)
+        }
+        if (context.showEbookReaderV2) {
+          context.showEbookReaderV2(true)
+        }
+      } else {
+        // 其他文件类型使用内部阅读器（PDF/TXT）
+        if (context.setCurrentNovel) {
+          context.setCurrentNovel(resource)
+        }
+        if (context.showNovelReader) {
+          context.showNovelReader(true)
+        }
+        
+        // 更新阅读统计
+        if (context.updateReadingStats) {
+          await context.updateReadingStats(resource)
+        }
+      }
+      
+      notify.native('开始阅读', `"${resourceName}" 已在应用内打开`)
+      
+      // 关闭详情页面
+      if (context.closeDetail) {
+        context.closeDetail()
+      }
+    }
+  } catch (error) {
+    console.error('[ResourceActionHandlers] 打开小说失败:', error)
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    notify.toast('error', '打开失败', `无法打开 "${resourceName}": ${error.message || '未知错误'}`)
+  }
+}
+
 // 注册默认的 handlers
 registerActionHandler('launchExecutable', launchExecutableHandler)
 registerActionHandler('openAlbum', openAlbumHandler)
+registerActionHandler('openNovelReader', openNovelReaderHandler)

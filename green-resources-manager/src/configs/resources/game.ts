@@ -66,6 +66,12 @@ export class Game extends BaseResources {
 		], true)
 	})
 
+	// 文件夹大小（字节）
+	folderSize: ResourceField<number> = new ResourceField<number>({
+		saveable: false,
+		defaultValue: 0
+	})
+
 	
 
 
@@ -142,6 +148,35 @@ export class Game extends BaseResources {
 	// 静态方法：获取默认图标路径
 	static getDefaultIcon() {
 		return './default-game.png'
+	}
+
+	// 静态配置：卡片显示配置
+	static cardDisplayConfig = {
+		title: 'name', 
+		subtitle: 'description', 
+		extra: 'developers', 
+		tags: 'tags', // 标签字段
+		maxTags: 9, // 最多显示 9 个标签
+		showExeIcon: true, // 显示 EXE 图标
+		badge: {
+			field: 'folderSize',
+			formatter: 'formatFolderSize'
+		},
+		stats: [
+			{
+				type: 'text' as const,
+				field: 'playTime',
+				label: '总时长:',
+				formatter: 'formatPlayTime'
+			},
+			{
+				type: 'text' as const,
+				field: 'lastPlayed',
+				label: '',
+				formatter: 'formatLastPlayed',
+				showRunningStatus: true // 显示运行状态
+			}
+		]
 	}
 
 }

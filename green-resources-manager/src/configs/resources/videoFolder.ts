@@ -87,4 +87,36 @@ export class VideoFolder extends BaseResources {
 	static getDefaultIcon() {
 		return './default-video.png'
 	}
+
+	// 静态配置：卡片显示配置
+	static cardDisplayConfig = {
+		title: 'name', // 标题：使用 name 字段
+		subtitle: 'series', // 副标题：系列名字段
+		extra: 'description', // 额外信息：描述字段
+		tags: 'tags', // 标签字段
+		maxTags: 3, // 最多显示 3 个标签
+		specialItems: [
+			{
+				field: 'actors',
+				label: '演员:',
+				isArray: true,
+				maxArrayItems: 2,
+				arrayJoin: ', '
+			}
+		],
+		stats: [
+			{
+				type: 'text' as const,
+				field: 'videoCount',
+				label: '',
+				formatter: 'formatVideoCount'
+			},
+			{
+				type: 'date' as const,
+				field: 'addedDate',
+				label: '',
+				formatter: 'formatAddedDate'
+			}
+		]
+	}
 }

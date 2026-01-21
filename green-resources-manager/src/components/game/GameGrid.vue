@@ -40,15 +40,15 @@ type Game = InstanceType<typeof GameClass>
  * 从 ResourceField 或普通值中提取值
  */
 function getFieldValue(field: any): any {
-  console.log('[GameGrid.getFieldValue] 输入:', {
-    field,
-    fieldType: typeof field,
-    isResourceField: field instanceof ResourceField,
-    isNull: field === null,
-    isUndefined: field === undefined,
-    hasValue: field && 'value' in field,
-    value: field instanceof ResourceField ? field.value : undefined
-  })
+  // console.log('[GameGrid.getFieldValue] 输入:', {
+  //   field,
+  //   fieldType: typeof field,
+  //   isResourceField: field instanceof ResourceField,
+  //   isNull: field === null,
+  //   isUndefined: field === undefined,
+  //   hasValue: field && 'value' in field,
+  //   value: field instanceof ResourceField ? field.value : undefined
+  // })
   
   if (field instanceof ResourceField) {
     let result = field.value

@@ -122,4 +122,37 @@ export class Novel extends BaseResources {
 	static getDefaultIcon() {
 		return './default-novel.png'
 	}
+
+	// 静态配置：卡片显示配置
+	static cardDisplayConfig = {
+		title: 'name', // 标题：使用 name 字段
+		subtitle: 'description', // 副标题：作者字段
+		extra: 'genre', // 额外信息：类型字段
+		tags: 'tags', // 标签字段
+		maxTags: 3, // 最多显示 3 个标签
+		progress: {
+			field: 'readProgress', // 进度值字段
+			unit: '%' // 单位
+		},
+		stats: [
+			{
+				type: 'text' as const,
+				field: 'readProgress',
+				label: '',
+				formatter: 'formatReadProgress'
+			},
+			{
+				type: 'time' as const,
+				field: 'readTime',
+				label: '',
+				formatter: 'formatReadTime'
+			},
+			{
+				type: 'date' as const,
+				field: 'lastRead',
+				label: '',
+				formatter: 'formatLastRead'
+			}
+		]
+	}
 }
