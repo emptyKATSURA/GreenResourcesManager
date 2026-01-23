@@ -179,6 +179,117 @@ export class Game extends BaseResources {
 		]
 	}
 
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		// 主标题配置
+		title: {
+			field: 'name', // 使用 name 字段作为主标题
+			formatter: undefined // 可选：格式化函数名
+		},
+		
+		// 客观信息区（资源地址、开发商等，可以配置任意数量）
+		// 这些信息会显示在主标题下方，描述上方
+		objectiveInfo: [
+			{
+				field: 'developers', // 字段名
+				label: '开发商', // 显示标签
+				formatter: undefined, // 可选：格式化函数名
+				arrayJoin: '、' // 如果字段是数组，使用的连接符（默认 '、'）
+			},
+			{
+				field: 'publisher',
+				label: '发行商',
+				formatter: undefined
+			},
+			{
+				field: 'engine',
+				label: '引擎',
+				formatter: undefined
+			},
+			{
+				field: 'resourcePath', // 资源路径（优先级：resourcePath > executablePath）
+				label: '游戏路径',
+				formatter: undefined,
+				fallbackFields: ['executablePath'] // 如果 resourcePath 为空，尝试使用这些字段
+			}
+		],
+		
+		// 数据记录区（游玩次数、游戏时长等，可以配置任意数量）
+		// 这些信息会显示在统计信息区域
+		dataRecords: [
+			{
+				field: 'playTime', // 字段名
+				label: '总游戏时长', // 显示标签
+				formatter: 'formatPlayTime', // 格式化函数名（可选）
+				defaultValue: '0 分钟' // 如果字段值为 0 或空，显示的默认值
+			},
+			{
+				field: 'playCount',
+				label: '运行次数',
+				formatter: undefined,
+				defaultValue: '0 次'
+			},
+			{
+				field: 'lastPlayed',
+				label: '最后游玩',
+				formatter: 'formatLastPlayed',
+				defaultValue: '从未游玩'
+			},
+			{
+				field: 'firstPlayed',
+				label: '第一次游玩',
+				formatter: 'formatFirstPlayed',
+				defaultValue: '从未游玩'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		
+		// 按钮组配置
+		actions: [
+			{
+				key: 'launch', // 按钮唯一标识
+				icon: '▶️', // 按钮图标
+				label: '开始游戏', // 按钮文本
+				class: 'btn-play', // CSS 类名
+				// 条件显示：根据资源状态决定是否显示
+				showCondition: {
+					// 如果资源是压缩包，不显示启动按钮
+					notArchive: true, // 只在非压缩包时显示
+					// 如果资源正在运行，显示不同的按钮
+					runningAlternative: {
+						key: 'terminate',
+						icon: '⏹️',
+						label: '结束游戏',
+						class: 'btn-stop-game'
+					}
+				}
+			},
+			{
+				key: 'folder',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-open-folder'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'remove',
+				icon: '🗑️',
+				label: '删除游戏',
+				class: 'btn-remove'
+			}
+		]
+	}
+
 }
 
 

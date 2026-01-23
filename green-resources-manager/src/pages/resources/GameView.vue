@@ -66,15 +66,14 @@
       />
 
       <!-- 游戏详情页面 -->
-      <GameDetailPanel 
+      <DetailPanel 
         :visible="showDetailDialog && !!selectedItem" 
-        :game="selectedItem"
+        :item="selectedItem"
+        type="game"
         :is-running="selectedItem ? isGameRunning(selectedItem) : false"
+        :on-update-resource="updateGameResource"
         @close="closeDetail"
         @action="handleDetailAction"
-        @update-rating="handleUpdateRating"
-        @update-comment="handleUpdateComment"
-        @toggle-favorite="handleToggleFavorite"
       />
 
 
@@ -127,7 +126,7 @@ import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Game } from '@resources/game.ts'
 import { GamePage, type GameSortBy } from '../../configs/pages/GamePage.ts'
 import { ResourceField } from '@resources/base/ResourceField.ts'
-import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
+import DetailPanel from '../../components/DetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
 
 import saveManager from '../../utils/SaveManager.ts'
@@ -158,7 +157,7 @@ export default {
     FormField,
     PathUpdateDialog,
     ResourcesEditDialog,
-    GameDetailPanel,
+    DetailPanel,
     GameGrid
   },
   props: {
@@ -652,6 +651,12 @@ export default {
     handleGameContextMenu(event, game) {
       (this.$refs.baseView as any).showContextMenuHandler(event, game)
     },
+    /**
+     * 统一的资源更新函数（用于 DetailPanel 的 onUpdateResource prop）
+     */
+    async updateGameResource(id: string, updates: { rating?: number; comment?: string; isFavorite?: boolean }) {
+      await this.updateGame(id, updates)
+    },
     handleDetailAction(actionKey, game) {
       switch (actionKey) {
         case 'launch':
@@ -678,74 +683,8 @@ export default {
      * 注意：工厂函数已经提供了 handleContextMenuClick，但我们需要在 mounted 中更新 contextMenuHandlers
      * 以支持游戏特有的菜单项（screenshot-folder, update-folder-size, compress, extract 等）
      */
-    async handleUpdateRating(rating, game) {
-      // 检查 game 是否存在，避免在面板关闭时触发更新
-      const gameId = game?.id?.value || game?.id
-      if (!game || !gameId) {
-        return
-      }
-      try {
-        await this.updateGame(gameId, { rating })
-        // 更新当前游戏对象，以便详情面板立即显示新星级
-        const selectedItemId = this.selectedItem?.id?.value || this.selectedItem?.id
-        if (this.selectedItem && selectedItemId === gameId) {
-          if (this.selectedItem.rating && typeof this.selectedItem.rating === 'object' && 'value' in this.selectedItem.rating) {
-            this.selectedItem.rating.value = rating
-          } else {
-            this.selectedItem.rating = rating
-          }
-        }
-      } catch (error: any) {
-        console.error('更新星级失败:', error)
-        await alertService.error('更新星级失败: ' + error.message, '错误')
-      }
-    },
-    async handleUpdateComment(comment, game) {
-      // 检查 game 是否存在，避免在面板关闭时触发更新
-      const gameId = game?.id?.value || game?.id
-      if (!game || !gameId) {
-        return
-      }
-      try {
-        await this.updateGame(gameId, { comment })
-        // 更新当前游戏对象，以便详情面板立即显示新评论
-        const selectedItemId = this.selectedItem?.id?.value || this.selectedItem?.id
-        if (this.selectedItem && selectedItemId === gameId) {
-          if (this.selectedItem.comment && typeof this.selectedItem.comment === 'object' && 'value' in this.selectedItem.comment) {
-            this.selectedItem.comment.value = comment
-          } else {
-            this.selectedItem.comment = comment
-          }
-        }
-      } catch (error: any) {
-        console.error('更新评论失败:', error)
-        await alertService.error('更新评论失败: ' + error.message, '错误')
-      }
-    },
-    async handleToggleFavorite(game) {
-      // 检查 game 是否存在，避免在面板关闭时触发更新
-      const gameId = game?.id?.value || game?.id
-      if (!game || !gameId) {
-        return
-      }
-      try {
-        const currentFavorite = game.isFavorite?.value ?? game.isFavorite
-        const newFavoriteStatus = !currentFavorite
-        await this.updateGame(gameId, { isFavorite: newFavoriteStatus })
-        // 更新当前游戏对象，以便详情面板立即显示新状态
-        const selectedItemId = this.selectedItem?.id?.value || this.selectedItem?.id
-        if (this.selectedItem && selectedItemId === gameId) {
-          if (this.selectedItem.isFavorite && typeof this.selectedItem.isFavorite === 'object' && 'value' in this.selectedItem.isFavorite) {
-            this.selectedItem.isFavorite.value = newFavoriteStatus
-          } else {
-            this.selectedItem.isFavorite = newFavoriteStatus
-          }
-        }
-      } catch (error: any) {
-        console.error('切换收藏状态失败:', error)
-        await alertService.error('切换收藏状态失败: ' + error.message, '错误')
-      }
-    },
+    // handleUpdateRating, handleUpdateComment, handleToggleFavorite 已移至 DetailPanel 内部统一处理
+    // 通过 onUpdateResource prop 统一处理评分、评论和收藏的更新
     editGame(game) {
       this.showEdit(game)
       // 关闭上下文菜单（如果存在）

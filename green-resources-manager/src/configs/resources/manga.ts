@@ -143,4 +143,76 @@ export class Manga extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'author',
+				label: '作者',
+				formatter: undefined
+			},
+			{
+				field: 'resourcePath',
+				label: '漫画路径',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'pagesCount',
+				label: '总页数',
+				formatter: undefined,
+				defaultValue: '0'
+			},
+			{
+				field: 'viewCount',
+				label: '浏览次数',
+				formatter: undefined,
+				defaultValue: '0 次'
+			},
+			{
+				field: 'lastViewed',
+				label: '最后查看',
+				formatter: 'formatDate',
+				defaultValue: '从未查看'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'open',
+				icon: '📖',
+				label: '开始阅读',
+				class: 'btn-play'
+			},
+			{
+				key: 'folder',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-open-folder'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'remove',
+				icon: '🗑️',
+				label: '删除漫画',
+				class: 'btn-remove'
+			}
+		]
+	}
 }

@@ -30,8 +30,8 @@
           <div class="detail-rating">
             <h4 class="rating-title">玩家评价</h4>
             <fun-rate
-              :model-value="(item.rating?.value ?? item.rating) || 0"
-              :comment="(item.comment?.value ?? item.comment) || (item.notes?.value ?? item.notes) || ''"
+              :model-value="getFieldValue(item.rating) || 0"
+              :comment="getFieldValue(item.comment) || getFieldValue(item.notes) || ''"
               show-comment
               @update:model-value="handleRatingChange"
               @update:comment="handleCommentChange"
@@ -39,38 +39,19 @@
           </div>
         </div>
         <div class="detail-info">
-          <h2 class="detail-title">{{ item.name?.value ?? item.name }}</h2>
+          <!-- 主标题（根据配置动态生成） -->
+          <h2 class="detail-title">{{ computedTitle }}</h2>
           
-          <!-- 动态显示作者/开发商信息 -->
-          <p class="detail-author" v-if="item.author?.value ?? item.author">{{ item.author?.value ?? item.author }}</p>
-          <p class="detail-developer" v-if="getDevelopersDisplay(item)">
-            {{ getDevelopersDisplay(item) }}
-          </p>
-          
-          <!-- 动态显示发行商信息 -->
-          <p class="detail-publisher" v-if="getFieldValue(item.publisher) && getFieldValue(item.publisher) !== '未知发行商'">{{ getFieldValue(item.publisher) }}</p>
-          
-          <!-- 动态显示路径（按优先级：resourcePath > executablePath > filePath > folderPath > url） -->
-          <p class="detail-folder" v-if="getFieldValue(item.resourcePath)" :title="getFieldValue(item.resourcePath)">
-            {{ getFieldValue(item.resourcePath) }}
-          </p>
-          <p class="detail-folder" v-else-if="getFieldValue(item.executablePath)" :title="getFieldValue(item.executablePath)">
-            {{ getFieldValue(item.executablePath) }}
-          </p>
-          <p class="detail-folder" v-else-if="getFieldValue(item.filePath)" :title="getFieldValue(item.filePath)">
-            {{ getFieldValue(item.filePath) }}
-          </p>
-          <p class="detail-folder" v-else-if="getFieldValue(item.folderPath)" :title="getFieldValue(item.folderPath)">
-            {{ getFieldValue(item.folderPath) }}
-          </p>
-          <p class="detail-folder" v-else-if="getFieldValue(item.url)" :title="getFieldValue(item.url)">
-            {{ getFieldValue(item.url) }}
-          </p>
-          
-          <!-- 游戏引擎信息（仅游戏类型显示） -->
-          <p class="detail-engine" v-if="type === 'game' && getFieldValue(item.engine)">
-            <span class="engine-label">引擎：</span>{{ getFieldValue(item.engine) }}
-          </p>
+          <!-- 客观信息区（根据配置动态生成） -->
+          <template v-for="(info, index) in computedObjectiveInfo" :key="index">
+            <p 
+              v-if="info.value" 
+              :class="getObjectiveInfoClass(info.field)"
+              :title="info.value"
+            >
+              <span v-if="info.label" class="info-label">{{ info.label }}：</span>{{ info.value }}
+            </p>
+          </template>
           
           <!-- 描述信息 -->
           <div class="detail-description" v-if="item.description?.value ?? item.description">
@@ -90,8 +71,8 @@
             </div>
           </div>
           
-          <!-- 统计信息 -->
-          <div class="detail-stats">
+          <!-- 数据记录区（根据配置动态生成） -->
+          <div class="detail-stats" v-if="computedStats.length > 0">
             <div 
               v-for="stat in computedStats" 
               :key="stat.label" 
@@ -102,7 +83,7 @@
             </div>
           </div>
           
-          <!-- 操作按钮 -->
+          <!-- 操作按钮（根据配置动态生成） -->
           <div class="detail-actions">
             <button 
               v-for="action in computedActions" 
@@ -202,15 +183,130 @@ export default {
       }
       return titles[this.type] || '标签'
     },
+    // 获取资源的详情页配置
+    detailPanelConfig() {
+      if (!this.item) return null
+      // 从资源的构造函数获取配置
+      const ResourceClass = this.item.constructor
+      return ResourceClass?.detailPanelConfig || null
+    },
+    // 根据配置生成主标题
+    computedTitle() {
+      if (!this.item) return ''
+      const config = this.detailPanelConfig
+      if (config?.title) {
+        const fieldValue = this.getFieldValueFromItem(this.item, config.title.field)
+        if (config.title.formatter) {
+          return this.applyFormatter(fieldValue, config.title.formatter)
+        }
+        return fieldValue || ''
+      }
+      // 如果没有配置，使用默认的 name 字段
+      return this.item.name?.value ?? this.item.name ?? ''
+    },
+    // 根据配置生成客观信息区
+    computedObjectiveInfo() {
+      if (!this.item) return []
+      const config = this.detailPanelConfig
+      if (!config?.objectiveInfo || !Array.isArray(config.objectiveInfo)) {
+        return []
+      }
+      
+      return config.objectiveInfo.map(infoConfig => {
+        let fieldValue = this.getFieldValueFromItem(this.item, infoConfig.field)
+        
+        // 如果字段值为空且有 fallbackFields，尝试使用 fallback 字段
+        if (!fieldValue && infoConfig.fallbackFields && Array.isArray(infoConfig.fallbackFields)) {
+          for (const fallbackField of infoConfig.fallbackFields) {
+            const fallbackValue = this.getFieldValueFromItem(this.item, fallbackField)
+            if (fallbackValue) {
+              fieldValue = fallbackValue
+              break
+            }
+          }
+        }
+        
+        // 如果是数组，使用连接符连接
+        if (Array.isArray(fieldValue)) {
+          const joinChar = infoConfig.arrayJoin || '、'
+          fieldValue = fieldValue.join(joinChar)
+        }
+        
+        // 应用格式化函数
+        if (fieldValue && infoConfig.formatter) {
+          fieldValue = this.applyFormatter(fieldValue, infoConfig.formatter)
+        }
+        
+        return {
+          field: infoConfig.field,
+          label: infoConfig.label,
+          value: fieldValue || ''
+        }
+      }).filter(info => info.value) // 只返回有值的项
+    },
+    // 根据配置生成数据记录区
+    computedDataRecords() {
+      if (!this.item) return []
+      const config = this.detailPanelConfig
+      if (!config?.dataRecords || !Array.isArray(config.dataRecords)) {
+        return [] // 如果没有配置，返回空数组，由 computedStats 处理
+      }
+      
+      // 如果游戏正在运行，在最前面显示运行状态
+      const records = []
+      if (this.isRunning && (this.type === 'game' || this.type === 'software')) {
+        records.push({ label: '运行状态', value: '▶️ 运行中' })
+      }
+      
+      config.dataRecords.forEach(recordConfig => {
+        let fieldValue = this.getFieldValueFromItem(this.item, recordConfig.field)
+        
+        // 如果是数组，使用连接符连接
+        if (Array.isArray(fieldValue)) {
+          const joinChar = recordConfig.arrayJoin || '、'
+          fieldValue = fieldValue.join(joinChar)
+        }
+        
+        // 应用格式化函数
+        if (fieldValue !== undefined && fieldValue !== null && recordConfig.formatter) {
+          fieldValue = this.applyFormatter(fieldValue, recordConfig.formatter)
+        }
+        
+        // 如果值为空，使用默认值
+        if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
+          fieldValue = recordConfig.defaultValue || ''
+        }
+        
+        records.push({
+          label: recordConfig.label,
+          value: fieldValue
+        })
+      })
+      
+      return records.filter(record => record.value !== undefined && record.value !== null && record.value !== '')
+    },
+    // 向后兼容：如果没有配置，使用默认的统计信息
     computedStats() {
       if (this.stats.length > 0) {
         return this.stats
       }
       
-      // 默认统计信息
+      // 如果有配置的数据记录，使用配置生成的数据记录
+      const configRecords = this.computedDataRecords
+      if (configRecords.length > 0) {
+        return configRecords
+      }
+      
+      // 默认统计信息（向后兼容）
       const defaultStats = []
       
       if (this.type === 'game') {
+        // 如果游戏正在运行，在最前面显示运行状态
+        if (this.isRunning) {
+          defaultStats.push(
+            { label: '运行状态', value: '▶️ 运行中' }
+          )
+        }
         defaultStats.push(
           { label: '总游戏时长', value: this.formatPlayTime(this.item?.playTime?.value ?? this.item?.playTime) },
           { label: '运行次数', value: `${(this.item?.playCount?.value ?? this.item?.playCount) || 0} 次` },
@@ -219,6 +315,12 @@ export default {
           { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) }
         )
       } else if (this.type === 'software') {
+        // 如果软件正在运行，在最前面显示运行状态
+        if (this.isRunning) {
+          defaultStats.push(
+            { label: '运行状态', value: '▶️ 运行中' }
+          )
+        }
         defaultStats.push(
           { label: '总运行时长', value: this.formatPlayTime(this.item?.playTime?.value ?? this.item?.playTime) },
           { label: '运行次数', value: `${(this.item?.playCount?.value ?? this.item?.playCount) || 0} 次` },
@@ -252,7 +354,13 @@ export default {
         return this.actions
       }
       
-      // 默认操作按钮
+      // 尝试从配置中获取按钮组
+      const config = this.detailPanelConfig
+      if (config?.actions && Array.isArray(config.actions)) {
+        return this.generateActionsFromConfig(config.actions)
+      }
+      
+      // 默认操作按钮（向后兼容）
       const defaultActions = []
       
       if (this.type === 'game') {
@@ -631,6 +739,96 @@ export default {
       } catch {
         return '未知'
       }
+    },
+    /**
+     * 从 item 中获取字段值（支持 ResourceField 和普通值）
+     */
+    getFieldValueFromItem(item, fieldName) {
+      if (!item || !fieldName) return undefined
+      const field = item[fieldName]
+      return this.getFieldValue(field)
+    },
+    /**
+     * 应用格式化函数
+     */
+    applyFormatter(value, formatterName) {
+      if (!formatterName || !value) return value
+      
+      // 格式化函数映射
+      const formatters = {
+        formatPlayTime: this.formatPlayTime,
+        formatLastPlayed: this.formatLastPlayed,
+        formatFirstPlayed: this.formatFirstPlayed,
+        formatDate: this.formatDate
+      }
+      
+      const formatter = formatters[formatterName]
+      if (formatter && typeof formatter === 'function') {
+        return formatter(value)
+      }
+      
+      return value
+    },
+    /**
+     * 获取客观信息区的 CSS 类名（根据字段名）
+     */
+    getObjectiveInfoClass(fieldName) {
+      // 根据字段名返回对应的 CSS 类
+      const classMap = {
+        'author': 'detail-author',
+        'developers': 'detail-developer',
+        'developer': 'detail-developer',
+        'publisher': 'detail-publisher',
+        'engine': 'detail-engine',
+        'resourcePath': 'detail-folder',
+        'executablePath': 'detail-folder',
+        'filePath': 'detail-folder',
+        'folderPath': 'detail-folder',
+        'url': 'detail-folder'
+      }
+      return classMap[fieldName] || 'detail-info-item'
+    },
+    /**
+     * 根据配置生成按钮组
+     */
+    generateActionsFromConfig(actionsConfig) {
+      if (!this.item) return []
+      
+      const actions = []
+      
+      actionsConfig.forEach(actionConfig => {
+        // 检查显示条件
+        if (actionConfig.showCondition) {
+          const condition = actionConfig.showCondition
+          
+          // 检查是否为压缩包
+          if (condition.notArchive) {
+            const resourcePath = this.item?.resourcePath?.value ?? this.item?.resourcePath ?? 
+                                this.item?.executablePath?.value ?? this.item?.executablePath
+            const itemIsArchive = this.item?.isArchive?.value ?? this.item?.isArchive
+            const isArchive = itemIsArchive || (resourcePath && this.isArchiveFile(resourcePath))
+            if (isArchive) {
+              return // 跳过这个按钮
+            }
+          }
+          
+          // 检查运行状态替代按钮
+          if (condition.runningAlternative && this.isRunning) {
+            actions.push(condition.runningAlternative)
+            return
+          }
+        }
+        
+        // 添加按钮
+        actions.push({
+          key: actionConfig.key,
+          icon: actionConfig.icon,
+          label: actionConfig.label,
+          class: actionConfig.class
+        })
+      })
+      
+      return actions
     }
   }
 }
@@ -790,6 +988,18 @@ export default {
   font-size: 1.1rem;
   margin: 0 0 8px 0;
   transition: color 0.3s ease;
+}
+
+.detail-info-item {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0 0 8px 0;
+  transition: color 0.3s ease;
+}
+
+.info-label {
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .detail-publisher {

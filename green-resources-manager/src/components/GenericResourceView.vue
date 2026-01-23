@@ -45,6 +45,31 @@
       </div>
     </BaseView>
     
+    <!-- 详情面板 -->
+    <DetailPanel
+      :visible="showDetailDialog && !!selectedItem"
+      :item="selectedItem"
+      :type="detailPanelType"
+      :is-running="selectedItem ? isResourceRunning(selectedItem) : false"
+      :on-update-resource="updateResource"
+      @close="closeDetail"
+      @action="handleDetailAction"
+    >
+      <!-- 图片/漫画预览（仅 Image/Manga 类型） -->
+      <template #extra v-if="detailPanelType === 'album' && detailPages.length > 0">
+        <AlbumPagesGrid
+          :pages="detailPages"
+          :currentPage="detailCurrentPage"
+          :pageSize="detailPageSize"
+          :totalPages="detailTotalPages"
+          :resolveImage="resolveDetailImage"
+          :handleImageError="handleDetailImageError"
+          @page-click="handleDetailPageClick"
+          @page-change="handleDetailPageChange"
+        />
+      </template>
+    </DetailPanel>
+    
     <!-- 漫画/图片查看器（用于 Image/Manga 资源类型） -->
     <ComicViewer
       v-if="showComicViewer || currentAlbum"
@@ -136,6 +161,8 @@
 import { defineComponent, ref, computed, onMounted, onBeforeUnmount, watch, toRefs } from 'vue'
 import BaseView from './BaseView.vue'
 import MediaCard from './MediaCard.vue'
+import DetailPanel from './DetailPanel.vue'
+import AlbumPagesGrid from './image/AlbumPagesGrid.vue'
 import ComicViewer from './ComicViewer.vue'
 import PdfReader from './PdfReader.vue'
 import TextReader from './TextReader.vue'
@@ -155,6 +182,7 @@ import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import notify from '../utils/NotificationService.ts'
 import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
 import { useResourceFilter } from '../composables/useResourceFilter'
+import { useImagePages } from '../composables/image/useImagePages'
 
 // 资源类型到资源类和页面配置的映射
 const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; testPageClass?: any }> = {
@@ -183,6 +211,8 @@ export default defineComponent({
   components: {
     BaseView,
     MediaCard,
+    DetailPanel,
+    AlbumPagesGrid,
     ComicViewer,
     PdfReader,
     TextReader,
@@ -275,6 +305,15 @@ export default defineComponent({
     const currentPageIndex = ref(0)
     const pages = ref<string[]>([])
     const showComicViewer = ref(false)
+    
+    // 详情页图片预览相关状态（用于 Image/Manga 资源类型）
+    const detailPages = ref<string[]>([])
+    
+    // 使用图片分页 composable（用于详情页预览）
+    const imagePagesComposable = useImagePages({
+      pages: detailPages,
+      defaultPageSize: 50
+    })
 
     // 小说阅读器相关状态（用于 Novel 资源类型）
     const currentReadingNovel = ref<any>(null)
@@ -898,7 +937,10 @@ export default defineComponent({
     const contextMenuHandlers = {
       detail: (item: any) => {
         console.log('查看详情:', item)
-        // 这里应该调用 showDetail
+        // 调用 showDetail 方法（从 resourcePage 获取）
+        if ((resourcePage as any).showDetail) {
+          (resourcePage as any).showDetail(item)
+        }
       },
       edit: (item: any) => {
         console.log('编辑:', item)
@@ -1032,18 +1074,20 @@ export default defineComponent({
         }))
       },
       displayLayout: pageConfig.displayLayoutConfig,
-      getStats: (item: any) => {
-        // 简化版统计信息
-        return [
-          { label: '名称', value: item.name?.value || item.name || '未知' }
-        ]
-      },
-      getActions: (item: any) => {
-        return [
-          { key: 'edit', icon: '✏️', label: '编辑', class: 'btn-edit' },
-          { key: 'remove', icon: '🗑️', label: '删除', class: 'btn-remove' }
-        ]
-      }
+      // 不提供 getStats，让 DetailPanel 使用配置生成的数据记录
+      // getStats: (item: any) => {
+      //   // 简化版统计信息
+      //   return [
+      //     { label: '名称', value: item.name?.value || item.name || '未知' }
+      //   ]
+      // },
+      // 不提供 getActions，让 DetailPanel 使用默认的 actions（会根据 type 自动生成对应的按钮）
+      // getActions: (item: any) => {
+      //   return [
+      //     { key: 'edit', icon: '✏️', label: '编辑', class: 'btn-edit' },
+      //     { key: 'remove', icon: '🗑️', label: '删除', class: 'btn-remove' }
+      //   ]
+      // }
     })
     
     // 添加调试日志
@@ -1363,6 +1407,91 @@ export default defineComponent({
       },
       { immediate: false }
     )
+    
+    // 监听详情面板显示，如果是 Image/Manga 类型，加载图片列表
+    watch(
+      () => [resourcePage.showDetailDialog.value, resourcePage.selectedItem.value],
+      async ([showDetail, selectedItem]) => {
+        if (showDetail && selectedItem && (resourceType.value === 'Image' || resourceType.value === 'Manga')) {
+          console.log('[GenericResourceView] 加载图片列表用于预览')
+          try {
+            detailPages.value = []
+            imagePagesComposable.resetPagination()
+            
+            if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
+              const resourcePath = BaseResources.extractPrimitiveValue(
+                selectedItem.resourcePath?.value || selectedItem.resourcePath
+              )
+              if (resourcePath) {
+                const resp = await window.electronAPI.listImageFiles(resourcePath)
+                if (resp.success) {
+                  detailPages.value = resp.files || []
+                  imagePagesComposable.updateTotalPages()
+                  console.log(`[GenericResourceView] 加载了 ${detailPages.value.length} 张图片`)
+                }
+              }
+            }
+          } catch (error) {
+            console.error('[GenericResourceView] 加载图片列表失败:', error)
+          }
+        } else if (!showDetail) {
+          // 关闭详情时清空图片列表
+          detailPages.value = []
+        }
+      },
+      { immediate: false }
+    )
+    
+    // 图片解析方法（用于详情页预览）
+    const resolveDetailImage = (imagePath: string): string => {
+      if (!imagePath) return './default-image.png'
+      
+      // 网络资源直接返回
+      if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+        return imagePath
+      }
+      
+      // 已是 data: 或 file: 直接返回
+      if (typeof imagePath === 'string' && (imagePath.startsWith('data:') || imagePath.startsWith('file:'))) {
+        return imagePath
+      }
+      
+      // 处理本地文件路径
+      try {
+        const normalized = String(imagePath).replace(/\\/g, '/').replace(/^([A-Za-z]:)/, '/$1')
+        const encoded = normalized.split('/').map(seg => {
+          if (seg.includes(':')) return seg
+          return encodeURIComponent(seg)
+        }).join('/')
+        return `file://${encoded}`
+      } catch (error) {
+        console.error('构建文件URL失败:', error)
+        const normalizedPath = String(imagePath).replace(/\\/g, '/')
+        return `file:///${normalizedPath}`
+      }
+    }
+    
+    // 图片错误处理方法
+    const handleDetailImageError = (event: Event) => {
+      const target = event.target as HTMLImageElement
+      if (target) {
+        target.src = './default-image.png'
+      }
+    }
+    
+    // 处理图片点击（打开阅读器）
+    const handleDetailPageClick = (index: number) => {
+      const actualIndex = imagePagesComposable.detailCurrentPageStartIndex.value + index
+      currentPageIndex.value = actualIndex
+      currentAlbum.value = resourcePage.selectedItem.value
+      pages.value = detailPages.value
+      showComicViewer.value = true
+    }
+    
+    // 处理分页变化
+    const handleDetailPageChange = (page: number) => {
+      imagePagesComposable.jumpToPageGroup(page)
+    }
 
     return {
       resourceType, // 返回 computed，保持响应式
@@ -1400,6 +1529,67 @@ export default defineComponent({
       handleTextProgressChanged,
       getFileExists, // 获取文件存在性状态
       checkFileExistence, // 文件存在性检查方法
+      // 详情面板相关（从 resourcePage 获取）
+      showDetailDialog: resourcePage.showDetailDialog,
+      selectedItem: resourcePage.selectedItem,
+      itemStats: resourcePage.itemStats,
+      itemActions: resourcePage.itemActions,
+      closeDetail: resourcePage.closeDetail,
+      updateResource: resourcePage.updateResource,
+      // 详情面板类型映射（计算属性）
+      detailPanelType: computed(() => {
+        // 将资源类型映射到 DetailPanel 支持的 type
+        const typeMap: Record<string, string> = {
+          'Game': 'game',
+          'Software': 'software',
+          'Image': 'album',
+          'Manga': 'album',
+          'Novel': 'novel',
+          'Video': 'video',
+          'Audio': 'audio',
+          'Website': 'website',
+          'File': 'file',
+          'Folder': 'folder'
+        }
+        return typeMap[resourceType.value] || 'game'
+      }),
+      // 详情页图片预览相关（仅 Image/Manga 类型）
+      detailPages,
+      detailCurrentPage: imagePagesComposable.detailCurrentPage,
+      detailPageSize: imagePagesComposable.detailPageSize,
+      detailTotalPages: imagePagesComposable.detailTotalPages,
+      resolveDetailImage,
+      handleDetailImageError,
+      handleDetailPageClick,
+      handleDetailPageChange,
+      // 详情面板操作处理
+      handleDetailAction: (actionKey: string, item: any) => {
+        // 根据 actionKey 处理不同的操作
+        switch (actionKey) {
+          case 'launch':
+            handleResourceAction(item)
+            break
+          case 'terminate':
+            terminateGame(item)
+            break
+          case 'folder':
+            // 打开文件夹（需要根据资源类型实现）
+            console.log('打开文件夹:', item)
+            break
+          case 'edit':
+            // 编辑资源（需要根据资源类型实现）
+            console.log('编辑资源:', item)
+            break
+          case 'remove':
+            // 删除资源（使用 resourcePage 的 deleteItem）
+            if ((resourcePage as any).deleteItem) {
+              (resourcePage as any).deleteItem(item)
+            }
+            break
+          default:
+            console.log('未知操作:', actionKey)
+        }
+      },
       ...resourcePage, // 展开所有方法和属性，使模板可以直接访问
       // 明确声明方法，确保 TypeScript 能正确识别
       updateScale: resourcePage.updateScale,

@@ -155,4 +155,86 @@ export class Novel extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'author',
+				label: '作者',
+				formatter: undefined
+			},
+			{
+				field: 'genre',
+				label: '类型',
+				formatter: undefined
+			},
+			{
+				field: 'publishYear',
+				label: '出版年份',
+				formatter: undefined
+			},
+			{
+				field: 'resourcePath',
+				label: '小说路径',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'readProgress',
+				label: '阅读进度',
+				formatter: undefined,
+				defaultValue: '0%'
+			},
+			{
+				field: 'readTime',
+				label: '阅读时长',
+				formatter: 'formatPlayTime',
+				defaultValue: '0 分钟'
+			},
+			{
+				field: 'lastRead',
+				label: '最后阅读',
+				formatter: 'formatLastPlayed',
+				defaultValue: '从未阅读'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'read',
+				icon: '📖',
+				label: '开始阅读',
+				class: 'btn-play'
+			},
+			{
+				key: 'folder',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-open-folder'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'remove',
+				icon: '🗑️',
+				label: '删除小说',
+				class: 'btn-remove'
+			}
+		]
+	}
 }

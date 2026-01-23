@@ -119,4 +119,76 @@ export class VideoFolder extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'series',
+				label: '系列名',
+				formatter: undefined
+			},
+			{
+				field: 'actors',
+				label: '演员',
+				formatter: undefined,
+				arrayJoin: '、'
+			},
+			{
+				field: 'voiceActors',
+				label: '声优',
+				formatter: undefined,
+				arrayJoin: '、'
+			},
+			{
+				field: 'productionTeam',
+				label: '制作组',
+				formatter: undefined,
+				arrayJoin: '、'
+			},
+			{
+				field: 'resourcePath',
+				label: '文件夹路径',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'videoCount',
+				label: '视频数量',
+				formatter: undefined,
+				defaultValue: '0'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'open',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-play'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'remove',
+				icon: '🗑️',
+				label: '删除文件夹',
+				class: 'btn-remove'
+			}
+		]
+	}
 }

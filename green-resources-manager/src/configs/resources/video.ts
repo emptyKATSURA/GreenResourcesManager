@@ -149,4 +149,76 @@ export class Video extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'series',
+				label: '系列名',
+				formatter: undefined
+			},
+			{
+				field: 'actors',
+				label: '演员',
+				formatter: undefined,
+				arrayJoin: '、'
+			},
+			{
+				field: 'resourcePath',
+				label: '视频路径',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'watchCount',
+				label: '观看次数',
+				formatter: undefined,
+				defaultValue: '0 次'
+			},
+			{
+				field: 'lastWatched',
+				label: '最后观看',
+				formatter: 'formatLastPlayed',
+				defaultValue: '从未观看'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'play',
+				icon: '▶️',
+				label: '播放视频',
+				class: 'btn-play'
+			},
+			{
+				key: 'folder',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-open-folder'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'remove',
+				icon: '🗑️',
+				label: '删除视频',
+				class: 'btn-remove'
+			}
+		]
+	}
 }

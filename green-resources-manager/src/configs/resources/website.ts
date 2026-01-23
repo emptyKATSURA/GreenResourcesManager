@@ -119,4 +119,59 @@ export class Website extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'resourcePath',
+				label: '网站URL',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'visitCount',
+				label: '访问次数',
+				formatter: undefined,
+				defaultValue: '0 次'
+			},
+			{
+				field: 'lastVisited',
+				label: '最后访问',
+				formatter: 'formatLastPlayed',
+				defaultValue: '从未访问'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'visit',
+				icon: '🔗',
+				label: '访问网站',
+				class: 'btn-play'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'delete',
+				icon: '🗑️',
+				label: '删除网站',
+				class: 'btn-remove'
+			}
+		]
+	}
 }

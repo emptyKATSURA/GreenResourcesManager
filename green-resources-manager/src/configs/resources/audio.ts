@@ -151,4 +151,76 @@ export class Audio extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'artist',
+				label: '艺术家',
+				formatter: undefined
+			},
+			{
+				field: 'actors',
+				label: '演员',
+				formatter: undefined,
+				arrayJoin: '、'
+			},
+			{
+				field: 'resourcePath',
+				label: '音频路径',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'playCount',
+				label: '播放次数',
+				formatter: undefined,
+				defaultValue: '0 次'
+			},
+			{
+				field: 'lastPlayed',
+				label: '最后播放',
+				formatter: 'formatLastPlayed',
+				defaultValue: '从未播放'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'play',
+				icon: '▶️',
+				label: '播放',
+				class: 'btn-play'
+			},
+			{
+				key: 'folder',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-open-folder'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'delete',
+				icon: '🗑️',
+				label: '删除音频',
+				class: 'btn-remove'
+			}
+		]
+	}
 }

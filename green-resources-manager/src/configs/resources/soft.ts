@@ -135,4 +135,91 @@ export class Software extends BaseResources {
 			}
 		]
 	}
+
+	// 静态配置：详情页显示配置
+	static detailPanelConfig = {
+		title: {
+			field: 'name',
+			formatter: undefined
+		},
+		objectiveInfo: [
+			{
+				field: 'developer',
+				label: '开发商',
+				formatter: undefined
+			},
+			{
+				field: 'resourcePath',
+				label: '软件路径',
+				formatter: undefined
+			}
+		],
+		dataRecords: [
+			{
+				field: 'playTime',
+				label: '总运行时长',
+				formatter: 'formatPlayTime',
+				defaultValue: '0 分钟'
+			},
+			{
+				field: 'playCount',
+				label: '运行次数',
+				formatter: undefined,
+				defaultValue: '0 次'
+			},
+			{
+				field: 'lastPlayed',
+				label: '最后运行',
+				formatter: 'formatLastPlayed',
+				defaultValue: '从未运行'
+			},
+			{
+				field: 'firstPlayed',
+				label: '第一次运行',
+				formatter: 'formatFirstPlayed',
+				defaultValue: '从未运行'
+			},
+			{
+				field: 'addedDate',
+				label: '添加时间',
+				formatter: 'formatDate',
+				defaultValue: '未知'
+			}
+		],
+		actions: [
+			{
+				key: 'launch',
+				icon: '▶️',
+				label: '启动软件',
+				class: 'btn-play',
+				showCondition: {
+					notArchive: true,
+					runningAlternative: {
+						key: 'terminate',
+						icon: '⏹️',
+						label: '结束软件',
+						class: 'btn-stop-software'
+					}
+				}
+			},
+			{
+				key: 'folder',
+				icon: '📁',
+				label: '打开文件夹',
+				class: 'btn-open-folder'
+			},
+			{
+				key: 'edit',
+				icon: '✏️',
+				label: '编辑信息',
+				class: 'btn-edit'
+			},
+			{
+				key: 'remove',
+				icon: '🗑️',
+				label: '删除软件',
+				class: 'btn-remove'
+			}
+		]
+	}
 }
