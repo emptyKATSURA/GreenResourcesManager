@@ -1,6 +1,7 @@
 import { BasePage } from './base/BasePage.ts'
 import type { SortOption } from '../../types/sort'
 import type { SortConfig } from '../../utils/sortBy'
+import type { FilterConfig } from '../../types/filter'
 import { Software as SoftwareClass } from '@resources/soft.ts'
 
 // Software 类型就是 SoftwareClass 的实例类型
@@ -131,5 +132,40 @@ export class SoftwarePage extends BasePage {
 			order: config.order,
 			compareFn: config.compareFn
 		}
+	}
+
+	/**
+	 * 获取筛选配置
+	 * 定义软件页面支持的所有筛选器
+	 * 合并基类的"丢失的资源"筛选和软件特有的筛选器
+	 */
+	getFilterConfig<T = Software>(): FilterConfig<T>[] {
+		// 获取基类的筛选配置（包含"丢失的资源"）
+		const baseFilters = super.getFilterConfig<T>()
+		
+		// 软件特有的筛选器
+		const softwareFilters: FilterConfig<T>[] = [
+			{
+				key: 'tags',
+				title: '标签筛选',
+				fieldAccessor: (software: any) => {
+					const tags = getFieldValue<string[]>((software as any).tags)
+					return tags || []
+				},
+				isArray: true
+			},
+			{
+				key: 'developers',
+				title: '开发商筛选',
+				fieldAccessor: (software: any) => {
+					const developers = getFieldValue<string[]>((software as any).developers)
+					return developers || []
+				},
+				isArray: true
+			}
+		] as FilterConfig<T>[]
+		
+		// 合并基类配置和软件特有配置
+		return [...baseFilters, ...softwareFilters]
 	}
 }

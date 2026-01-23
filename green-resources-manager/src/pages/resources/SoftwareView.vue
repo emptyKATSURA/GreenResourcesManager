@@ -132,7 +132,7 @@ import alertService from '../../utils/AlertService.ts'
 import confirmService from '../../utils/ConfirmService.ts'
 import { ref, toRefs, PropType } from 'vue'
 import { PageConfig } from '../../types/page'
-import { useGameFilter } from '../../composables/game/useGameFilter'
+import { useResourceFilter } from '../../composables/useResourceFilter'
 import { useGameManagement } from '../../composables/game/useGameManagement'
 import { useGameScreenshot } from '../../composables/game/useGameScreenshot'
 import { useGameRunning } from '../../composables/game/useGameRunning'
@@ -182,7 +182,7 @@ export default {
     }
 
     // 使用筛选 composable
-    const filterComposable = useGameFilter(games, searchQuery, sortBy as any, softwarePage as any, isGameRunningForFilter)
+    const filterComposable = useResourceFilter(games, searchQuery, sortBy as any, softwarePage as any, isGameRunningForFilter)
 
     // 使用管理 composable
     const managementComposable = useGameManagement(

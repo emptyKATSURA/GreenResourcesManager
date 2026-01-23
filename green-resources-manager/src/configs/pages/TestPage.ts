@@ -1,6 +1,7 @@
 import { BasePage } from './base/BasePage.ts'
 import type { SortOption } from '../../types/sort'
 import type { SortConfig } from '../../utils/sortBy'
+import type { FilterConfig } from '../../types/filter'
 import { Game as GameClass } from '@resources/game.ts'
 import { Software } from '@resources/soft.ts'
 import { Manga } from '@resources/manga.ts'
@@ -39,8 +40,8 @@ export class TestGamePage extends BasePage {
 
 	// 页面布局配置
 	displayLayoutConfig = {
-		minWidth: 80,
-		maxWidth: 400
+		minWidth: 150,
+		maxWidth: 600
 	}
 
 	/**
@@ -146,6 +147,41 @@ export class TestGamePage extends BasePage {
 	}
 
 	/**
+	 * 获取筛选配置
+	 * 定义测试页面支持的筛选器：标签和开发商
+	 * 合并基类的"丢失的资源"筛选
+	 */
+	getFilterConfig<T = Game>(): FilterConfig<T>[] {
+		// 获取基类的筛选配置（包含"丢失的资源"）
+		const baseFilters = super.getFilterConfig<T>()
+		
+		// 测试页面特有的筛选器
+		const testFilters: FilterConfig<T>[] = [
+			{
+				key: 'tags',
+				title: '标签筛选',
+				fieldAccessor: (game: any) => {
+					const tags = getFieldValue<string[]>((game as any).tags)
+					return tags || []
+				},
+				isArray: true
+			},
+			{
+				key: 'developers',
+				title: '开发商筛选',
+				fieldAccessor: (game: any) => {
+					const developers = getFieldValue<string[]>((game as any).developers)
+					return developers || []
+				},
+				isArray: true
+			}
+		] as FilterConfig<T>[]
+		
+		// 合并基类配置和测试页面特有配置
+		return [...baseFilters, ...testFilters]
+	}
+
+	/**
 	 * 获取模拟数据
 	 * @returns 包含所有资源类型的模拟数据数组
 	 */
@@ -163,7 +199,7 @@ export class TestGamePage extends BasePage {
 		game.engine.value = 'Unity'
 		game.resourcePath.value = 'G:\\下载的数据\\telegram\\悲剧之森\\悲剧之森\\player.exe'
 		game.coverPath.value = ''
-		game.rating.value = 4.5
+		game.rating.value = 4
 		game.isFavorite.value = true
 		game.addedDate.value = now
 		game.fileExists.value = true

@@ -1,6 +1,7 @@
 import { BasePage } from './base/BasePage.ts'
 import type { SortOption } from '../../types/sort'
 import type { SortConfig } from '../../utils/sortBy'
+import type { FilterConfig } from '../../types/filter'
 import { Novel as NovelClass } from '@resources/novel.ts'
 
 // Novel 类型就是 NovelClass 的实例类型
@@ -141,5 +142,39 @@ export class NovelPage extends BasePage {
 			order: config.order,
 			compareFn: config.compareFn
 		}
+	}
+
+	/**
+	 * 获取筛选配置
+	 * 定义小说页面支持的所有筛选器
+	 */
+	getFilterConfig<T = Novel>(): FilterConfig<T>[] {
+		// 获取基类的筛选配置（包含"丢失的资源"）
+		const baseFilters = super.getFilterConfig<T>()
+		
+		// 小说特有的筛选器
+		const novelFilters: FilterConfig<T>[] = [
+			{
+				key: 'tags',
+				title: '标签筛选',
+				fieldAccessor: (novel: any) => {
+					const tags = getFieldValue<string[]>((novel as any).tags)
+					return tags || []
+				},
+				isArray: true
+			},
+			{
+				key: 'authors',
+				title: '作者筛选',
+				fieldAccessor: (novel: any) => {
+					const author = getFieldValue<string>((novel as any).author)
+					return author || ''
+				},
+				isArray: false
+			}
+		] as FilterConfig<T>[]
+		
+		// 合并基类配置和小说特有配置
+		return [...baseFilters, ...novelFilters]
 	}
 }

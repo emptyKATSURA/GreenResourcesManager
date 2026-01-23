@@ -133,7 +133,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted, watch } from 'vue'
+import { defineComponent, ref, computed, onMounted, onBeforeUnmount, watch, toRefs } from 'vue'
 import BaseView from './BaseView.vue'
 import MediaCard from './MediaCard.vue'
 import ComicViewer from './ComicViewer.vue'
@@ -154,6 +154,7 @@ import { useGameRunningStore } from '../stores/game-running'
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import notify from '../utils/NotificationService.ts'
 import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
+import { useResourceFilter } from '../composables/useResourceFilter'
 
 // 资源类型到资源类和页面配置的映射
 const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; testPageClass?: any }> = {
@@ -205,7 +206,7 @@ export default defineComponent({
       default: () => []
     }
   },
-  setup(props) {
+  setup(props, { emit }) {
     // 从 pageConfig 或 resourceType prop 获取资源类型
     const resourceType = computed(() => {
       return props.pageConfig?.type || props.resourceType || 'Game'
@@ -289,6 +290,12 @@ export default defineComponent({
 
     // 游戏运行状态管理（使用 store）
     const gameRunningStore = useGameRunningStore()
+    
+    // 存储游戏启动时的初始 playTime（Map<resourceId, initialPlayTime>）
+    const gameInitialPlayTimes = ref<Map<string, number>>(new Map())
+    
+    // 定时器引用（用于定期更新总时长）
+    let playtimeUpdateTimer: ReturnType<typeof setInterval> | null = null
 
     // 检查资源是否正在运行（通用方法，支持所有资源类型）
     const isResourceRunning = (resource: any): boolean => {
@@ -303,6 +310,65 @@ export default defineComponent({
       // 其他资源类型暂时不支持运行状态检查
       return false
     }
+
+    // 创建用于筛选的 isGameRunning 函数（接受 Game 对象）
+    const isGameRunningForFilter = (game: any) => {
+      return gameRunningStore.isGameRunning(game.id?.value || game.id)
+    }
+
+    // 调试：检查 items 的初始状态
+    console.log('[GenericResourceView] 🔍 items 初始状态:', {
+      itemsLength: items.value.length,
+      itemsType: typeof items.value,
+      isArray: Array.isArray(items.value),
+      firstItem: items.value[0] ? {
+        id: items.value[0].id?.value || items.value[0].id,
+        name: items.value[0].name?.value || items.value[0].name,
+        developers: items.value[0].developers?.value || items.value[0].developers
+      } : null
+    })
+    
+    // 使用通用筛选 composable（传入页面配置实例和额外数据）
+    const filterComposable = useResourceFilter(
+      items, 
+      searchQuery, 
+      sortBy, 
+      pageConfig, 
+      { isGameRunning: isGameRunningForFilter }
+    )
+    
+    // 调试：检查 filterComposable 的内容
+    console.log('[GenericResourceView] 🔍 filterComposable 内容:', {
+      keys: Object.keys(filterComposable),
+      hasFilteredGames: 'filteredGames' in filterComposable,
+      hasExtractAllFilters: 'extractAllFilters' in filterComposable,
+      hasGetFilterData: 'getFilterData' in filterComposable,
+      hasFilterStates: 'filterStates' in filterComposable,
+      // 检查动态生成的方法
+      filterMethods: Object.keys(filterComposable).filter(key => 
+        key.startsWith('filterBy') || 
+        key.startsWith('excludeBy') || 
+        (key.startsWith('clear') && key.endsWith('Filter'))
+      )
+    })
+    
+    // 列出所有筛选方法
+    const filterMethodNames = Object.keys(filterComposable).filter(key => 
+      key.startsWith('filterBy') || 
+      key.startsWith('excludeBy') || 
+      (key.startsWith('clear') && key.endsWith('Filter'))
+    )
+    console.log('[GenericResourceView] 📋 filterComposable 中的筛选方法:', filterMethodNames)
+    
+    // 检查每个方法是否是函数
+    filterMethodNames.forEach(methodName => {
+      const method = (filterComposable as any)[methodName]
+      console.log(`[GenericResourceView] 🔧 ${methodName}:`, {
+        exists: method !== undefined,
+        isFunction: typeof method === 'function',
+        type: typeof method
+      })
+    })
 
     // 终止游戏方法
     const terminateGame = async (resource: any) => {
@@ -330,20 +396,32 @@ export default defineComponent({
             gameRunningStore.removeRunningGame(resourceId)
           }
           
-          // 更新游戏时长（如果有的话）
+          // 更新游戏时长（使用初始时长逻辑）
           if (result.playTime && result.playTime > 0) {
             const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
-            const newPlayTime = currentPlayTime + result.playTime
+            const initialPlayTime = gameInitialPlayTimes.value.get(resourceId) || currentPlayTime
+            // 计算最终总时长（使用 store 中的会话时长，如果 store 中还有数据）
+            let totalPlayTime = currentPlayTime
+            if (gameRunningStore.isGameRunning(resourceId)) {
+              // 如果还在运行列表中，使用 store 计算
+              totalPlayTime = gameRunningStore.getCurrentPlayTime(resourceId, initialPlayTime)
+            } else {
+              // 否则直接累加
+              totalPlayTime = currentPlayTime + result.playTime
+            }
             
             // 更新资源数据
             const item = items.value.find((i: any) => (i.id?.value || i.id) === resourceId)
             if (item) {
               if (item.playTime && typeof item.playTime === 'object' && 'value' in item.playTime) {
-                item.playTime.value = newPlayTime
+                item.playTime.value = totalPlayTime
               } else {
-                item.playTime = newPlayTime
+                item.playTime = totalPlayTime
               }
             }
+            
+            // 清除保存的初始值
+            gameInitialPlayTimes.value.delete(resourceId)
           }
           
           notify.toast('success', '游戏已结束', `${resourceName} 已强制结束`)
@@ -380,16 +458,26 @@ export default defineComponent({
           gameRunningStore.removeRunningGame(resourceId)
         }
         
-        // 更新游戏时长
+        // 更新游戏时长（使用最终时长更新逻辑）
         if (data.playTime && data.playTime > 0) {
+          // 获取初始 playTime（从保存的初始值获取，如果不存在则使用当前值）
           const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
-          const newPlayTime = currentPlayTime + data.playTime
+          const initialPlayTime = gameInitialPlayTimes.value.get(resourceId) || currentPlayTime
+          // 计算最终总时长（使用 store 中的会话时长，如果 store 中还有数据）
+          let totalPlayTime = currentPlayTime
+          if (gameRunningStore.isGameRunning(resourceId)) {
+            // 如果还在运行列表中，使用 store 计算
+            totalPlayTime = gameRunningStore.getCurrentPlayTime(resourceId, initialPlayTime)
+          } else {
+            // 否则直接累加
+            totalPlayTime = currentPlayTime + data.playTime
+          }
           
           // 更新资源数据
           if (resource.playTime && typeof resource.playTime === 'object' && 'value' in resource.playTime) {
-            resource.playTime.value = newPlayTime
+            resource.playTime.value = totalPlayTime
           } else {
-            resource.playTime = newPlayTime
+            resource.playTime = totalPlayTime
           }
           
           // 更新最后游玩时间
@@ -398,6 +486,9 @@ export default defineComponent({
           } else {
             resource.lastPlayed = new Date().toISOString()
           }
+          
+          // 清除保存的初始值
+          gameInitialPlayTimes.value.delete(resourceId)
         }
         
         console.log('[GenericResourceView] ✅ 游戏进程结束处理完成')
@@ -468,9 +559,9 @@ export default defineComponent({
           return 0
         },
         saveInitialPlayTime: (resourceId: string, playTime: number) => {
-          // 保存初始运行时长（这里可以存储到内存中，如果需要的话）
-          // 实际保存会在资源停止运行时进行
-          console.log(`保存资源 ${resourceId} 的初始运行时长: ${playTime}`)
+          // 保存初始运行时长到 Map 中
+          gameInitialPlayTimes.value.set(resourceId, playTime)
+          console.log(`[GenericResourceView] 保存资源 ${resourceId} 的初始运行时长: ${playTime} 秒`)
         },
         closeDetail: () => {
           // 关闭详情页面（如果有的话）
@@ -762,48 +853,46 @@ export default defineComponent({
       }
     }
 
-    // 简单的筛选逻辑（简化版，实际应该使用对应的 filter composable）
-    // 注意：filteredItems 需要是 Ref，而不是 computed
-    // 因为 createResourcePage 和 usePagination 需要 Ref<T[]>
-    // 但我们仍然需要响应式更新，所以使用 ref + watch
-    const filteredItems = ref([...items.value])
+    // 使用筛选 composable 的 filteredItems（已经是响应式的）
+    // 直接使用 filterComposable.filteredGames，确保引用正确
+    const filteredItems = filterComposable.filteredGames
     
-    // 监听 items、searchQuery、sortBy 的变化，更新 filteredItems
-    watch([items, searchQuery, sortBy], () => {
-      let result = [...items.value]
+    // 调试：监听 filteredGames 的变化
+    watch(() => filterComposable.filteredGames.value, (newValue, oldValue) => {
+      console.log('[GenericResourceView] 🔄 filteredGames 发生变化:', {
+        oldLength: oldValue?.length || 0,
+        newLength: newValue?.length || 0,
+        newValue: newValue?.slice(0, 3).map((item: any) => ({
+          id: item.id?.value || item.id,
+          name: item.name?.value || item.name,
+          developers: item.developers?.value || item.developers
+        }))
+      })
       
-      // 搜索筛选
-      if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase()
-        result = result.filter((item: any) => {
-          const name = item.name?.value || item.name || ''
-          return name.toLowerCase().includes(query)
-        })
+      // 同时检查 filteredItems 的值
+      console.log('[GenericResourceView] 🔄 filteredItems 当前值:', {
+        filteredItemsLength: filteredItems?.value?.length || 0,
+        isSameRef: filteredItems === filterComposable.filteredGames
+      })
+    }, { immediate: true, deep: false })
+    
+    // 调试：检查 filteredItems 的响应式
+    console.log('[GenericResourceView] 🔍 filteredItems 初始化:', {
+      isRef: filteredItems && typeof filteredItems === 'object' && 'value' in filteredItems,
+      currentLength: filteredItems?.value?.length || 0,
+      type: typeof filteredItems
+    })
+
+    // 监听 items 变化，自动提取筛选器数据（完全按照 ImageView 的方式）
+    watch([items], () => {
+      if (filterComposable.extractAllFilters && items.value.length > 0) {
+        filterComposable.extractAllFilters()
+        // 延迟更新筛选器数据，确保数据已提取
+        setTimeout(() => {
+          // 注意：这里不能直接 emit，需要在 methods 中通过 updateFilterData 处理
+        }, 0)
       }
-      
-      // 排序（使用 pageConfig.getSortConfig）
-      const sortConfig = pageConfig.getSortConfig(sortBy.value)
-      if (sortConfig) {
-        result.sort((a: any, b: any) => {
-          const valueA = sortConfig.fieldAccessor(a)
-          const valueB = sortConfig.fieldAccessor(b)
-          if (valueA == null && valueB == null) return 0
-          if (valueA == null) return 1
-          if (valueB == null) return -1
-          const comparison = valueA < valueB ? -1 : valueA > valueB ? 1 : 0
-          return sortConfig.order === 'desc' ? -comparison : comparison
-        })
-      } else {
-        // 降级到简单排序
-        result.sort((a: any, b: any) => {
-          const nameA = (a.name?.value || a.name || '').toLowerCase()
-          const nameB = (b.name?.value || b.name || '').toLowerCase()
-          return nameA.localeCompare(nameB)
-        })
-      }
-      
-      filteredItems.value = result
-    }, { immediate: true })
+    }, { immediate: false, deep: true })
 
     // 创建右键菜单处理器（简化版）
     const contextMenuHandlers = {
@@ -967,8 +1056,39 @@ export default defineComponent({
       resourcePageKeys: Object.keys(resourcePage),
       hasEmptyStateConfig: !!resourcePage.emptyStateConfig,
       hasToolbarConfig: !!resourcePage.toolbarConfig,
-      hasPaginationConfig: !!resourcePage.paginationConfig
+      hasPaginationConfig: !!resourcePage.paginationConfig,
+      // 检查 filteredItems 的引用
+      filteredItemsIsSame: resourcePage.filteredItems === filteredItems,
+      filteredItemsType: typeof resourcePage.filteredItems,
+      filteredItemsIsRef: resourcePage.filteredItems && typeof resourcePage.filteredItems === 'object' && 'value' in resourcePage.filteredItems,
+      // 检查 filteredItems 的实际值
+      filteredItemsValue: resourcePage.filteredItems?.value?.slice(0, 3).map((item: any) => ({
+        id: item.id?.value || item.id,
+        name: item.name?.value || item.name
+      })) || [],
+      // 检查传入的 filteredItems
+      inputFilteredItemsLength: filteredItems?.value?.length || 0,
+      inputFilteredItemsValue: filteredItems?.value?.slice(0, 3).map((item: any) => ({
+        id: item.id?.value || item.id,
+        name: item.name?.value || item.name
+      })) || []
     })
+    
+    // 监听 resourcePage.filteredItems 的变化
+    watch(() => resourcePage.filteredItems?.value, (newValue, oldValue) => {
+      console.log('[GenericResourceView] 🔄 resourcePage.filteredItems 发生变化:', {
+        oldLength: oldValue?.length || 0,
+        newLength: newValue?.length || 0
+      })
+    }, { immediate: true, deep: false })
+    
+    // 监听 resourcePage.paginatedItems 的变化
+    watch(() => resourcePage.paginatedItems?.value, (newValue, oldValue) => {
+      console.log('[GenericResourceView] 🔄 resourcePage.paginatedItems 发生变化:', {
+        oldLength: oldValue?.length || 0,
+        newLength: newValue?.length || 0
+      })
+    }, { immediate: true, deep: false })
 
     // 获取文件存在性状态（辅助函数）
     const getFileExists = (item: any): boolean => {
@@ -1108,6 +1228,58 @@ export default defineComponent({
       console.log('[GenericResourceView] 资源大小计算完成')
     }
 
+    // 监听请求更新游戏时长事件（实时更新总时长）
+    const handleRequestUpdatePlaytime = (event: CustomEvent) => {
+      const { gameId } = event.detail
+      const resource = items.value.find((i: any) => (i.id?.value || i.id) === gameId)
+      if (resource && gameRunningStore && gameInitialPlayTimes.value) {
+        // 如果还没有保存初始值，先保存（第一次更新时）
+        if (!gameInitialPlayTimes.value.has(gameId)) {
+          const playTimeValue = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
+          gameInitialPlayTimes.value.set(gameId, playTimeValue)
+        }
+        
+        // 获取初始 playTime（启动时的值）
+        const initialPlayTime = gameInitialPlayTimes.value.get(gameId) || 0
+        // 计算当前总时长 = 初始时长 + 会话时长
+        const totalPlayTime = gameRunningStore.getCurrentPlayTime(gameId, initialPlayTime)
+        // 更新游戏时长（用于显示）
+        if (resource.playTime && typeof resource.playTime === 'object' && 'value' in resource.playTime) {
+          resource.playTime.value = totalPlayTime
+        } else {
+          resource.playTime = totalPlayTime
+        }
+        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+        console.log(`[GenericResourceView] 游戏 ${resourceName} 时长已更新: ${totalPlayTime} 秒 (初始: ${initialPlayTime}, 会话: ${totalPlayTime - initialPlayTime})`)
+      }
+    }
+    
+    // 监听请求最终游戏时长事件（游戏结束时）
+    const handleRequestFinalPlaytime = (event: CustomEvent) => {
+      const { gameId } = event.detail
+      const resource = items.value.find((i: any) => (i.id?.value || i.id) === gameId)
+      if (resource && gameRunningStore && gameInitialPlayTimes.value) {
+        // 获取初始 playTime（从保存的初始值获取，如果不存在则使用当前值）
+        const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
+        const initialPlayTime = gameInitialPlayTimes.value.get(gameId) || currentPlayTime
+        // 计算最终总时长
+        const totalPlayTime = gameRunningStore.getCurrentPlayTime(gameId, initialPlayTime)
+        // 更新并保存
+        if (resource.playTime && typeof resource.playTime === 'object' && 'value' in resource.playTime) {
+          resource.playTime.value = totalPlayTime
+        } else {
+          resource.playTime = totalPlayTime
+        }
+        // 清除保存的初始值
+        gameInitialPlayTimes.value.delete(gameId)
+        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+        console.log(`[GenericResourceView] 游戏 ${resourceName} 最终时长已保存: ${totalPlayTime} 秒`)
+        
+        // 注意：这里不调用保存方法，因为 GenericResourceView 是通用组件，保存逻辑由上层管理
+        // 如果需要保存，可以通过事件通知上层组件
+      }
+    }
+
     // 监听游戏进程结束事件
     onMounted(async () => {
       if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.onGameProcessEnded) {
@@ -1119,12 +1291,56 @@ export default defineComponent({
         console.log('[GenericResourceView] ⚠️ 无法注册 game-process-ended 事件监听器')
       }
       
+      // 注册游戏时长更新事件监听器（用于实时更新总时长）
+      window.addEventListener('game-request-update-playtime', handleRequestUpdatePlaytime as EventListener)
+      window.addEventListener('game-request-final-playtime', handleRequestFinalPlaytime as EventListener)
+      console.log('[GenericResourceView] ✅ 已注册游戏时长更新事件监听器')
+      
+      // 启动定时器，定期触发游戏时长更新（每1秒）
+      // 只有当有游戏在运行时才触发更新
+      playtimeUpdateTimer = setInterval(() => {
+        if (resourceType.value === 'Game') {
+          const runningGameIds = gameRunningStore.runningGameIds
+          if (runningGameIds && runningGameIds.length > 0) {
+            // 为每个运行中的游戏触发更新事件
+            runningGameIds.forEach(gameId => {
+              const event = new CustomEvent('game-request-update-playtime', {
+                detail: { gameId }
+              })
+              window.dispatchEvent(event)
+            })
+          }
+        }
+      }, 1000) // 每1秒更新一次
+      
       // 组件挂载后自动检查文件存在性
       if (items.value && items.value.length > 0) {
         await checkFileExistence()
         // 自动计算资源大小
         await calculateResourceSizes()
       }
+      
+      // 提取筛选数据并更新到 App.vue
+      if (filterComposable.extractAllFilters) {
+        filterComposable.extractAllFilters()
+        // 延迟更新，确保筛选数据已提取
+        setTimeout(() => {
+          const filterData = filterComposable.getFilterData()
+          emit('filter-data-updated', filterData)
+        }, 100)
+      }
+    })
+    
+    // 组件卸载前清理事件监听器
+    onBeforeUnmount(() => {
+      window.removeEventListener('game-request-update-playtime', handleRequestUpdatePlaytime as EventListener)
+      window.removeEventListener('game-request-final-playtime', handleRequestFinalPlaytime as EventListener)
+      // 清理定时器
+      if (playtimeUpdateTimer) {
+        clearInterval(playtimeUpdateTimer)
+        playtimeUpdateTimer = null
+      }
+      console.log('[GenericResourceView] ✅ 已清理游戏时长更新事件监听器和定时器')
     })
 
     // 监听 showComicViewer 变化，用于调试
@@ -1193,13 +1409,217 @@ export default defineComponent({
       handleSearchQueryChanged: resourcePage.handleSearchQueryChanged,
       handleSortByChanged: resourcePage.handleSortByChanged,
       handleContextMenuClick: resourcePage.handleContextMenuClick,
-      handlePageChange: resourcePage.handlePageChange
-    } as any // 使用 as any 绕过类型检查，因为方法确实存在
+      handlePageChange: resourcePage.handlePageChange,
+      // 筛选相关（按照 GameView.vue 的方式暴露所有方法）
+      // 注意：顺序与 GameView.vue 保持一致，先 toRefs 再展开 filterComposable
+      ...toRefs(filterComposable),
+      ...filterComposable,
+      // 保存 filterComposable 引用，供 methods 中使用
+      _filterComposable: filterComposable,
+      // 明确暴露 filteredItems 和 paginatedItems，确保模板能正确访问
+      // 重要：使用 filterComposable.filteredGames（即 filteredItems），而不是 resourcePage.filteredItems
+      // 因为 resourcePage.filteredItems 可能没有正确响应筛选变化
+      filteredItems: filterComposable.filteredGames, // 直接使用筛选 composable 的结果
+      paginatedItems: resourcePage.paginatedItems
+    }
+    
+    // 调试：检查 setup 返回的对象中的筛选方法
+    const setupReturn = {
+      resourceType,
+      isElectronEnvironment,
+      isResourceRunning,
+      handleResourceAction,
+      terminateGame,
+      showComicViewer,
+      currentAlbum,
+      pages,
+      currentPageIndex,
+      closeComicViewer,
+      handleComicViewerPageChange,
+      showNovelReader,
+      currentReadingNovel,
+      showEbookReaderV2,
+      ebookReaderV2FilePath,
+      ebookNavigation,
+      ebookBookAvailable,
+      closeNovelReader,
+      closeEbookReaderV2,
+      handleNavigationUpdated,
+      handleRenditionReady,
+      handleEbookJumpTo,
+      ebookReaderRef,
+      getNovelName,
+      getNovelAuthor,
+      getNovelFilePath,
+      getNovelFileType,
+      getNovelCurrentPage,
+      getNovelNameByPath,
+      handlePdfPageChanged,
+      handleTextPageChanged,
+      handleTextProgressChanged,
+      getFileExists,
+      checkFileExistence,
+      ...resourcePage,
+      updateScale: resourcePage.updateScale,
+      handleEmptyStateAction: resourcePage.handleEmptyStateAction,
+      showAddDialogHandler: resourcePage.showAddDialogHandler,
+      handleSortChanged: resourcePage.handleSortChanged,
+      handleSearchQueryChanged: resourcePage.handleSearchQueryChanged,
+      handleSortByChanged: resourcePage.handleSortByChanged,
+      handleContextMenuClick: resourcePage.handleContextMenuClick,
+      handlePageChange: resourcePage.handlePageChange,
+      ...toRefs(filterComposable),
+      ...filterComposable
+    }
+    
+    // 检查返回对象中的筛选方法
+    const returnedFilterMethods = Object.keys(setupReturn).filter(key => 
+      key.startsWith('filterBy') || 
+      key.startsWith('excludeBy') || 
+      (key.startsWith('clear') && key.endsWith('Filter'))
+    )
+    console.log('[GenericResourceView] 📤 setup 返回对象中的筛选方法:', returnedFilterMethods)
+    console.log('[GenericResourceView] 📤 setup 返回对象的所有键:', Object.keys(setupReturn))
+    
+    // 检查每个方法
+    returnedFilterMethods.forEach(methodName => {
+      const method = (setupReturn as any)[methodName]
+      console.log(`[GenericResourceView] ✅ setup 返回的 ${methodName}:`, {
+        exists: method !== undefined,
+        isFunction: typeof method === 'function',
+        type: typeof method,
+        value: method
+      })
+    })
+    
+    return setupReturn as any // 使用 as any 绕过类型检查，因为方法确实存在
   },
   methods: {
     handleContextMenu(event: MouseEvent, item: any) {
       (this.$refs.baseView as any)?.showContextMenuHandler(event, item)
+    },
+    // 更新筛选器数据到 App.vue
+    updateFilterData() {
+      // 优先从 this 访问，如果不存在则从 filterComposable 访问
+      const getFilterDataFn = (this as any).getFilterData || 
+                             ((this as any)._filterComposable && (this as any)._filterComposable.getFilterData)
+      
+      console.log('[GenericResourceView] updateFilterData 被调用')
+      console.log('[GenericResourceView] getFilterDataFn 存在:', !!getFilterDataFn)
+      console.log('[GenericResourceView] _filterComposable 存在:', !!(this as any)._filterComposable)
+      
+      if (getFilterDataFn && typeof getFilterDataFn === 'function') {
+        const filterData = getFilterDataFn()
+        // 详细打印每个筛选器的状态
+        const filtersDetail = filterData?.filters?.map((f: any) => ({
+          key: f.key,
+          title: f.title,
+          itemsCount: f.items?.length || 0,
+          selectedCount: f.selected?.length || 0,
+          excludedCount: f.excluded?.length || 0,
+          selected: f.selected || [],
+          excluded: f.excluded || []
+        })) || []
+        console.log('[GenericResourceView] updateFilterData - 筛选器数据:', {
+          filtersCount: filterData?.filters?.length || 0,
+          filters: filtersDetail
+        })
+        // 特别检查 developers 筛选器的状态
+        const developersFilter = filtersDetail.find((f: any) => f.key === 'developers')
+        if (developersFilter) {
+          console.log('[GenericResourceView] developers 筛选器状态:', {
+            selected: developersFilter.selected,
+            excluded: developersFilter.excluded,
+            itemsCount: developersFilter.itemsCount
+          })
+        }
+        this.$emit('filter-data-updated', filterData)
+      } else {
+        console.warn('[GenericResourceView] getFilterData 方法不存在，无法更新筛选器数据')
+      }
+    },
+    // 处理来自 App.vue 的筛选器事件（动态支持所有筛选器，完全按照 GameView 的方式）
+    handleFilterEvent(event, data) {
+      console.log('GenericResourceView handleFilterEvent:', event, data)
+      const filterKey = data?.filterKey || data
+      
+      // 动态获取筛选方法名
+      const filterMethodName = `filterBy${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}`
+      const excludeMethodName = `excludeBy${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}`
+      const clearMethodName = `clear${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}Filter`
+      
+      console.log('[GenericResourceView] 筛选方法名:', { filterMethodName, excludeMethodName, clearMethodName })
+      console.log('[GenericResourceView] 方法是否存在:', {
+        filterMethod: !!this[filterMethodName],
+        excludeMethod: !!this[excludeMethodName],
+        clearMethod: !!this[clearMethodName]
+      })
+      
+      switch (event) {
+        case 'filter-select':
+          if (this[filterMethodName] && typeof this[filterMethodName] === 'function') {
+            // 获取筛选前的状态
+            const filterComposable = (this as any)._filterComposable
+            const filterState = filterComposable?.filterStates?.[filterKey]
+            const beforeSelected = filterState?.selected?.value ? [...filterState.selected.value] : []
+            console.log('[GenericResourceView] 调用筛选方法前，selected 状态:', beforeSelected)
+            
+            console.log('[GenericResourceView] 调用筛选方法:', filterMethodName, '参数:', data.itemName)
+            this[filterMethodName](data.itemName)
+            
+            // 获取筛选后的状态
+            const afterSelected = filterState?.selected?.value ? [...filterState.selected.value] : []
+            console.log('[GenericResourceView] 调用筛选方法后，selected 状态:', afterSelected)
+            console.log('[GenericResourceView] 筛选方法调用完成，更新筛选器数据')
+            this.updateFilterData()
+          } else {
+            console.warn('[GenericResourceView] 筛选方法不存在:', filterMethodName)
+          }
+          break
+        case 'filter-exclude':
+          if (this[excludeMethodName] && typeof this[excludeMethodName] === 'function') {
+            console.log('[GenericResourceView] 调用排除方法:', excludeMethodName, '参数:', data.itemName)
+            this[excludeMethodName](data.itemName)
+            this.updateFilterData()
+          } else {
+            console.warn('[GenericResourceView] 排除方法不存在:', excludeMethodName)
+          }
+          break
+        case 'filter-clear':
+          if (this[clearMethodName] && typeof this[clearMethodName] === 'function') {
+            console.log('[GenericResourceView] 调用清除方法:', clearMethodName)
+            this[clearMethodName]()
+            this.updateFilterData()
+          } else {
+            console.warn('[GenericResourceView] 清除方法不存在:', clearMethodName)
+          }
+          break
+      }
     }
+  },
+  async mounted() {
+    // 等待下一个 tick，确保数据已完全更新到响应式系统中（完全按照 ImageView loadAlbums 的方式）
+    await this.$nextTick()
+    
+    // 提取所有筛选器数据（使用 useResourceFilter 的方法，完全按照 ImageView loadAlbums 的方式）
+    if (this.extractAllFilters && typeof this.extractAllFilters === 'function') {
+      console.log('[GenericResourceView] 调用 extractAllFilters，当前 items 数量:', (this as any).items?.length || 0)
+      this.extractAllFilters()
+      console.log('[GenericResourceView] extractAllFilters 执行完成')
+    } else {
+      console.warn('[GenericResourceView] extractAllFilters 方法不存在')
+    }
+
+    // 初始化筛选器数据（完全按照 ImageView loadAlbums 的方式）
+    this.updateFilterData()
+    
+    // 注意：不需要在这里注册全局事件监听器
+    // ResourceView.vue 已经注册了全局事件监听器，并且会调用这个组件的 handleFilterEvent 方法
+    // 这与 GameView.vue 和 ImageView.vue 的实现方式一致
+  },
+  beforeUnmount() {
+    // 注意：不需要清理筛选事件监听器
+    // 因为事件监听器是由 ResourceView.vue 注册的，它会负责清理
   }
 })
 </script>

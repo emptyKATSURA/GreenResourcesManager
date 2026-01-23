@@ -1,7 +1,10 @@
 import { type Ref } from 'vue'
 import { formatPlayTime } from '../../utils/formatters'
 import notify from '../../utils/NotificationService.ts'
-import type { Game } from '../../types/game'
+import { Game as GameClass } from '@resources/game.ts'
+
+// Game 类型就是 GameClass 的实例类型
+type Game = InstanceType<typeof GameClass>
 
 /**
  * 游戏时长管理的 composable

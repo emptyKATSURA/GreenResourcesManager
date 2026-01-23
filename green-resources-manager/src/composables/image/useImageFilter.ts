@@ -107,27 +107,31 @@ export function useImageFilter(albums: Ref<Manga[]>) {
         resourcePath.toLowerCase().includes(searchQuery.value.toLowerCase())
       
       // 标签筛选 - 必须包含所有选中的标签（AND逻辑）
+      const tags = BaseResources.extractPrimitiveValue(album.tags?.value || album.tags)
+      const tagsArray = Array.isArray(tags) ? tags : []
       const matchesTag = selectedTags.value.length === 0 || 
-        (album.tags && selectedTags.value.every(tag => album.tags.includes(tag)))
+        (tagsArray.length > 0 && selectedTags.value.every(tag => tagsArray.includes(tag)))
       
       // 排除标签
       const notExcludedTag = excludedTags.value.length === 0 || 
-        !(album.tags && excludedTags.value.some(tag => album.tags.includes(tag)))
+        !(tagsArray.length > 0 && excludedTags.value.some(tag => tagsArray.includes(tag)))
       
       // 作者筛选 - 作者是"或"逻辑（一个相册只能有一个作者）
+      // 注意：author 变量已在上面定义，这里直接使用
       const matchesAuthor = selectedAuthors.value.length === 0 || 
-        selectedAuthors.value.includes(album.author)
+        selectedAuthors.value.includes(author)
       
       // 排除作者
       const notExcludedAuthor = excludedAuthors.value.length === 0 || 
-        !excludedAuthors.value.includes(album.author)
+        !excludedAuthors.value.includes(author)
       
       // 其他筛选
       let matchesOther = true
       if (selectedOthers.value.length > 0) {
         matchesOther = selectedOthers.value.some(other => {
           if (other === '丢失的资源') {
-            return album.fileExists === false
+            const fileExists = BaseResources.extractPrimitiveValue(album.fileExists?.value ?? album.fileExists)
+            return fileExists === false
           }
           return false
         })
@@ -135,7 +139,8 @@ export function useImageFilter(albums: Ref<Manga[]>) {
       const notExcludedOther = excludedOthers.value.length === 0 || 
         !excludedOthers.value.some(other => {
           if (other === '丢失的资源') {
-            return album.fileExists === false
+            const fileExists = BaseResources.extractPrimitiveValue(album.fileExists?.value ?? album.fileExists)
+            return fileExists === false
           }
           return false
         })

@@ -125,7 +125,7 @@ import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import PasswordInputDialog from '../../components/PasswordInputDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Game } from '@resources/game.ts'
-import { GamePage } from '../../configs/pages/GamePage.ts'
+import { GamePage, type GameSortBy } from '../../configs/pages/GamePage.ts'
 import { ResourceField } from '@resources/base/ResourceField.ts'
 import GameDetailPanel from '../../components/game/GameDetailPanel.vue'
 import GameGrid from '../../components/game/GameGrid.vue'
@@ -134,10 +134,10 @@ import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
 import alertService from '../../utils/AlertService.ts'
 import confirmService from '../../utils/ConfirmService.ts'
-import { ref, toRefs, PropType } from 'vue'
+import { ref, toRefs, PropType, computed } from 'vue'
 import { PageConfig } from '../../types/page'
-import { GameSortBy } from '../../types/game'
-import { useGameFilter } from '../../composables/game/useGameFilter'
+import type { FilterItem } from '../../types/filter'
+import { useResourceFilter } from '../../composables/useResourceFilter'
 import { useGameManagement } from '../../composables/game/useGameManagement'
 import { useGameScreenshot } from '../../composables/game/useGameScreenshot'
 import { useGameRunning } from '../../composables/game/useGameRunning'
@@ -192,13 +192,25 @@ export default {
       return gameRunningStore.isGameRunning(game.id?.value || game.id)
     }
 
-    // 使用筛选 composable（传入页面配置实例，由 composable 内部调用排序函数）
-    const filterComposable = useGameFilter(games, searchQuery, sortBy, gamePage, isGameRunningForFilter)
+    // 使用通用筛选 composable（传入页面配置实例和额外数据）
+    const filterComposable = useResourceFilter(
+      games, 
+      searchQuery, 
+      sortBy, 
+      gamePage, 
+      { isGameRunning: isGameRunningForFilter }
+    )
+
+    // 从筛选器状态中获取所有标签（用于编辑对话框）
+    const allTags = computed<FilterItem[]>(() => {
+      const tagsState = filterComposable.filterStates?.tags
+      return tagsState?.items?.value || []
+    })
 
     // 使用管理 composable
     const managementComposable = useGameManagement(
       games,
-      filterComposable.extractAllTags,
+      filterComposable.extractAllFilters,
       isElectronEnvironment,
       props.pageConfig.id
     )
@@ -415,6 +427,7 @@ export default {
       // 筛选相关
       ...toRefs(filterComposable),
       ...filterComposable,
+      allTags, // 暴露 allTags 供模板使用
       // 管理相关
       ...toRefs(managementComposable),
       ...managementComposable,
@@ -864,110 +877,35 @@ export default {
         console.error(`❌ 更新游戏 ${gameName} 文件夹大小失败:`, error)
       }
     },
-    // extractAllTags 已移至 useGameFilter composable
-    // filterByTag, excludeByTag, clearTagFilter, filterByDeveloper, excludeByDeveloper, clearDeveloperFilter 已移至 useGameFilter composable
+    // 动态筛选方法：根据筛选配置动态生成
     // 这些方法现在直接从 composable 中获取，只需要在调用后更新筛选器数据
-    handleFilterByTag(tagName: string) {
-      this.filterByTag(tagName)
-      this.updateFilterData()
-    },
-    handleExcludeByTag(tagName: string) {
-      this.excludeByTag(tagName)
-      this.updateFilterData()
-    },
-    handleClearTagFilter() {
-      this.clearTagFilter()
-      this.updateFilterData()
-    },
-    handleFilterByDeveloper(developerName: string) {
-      this.filterByDeveloper(developerName)
-      this.updateFilterData()
-    },
-    handleExcludeByDeveloper(developerName: string) {
-      this.excludeByDeveloper(developerName)
-      this.updateFilterData()
-    },
-    handleClearDeveloperFilter() {
-      this.clearDeveloperFilter()
-      this.updateFilterData()
-    },
-    handleFilterByPublisher(publisherName: string) {
-      this.filterByPublisher(publisherName)
-      this.updateFilterData()
-    },
-    handleExcludeByPublisher(publisherName: string) {
-      this.excludeByPublisher(publisherName)
-      this.updateFilterData()
-    },
-    handleClearPublisherFilter() {
-      this.clearPublisherFilter()
-      this.updateFilterData()
-    },
-    handleFilterByEngine(engineName: string) {
-      this.filterByEngine(engineName)
-      this.updateFilterData()
-    },
-    handleExcludeByEngine(engineName: string) {
-      this.excludeByEngine(engineName)
-      this.updateFilterData()
-    },
-    handleClearEngineFilter() {
-      this.clearEngineFilter()
-      this.updateFilterData()
-    },
-    handleFilterByOther(otherName: string) {
-      this.filterByOther(otherName)
-      this.updateFilterData()
-    },
-    handleExcludeByOther(otherName: string) {
-      this.excludeByOther(otherName)
-      this.updateFilterData()
-    },
-    handleClearOtherFilter() {
-      this.clearOtherFilter()
-      this.updateFilterData()
-    },
-    // 处理来自 App.vue 的筛选器事件
+    // 处理来自 App.vue 的筛选器事件（动态支持所有筛选器）
     handleFilterEvent(event, data) {
       console.log('GameView handleFilterEvent:', event, data)
+      const filterKey = data?.filterKey || data
+      
+      // 动态获取筛选方法名
+      const filterMethodName = `filterBy${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}`
+      const excludeMethodName = `excludeBy${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}`
+      const clearMethodName = `clear${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}Filter`
+      
       switch (event) {
         case 'filter-select':
-          if (data.filterKey === 'tags') {
-            this.handleFilterByTag(data.itemName)
-          } else if (data.filterKey === 'developers') {
-            this.handleFilterByDeveloper(data.itemName)
-          } else if (data.filterKey === 'publishers') {
-            this.handleFilterByPublisher(data.itemName)
-          } else if (data.filterKey === 'engines') {
-            this.handleFilterByEngine(data.itemName)
-          } else if (data.filterKey === 'others') {
-            this.handleFilterByOther(data.itemName)
+          if (this[filterMethodName] && typeof this[filterMethodName] === 'function') {
+            this[filterMethodName](data.itemName)
+            this.updateFilterData()
           }
           break
         case 'filter-exclude':
-          if (data.filterKey === 'tags') {
-            this.handleExcludeByTag(data.itemName)
-          } else if (data.filterKey === 'developers') {
-            this.handleExcludeByDeveloper(data.itemName)
-          } else if (data.filterKey === 'publishers') {
-            this.handleExcludeByPublisher(data.itemName)
-          } else if (data.filterKey === 'engines') {
-            this.handleExcludeByEngine(data.itemName)
-          } else if (data.filterKey === 'others') {
-            this.handleExcludeByOther(data.itemName)
+          if (this[excludeMethodName] && typeof this[excludeMethodName] === 'function') {
+            this[excludeMethodName](data.itemName)
+            this.updateFilterData()
           }
           break
         case 'filter-clear':
-          if (data === 'tags') {
-            this.handleClearTagFilter()
-          } else if (data === 'developers') {
-            this.handleClearDeveloperFilter()
-          } else if (data === 'publishers') {
-            this.handleClearPublisherFilter()
-          } else if (data === 'engines') {
-            this.handleClearEngineFilter()
-          } else if (data === 'others') {
-            this.handleClearOtherFilter()
+          if (this[clearMethodName] && typeof this[clearMethodName] === 'function') {
+            this[clearMethodName]()
+            this.updateFilterData()
           }
           break
       }

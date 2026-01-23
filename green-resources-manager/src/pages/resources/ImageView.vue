@@ -180,8 +180,9 @@ import { ref, computed, toRefs, watch, PropType } from 'vue'
 import { PageConfig } from '../../types/page'
 import { usePagination } from '../../composables/usePagination'
 import { useImageDragDrop, isArchiveFile } from '../../composables/image/useImageDragDrop'
-import { useImageFilter } from '../../composables/image/useImageFilter'
+import { useResourceFilter } from '../../composables/useResourceFilter'
 import { useImageAlbum } from '../../composables/image/useImageAlbum'
+import type { FilterItem } from '../../types/filter'
 import { useImageCache } from '../../composables/image/useImageCache'
 import { useImagePages } from '../../composables/image/useImagePages'
 import { useImageCover } from '../../composables/image/useImageCover'
@@ -226,16 +227,42 @@ export default {
     // 使用专辑管理 composable
     const imageAlbumComposable = useImageAlbum(props.pageConfig.id)
     
-    // 使用筛选 composable（基于 albums）
-    const imageFilterComposable = useImageFilter(imageAlbumComposable.albums)
+    // 响应式数据（按照 GameView 的方式）
+    const searchQuery = ref('')
+    const sortBy = ref('name-asc')
+    
+    // 使用通用筛选 composable（传入页面配置实例）
+    const filterComposable = useResourceFilter(
+      imageAlbumComposable.albums as any, 
+      searchQuery, 
+      sortBy, 
+      imagePage
+    )
+    
+    // 从筛选器状态中获取所有标签（用于编辑对话框）
+    const allTags = computed<FilterItem[]>(() => {
+      const tagsState = filterComposable.filterStates?.tags
+      return tagsState?.items?.value || []
+    })
     
     // 创建一个 ref 用于存储筛选后的专辑列表（用于分页）
     const filteredAlbumsRef = ref([])
     
     // 监听筛选结果变化，更新 filteredAlbumsRef
-    watch(imageFilterComposable.filteredAlbums, (newValue) => {
+    watch(filterComposable.filteredItems, (newValue) => {
       filteredAlbumsRef.value = newValue
     }, { immediate: true })
+    
+    // 监听 albums 变化，自动提取筛选器数据（完全按照 GenericResourceView 的方式）
+    watch([imageAlbumComposable.albums], () => {
+      if (filterComposable.extractAllFilters && imageAlbumComposable.albums.value.length > 0) {
+        filterComposable.extractAllFilters()
+        // 延迟更新筛选器数据，确保数据已提取
+        setTimeout(() => {
+          // 注意：这里不能直接 emit，需要在 methods 中通过 updateFilterData 处理
+        }, 0)
+      }
+    }, { immediate: false, deep: true })
 
     // 使用分页 composable（专辑列表分页）
     const albumPaginationComposable = usePagination(
@@ -254,7 +281,7 @@ export default {
 
     // 使用图片拖拽 composable
     const imageDragDropComposable = useImageDragDrop({
-      albums: imageAlbumComposable.albums,
+      albums: imageAlbumComposable.albums as any,
       onAddAlbum: async (albumData) => {
         // 调用 composable 的 addAlbum 方法
         return await imageAlbumComposable.addAlbum(albumData)
@@ -342,12 +369,18 @@ export default {
       newAlbumFolderPath,
       editAlbumCover,
       editAlbumFolderPath,
+      // 数据（完全按照 GameView 的方式）
+      albums: imageAlbumComposable.albums,
+      searchQuery,
+      sortBy,
       // 专辑管理相关（排除 removeAlbum，使用重命名版本）
       ...restAlbumComposable,
       removeAlbumById: removeAlbum,
-      // 筛选相关
-      ...imageFilterComposable,
-      allTags: imageFilterComposable.allTags,
+      // 筛选相关（完全按照 GameView 的方式）
+      ...toRefs(filterComposable),
+      ...filterComposable,
+      filteredAlbums: filterComposable.filteredItems, // 为了兼容性，提供 filteredAlbums 别名
+      allTags, // 暴露 allTags 供模板使用
       // 分页相关
       ...albumPaginationComposable,
       // 拖拽相关（排除 handleDrop，使用重命名版本）
@@ -585,7 +618,17 @@ export default {
         await loadFn.call(this)
       }
       
-      this.extractAllTags()
+      // 等待下一个 tick，确保数据已完全更新到响应式系统中
+      await this.$nextTick()
+      
+      // 提取所有筛选器数据（使用 useResourceFilter 的方法）
+      if (this.extractAllFilters && typeof this.extractAllFilters === 'function') {
+        console.log('[ImageView] 调用 extractAllFilters，当前 albums 数量:', this.albums?.length || 0)
+        this.extractAllFilters()
+        console.log('[ImageView] extractAllFilters 执行完成')
+      } else {
+        console.warn('[ImageView] extractAllFilters 方法不存在')
+      }
 
       this.updateFilterData()
       
@@ -1431,19 +1474,61 @@ export default {
     
     
     
-    // 提取标签和作者信息（已移至 useImageFilter composable，此方法保留用于兼容）
+    // 提取标签和作者信息（已移至 useResourceFilter composable，此方法保留用于兼容）
     extractAllTags() {
-      // 标签和作者信息已由 useImageFilter composable 自动提取
-      // 只需要更新筛选器数据
+      // 调用 useResourceFilter 的 extractAllFilters 方法
+      if (this.extractAllFilters && typeof this.extractAllFilters === 'function') {
+        this.extractAllFilters()
+      }
+      // 更新筛选器数据
       this.updateFilterData()
     },
     
-    // 更新筛选器数据到 App.vue
-    updateFilterData() {
-      // composable 的 getFilterData 方法已通过 setup 返回并可直接使用
-      if (this.getFilterData) {
-        this.$emit('filter-data-updated', this.getFilterData())
+    // 处理来自 App.vue 的筛选器事件（动态支持所有筛选器，完全按照 GameView 的方式）
+    handleFilterEvent(event, data) {
+      console.log('ImageView handleFilterEvent:', event, data)
+      const filterKey = data?.filterKey || data
+      
+      // 动态获取筛选方法名（完全按照 GameView 的方式）
+      const filterMethodName = `filterBy${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}`
+      const excludeMethodName = `excludeBy${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}`
+      const clearMethodName = `clear${filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}Filter`
+      
+      switch (event) {
+        case 'filter-select':
+          if (this[filterMethodName] && typeof this[filterMethodName] === 'function') {
+            this[filterMethodName](data.itemName)
+            this.updateFilterData()
+          }
+          break
+        case 'filter-exclude':
+          if (this[excludeMethodName] && typeof this[excludeMethodName] === 'function') {
+            this[excludeMethodName](data.itemName)
+            this.updateFilterData()
+          }
+          break
+        case 'filter-clear':
+          if (this[clearMethodName] && typeof this[clearMethodName] === 'function') {
+            this[clearMethodName]()
+            this.updateFilterData()
+          }
+          break
       }
+    },
+    // 更新筛选器数据到 App.vue（完全按照 GameView 的方式）
+    updateFilterData() {
+      const filterData = this.getFilterData()
+      console.log('[ImageView] updateFilterData - 筛选器数据:', {
+        filtersCount: filterData?.filters?.length || 0,
+        filters: filterData?.filters?.map((f: any) => ({
+          key: f.key,
+          title: f.title,
+          itemsCount: f.items?.length || 0,
+          selectedCount: f.selected?.length || 0,
+          excludedCount: f.excluded?.length || 0
+        })) || []
+      })
+      this.$emit('filter-data-updated', filterData)
     },
 
     // 从设置中加载图片配置
@@ -1587,6 +1672,8 @@ export default {
     console.log('✅ 存档系统已初始化，开始加载图片数据')
     
     await this.loadAlbums()
+    
+    // loadAlbums 中已经调用了 extractAllFilters，这里不需要重复调用
     
     // 加载图片设置
     await this.loadImageSettings()

@@ -209,8 +209,9 @@ import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Novel } from '@resources/novel.ts'
 import saveManager from '../../utils/SaveManager.ts'
 import { useNovelManagement } from '../../composables/novel/useNovelManagement'
-import { useNovelFilter } from '../../composables/novel/useNovelFilter'
-import { ref, PropType } from 'vue'
+import { useResourceFilter } from '../../composables/useResourceFilter'
+import { NovelPage } from '../../configs/pages/NovelPage.ts'
+import { ref, computed, PropType, toRefs } from 'vue'
 import { PageConfig } from '../../types/page'
 import { EpubParser } from '../../utils/EpubParser'
 import { useDisplayLayout } from '../../composables/useDisplayLayout'
@@ -248,13 +249,20 @@ export default {
     // 使用显示布局 composable
     const displayLayoutComposable = useDisplayLayout(80, 200)
     
-    // 初始化小说筛选 composable
-    const novelFilter = useNovelFilter({
-      novels: novelManagement.novels,
-      onFilterDataUpdated: (data) => {
-        // 这个回调将在 mounted 中重新设置
-      }
-    })
+    // 创建页面配置实例
+    const novelPage = new NovelPage()
+    
+    // 响应式数据
+    const searchQuery = ref('')
+    const sortBy = ref('name-asc')
+    
+    // 使用通用筛选 composable
+    const filterComposable = useResourceFilter(
+      novelManagement.novels,
+      searchQuery,
+      sortBy,
+      novelPage
+    )
 
     // 创建统一的资源更新函数（用于 DetailPanel）
     const updateNovelResource = async (id: string, updates: { rating?: number; comment?: string; isFavorite?: boolean }) => {
@@ -284,25 +292,25 @@ export default {
       updateReadingStats: novelManagement.updateReadingStats,
       analyzeNovelFile: novelManagement.analyzeNovelFile,
       getNovelManager: novelManagement.getNovelManager,
-      // 小说筛选相关
-      searchQuery: novelFilter.searchQuery,
-      sortBy: novelFilter.sortBy,
-      selectedTags: novelFilter.selectedTags,
-      excludedTags: novelFilter.excludedTags,
-      selectedAuthors: novelFilter.selectedAuthors,
-      excludedAuthors: novelFilter.excludedAuthors,
-      allTags: novelFilter.allTags,
-      allAuthors: novelFilter.allAuthors,
-      filteredNovels: novelFilter.filteredNovels,
-      filterByTag: novelFilter.filterByTag,
-      excludeByTag: novelFilter.excludeByTag,
-      clearTagFilter: novelFilter.clearTagFilter,
-      filterByAuthor: novelFilter.filterByAuthor,
-      excludeByAuthor: novelFilter.excludeByAuthor,
-      clearAuthorFilter: novelFilter.clearAuthorFilter,
-      handleFilterEvent: novelFilter.handleFilterEvent,
-      updateFilterData: novelFilter.updateFilterData,
-      setFilterDataUpdatedCallback: novelFilter.setFilterDataUpdatedCallback,
+      // 筛选相关
+      searchQuery,
+      sortBy,
+      // 从筛选器状态中获取所有标签（用于编辑对话框）
+      allTags: computed(() => {
+        const tagsState = filterComposable.filterStates?.tags
+        return tagsState?.items?.value || []
+      }),
+      // 从筛选器状态中获取所有作者
+      allAuthors: computed(() => {
+        const authorsState = filterComposable.filterStates?.authors
+        return authorsState?.items?.value || []
+      }),
+      filteredNovels: filterComposable.filteredItems,
+      // 展开筛选 composable 的所有方法和状态
+      ...toRefs(filterComposable),
+      ...filterComposable,
+      // 保存 filterComposable 引用，供 methods 中使用
+      _filterComposable: filterComposable,
       // 显示布局相关
       ...displayLayoutComposable,
       // 路径更新对话框
@@ -959,9 +967,43 @@ export default {
     },
     
     
-    // checkFileExistence, extractAllTagsAndAuthors, filterByTag, excludeByTag, clearTagFilter,
-    // filterByAuthor, excludeByAuthor, clearAuthorFilter, handleFilterEvent, updateFilterData,
-    // updateNovelsWordCount, updateReadingStats 已移至 composables
+    // 处理来自 App.vue 的筛选器事件（动态支持所有筛选器）
+    handleFilterEvent(event, data) {
+      const filterComposable = (this as any)._filterComposable
+      const filterKey = data?.filterKey || data
+      
+      // 动态获取筛选方法名
+      const capitalizedKey = filterKey.charAt(0).toUpperCase() + filterKey.slice(1)
+      const filterMethodName = `filterBy${capitalizedKey}`
+      const excludeMethodName = `excludeBy${capitalizedKey}`
+      const clearMethodName = `clear${capitalizedKey}Filter`
+      
+      switch (event) {
+        case 'filter-select':
+          if (this[filterMethodName] && typeof this[filterMethodName] === 'function') {
+            this[filterMethodName](data.itemName)
+            this.updateFilterData()
+          }
+          break
+        case 'filter-exclude':
+          if (this[excludeMethodName] && typeof this[excludeMethodName] === 'function') {
+            this[excludeMethodName](data.itemName)
+            this.updateFilterData()
+          }
+          break
+        case 'filter-clear':
+          if (this[clearMethodName] && typeof this[clearMethodName] === 'function') {
+            this[clearMethodName]()
+            this.updateFilterData()
+          }
+          break
+      }
+    },
+    // 更新筛选器数据到 App.vue
+    updateFilterData() {
+      const filterData = (this as any).getFilterData()
+      this.$emit('filter-data-updated', filterData)
+    },
     // 处理小说点击事件
     async handleNovelClick(novel) {
       try {
@@ -1482,11 +1524,6 @@ export default {
     }
   },
   async mounted() {
-    // 设置筛选器数据更新回调
-    this.setFilterDataUpdatedCallback((data) => {
-      this.$emit('filter-data-updated', data)
-    })
-    
     // 加载小说数据
     await this.loadNovels()
     
@@ -1496,11 +1533,40 @@ export default {
     // 加载排序设置
     await this.loadSortSetting()
     
-    // 初始化筛选器数据
-    this.updateFilterData()
+    // 提取筛选数据并更新到 App.vue
+    if ((this as any).extractAllFilters) {
+      (this as any).extractAllFilters()
+      // 延迟更新，确保筛选数据已提取
+      setTimeout(() => {
+        this.updateFilterData()
+      }, 100)
+    }
     
     // 加载全局设置
     await this.getGlobalSettings()
+    
+    // 监听全局筛选事件
+    const handleGlobalFilterEvent = (event: CustomEvent) => {
+      const { type, detail } = event
+      this.handleFilterEvent(type, detail)
+    }
+    
+    window.addEventListener('filter-select', handleGlobalFilterEvent as EventListener)
+    window.addEventListener('filter-exclude', handleGlobalFilterEvent as EventListener)
+    window.addEventListener('filter-clear', handleGlobalFilterEvent as EventListener)
+    
+    // 保存清理函数
+    ;(this as any)._cleanupFilterListeners = () => {
+      window.removeEventListener('filter-select', handleGlobalFilterEvent as EventListener)
+      window.removeEventListener('filter-exclude', handleGlobalFilterEvent as EventListener)
+      window.removeEventListener('filter-clear', handleGlobalFilterEvent as EventListener)
+    }
+  },
+  beforeUnmount() {
+    // 清理筛选事件监听器
+    if ((this as any)._cleanupFilterListeners) {
+      ;(this as any)._cleanupFilterListeners()
+    }
   }
 }
 </script>

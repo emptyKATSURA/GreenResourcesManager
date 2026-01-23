@@ -1,6 +1,7 @@
 import { BasePage } from './base/BasePage.ts'
 import type { SortOption } from '../../types/sort'
 import type { SortConfig } from '../../utils/sortBy'
+import type { FilterConfig, FilterItem } from '../../types/filter'
 import { Manga as MangaClass } from '@resources/manga.ts'
 
 // Manga 类型就是 MangaClass 的实例类型
@@ -163,5 +164,40 @@ export class ImagePage extends BasePage {
 			order: config.order,
 			compareFn: config.compareFn
 		}
+	}
+
+	/**
+	 * 获取筛选配置
+	 * 定义图片页面支持的所有筛选器
+	 * 合并基类的"丢失的资源"筛选和图片特有的筛选器
+	 */
+	getFilterConfig<T = Manga>(): FilterConfig<T>[] {
+		// 获取基类的筛选配置（包含"丢失的资源"）
+		const baseFilters = super.getFilterConfig<T>()
+		
+		// 图片特有的筛选器
+		const imageFilters: FilterConfig<T>[] = [
+			{
+				key: 'tags',
+				title: '标签筛选',
+				fieldAccessor: (manga: any) => {
+					const tags = getFieldValue<string[]>((manga as any).tags)
+					return tags || []
+				},
+				isArray: true
+			},
+			{
+				key: 'authors',
+				title: '作者筛选',
+				fieldAccessor: (manga: any) => {
+					const author = getFieldValue<string>((manga as any).author)
+					return author || ''
+				},
+				isArray: false
+			}
+		] as FilterConfig<T>[]
+		
+		// 合并基类配置和图片特有配置
+		return [...baseFilters, ...imageFilters]
 	}
 }

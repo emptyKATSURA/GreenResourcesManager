@@ -1,10 +1,25 @@
 import { BasePage } from './base/BasePage.ts'
 import type { SortOption } from '../../types/sort'
 import type { SortConfig } from '../../utils/sortBy'
+import type { FilterConfig, FilterItem } from '../../types/filter'
 import { Game as GameClass } from '@resources/game.ts'
 
 // Game 类型就是 GameClass 的实例类型
 type Game = InstanceType<typeof GameClass>
+
+/**
+ * 游戏排序方式类型
+ * 定义在 GamePage 类所在的文件中
+ */
+export type GameSortBy = 
+	| 'name-asc' 
+	| 'name-desc' 
+	| 'lastPlayed-asc' 
+	| 'lastPlayed-desc' 
+	| 'playTime-asc' 
+	| 'playTime-desc' 
+	| 'added-asc' 
+	| 'added-desc'
 
 /**
  * 安全获取游戏属性值的辅助函数
@@ -131,5 +146,110 @@ export class GamePage extends BasePage {
 			order: config.order,
 			compareFn: config.compareFn
 		}
+	}
+
+	/**
+	 * 获取筛选配置
+	 * 定义游戏页面支持的所有筛选器
+	 * 合并基类的"丢失的资源"筛选和游戏特有的筛选器
+	 */
+	getFilterConfig<T = Game>(): FilterConfig<T>[] {
+		// 获取基类的筛选配置（包含"丢失的资源"）
+		const baseFilters = super.getFilterConfig<T>()
+		
+		// 游戏特有的筛选器
+		const gameFilters: FilterConfig<T>[] = [
+			{
+				key: 'tags',
+				title: '标签筛选',
+				fieldAccessor: (game: any) => {
+					const tags = getFieldValue<string[]>((game as any).tags)
+					return tags || []
+				},
+				isArray: true
+			},
+			{
+				key: 'developers',
+				title: '开发商筛选',
+				fieldAccessor: (game: any) => {
+					const developers = getFieldValue<string[]>((game as any).developers)
+					return developers || []
+				},
+				isArray: true
+			},
+			{
+				key: 'publishers',
+				title: '发行商筛选',
+				fieldAccessor: (game: any) => {
+					const publisher = getFieldValue<string>((game as any).publisher)
+					return publisher || ''
+				},
+				isArray: false
+			},
+			{
+				key: 'engines',
+				title: '引擎筛选',
+				fieldAccessor: (game: any) => {
+					const engine = getFieldValue<string>((game as any).engine)
+					return engine || ''
+				},
+				isArray: false
+			},
+			{
+				key: 'others',
+				title: '其他筛选',
+				fieldAccessor: (game: any) => {
+					// 这个字段访问器不会被使用，因为使用了 extractFn
+					return null
+				},
+				isArray: false,
+				// 自定义提取函数：提取"正在游玩"（"丢失的资源"已由基类提供）
+				extractFn: (games: any[], additionalData?: any): FilterItem[] => {
+					const items: FilterItem[] = []
+					let runningGamesCount = 0
+
+					games.forEach((game: any) => {
+						// 统计正在游玩的游戏
+						if (additionalData?.isGameRunning && additionalData.isGameRunning(game)) {
+							runningGamesCount++
+						}
+					})
+
+					// "正在游玩"始终显示，即使数量为0
+					items.push({
+						name: '正在游玩',
+						count: runningGamesCount
+					})
+
+					return items
+				},
+				// 自定义匹配函数：处理"正在游玩"（"丢失的资源"已由基类处理）
+				matchFn: (game: any, selected: string[], excluded: string[], additionalData?: any): boolean => {
+					// 检查排除条件
+					if (excluded.length > 0) {
+						if (excluded.includes('正在游玩') && additionalData?.isGameRunning && additionalData.isGameRunning(game)) {
+							return false
+						}
+					}
+
+					// 检查选中条件
+					if (selected.length > 0) {
+						const isRunning = additionalData?.isGameRunning ? additionalData.isGameRunning(game) : false
+						
+						return selected.some(sel => {
+							if (sel === '正在游玩') {
+								return isRunning
+							}
+							return false
+						})
+					}
+
+					return true
+				}
+			}
+		] as FilterConfig<T>[]
+		
+		// 合并基类配置和游戏特有配置
+		return [...baseFilters, ...gameFilters]
 	}
 }

@@ -1,12 +1,24 @@
 import { ref, type Ref } from 'vue'
 import { useDragAndDrop } from '../useDragAndDrop'
 import notify from '../../utils/NotificationService'
-import type { GameDragDropOptions } from '../../types/game'
 import { isArchiveFile } from '../useArchive'
 import { Game as GameClass } from '@resources/game.ts'
 
 // Game 类型就是 GameClass 的实例类型
 type Game = InstanceType<typeof GameClass>
+
+/**
+ * 游戏拖拽选项类型
+ */
+export interface GameDragDropOptions {
+	onAddGame: (game: Game) => Promise<void>
+	onShowPathUpdateDialog: (info: {
+		existingGame: Game
+		newPath: string
+		newFileName: string
+	}) => void
+	isElectronEnvironment: boolean
+}
 
 /**
  * 从文件路径提取游戏名称
