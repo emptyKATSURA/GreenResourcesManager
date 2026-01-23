@@ -158,30 +158,14 @@ export default {
   },
   computed: {
     descriptionTitle() {
-      const titles = {
-        game: '游戏简介',
-        software: '软件简介',
-        image: '漫画简介',
-        album: '漫画简介',
-        video: '视频简介',
-        audio: '音频简介',
-        file: '文件描述',
-        folder: '文件夹描述'
-      }
-      return titles[this.type] || '简介'
+      // 从配置中读取，如果没有配置返回默认值
+      const config = this.detailPanelConfig
+      return config?.descriptionTitle || '简介'
     },
     tagsTitle() {
-      const titles = {
-        game: '游戏标签',
-        software: '软件标签',
-        image: '漫画标签',
-        album: '漫画标签',
-        video: '视频标签',
-        audio: '音频标签',
-        file: '文件标签',
-        folder: '文件夹标签'
-      }
-      return titles[this.type] || '标签'
+      // 从配置中读取，如果没有配置返回默认值
+      const config = this.detailPanelConfig
+      return config?.tagsTitle || '标签'
     },
     // 获取资源的详情页配置
     detailPanelConfig() {
@@ -252,9 +236,9 @@ export default {
         return [] // 如果没有配置，返回空数组，由 computedStats 处理
       }
       
-      // 如果游戏正在运行，在最前面显示运行状态
+      // 如果资源正在运行，在最前面显示运行状态（从配置中判断）
       const records = []
-      if (this.isRunning && (this.type === 'game' || this.type === 'software')) {
+      if (this.isRunning && config?.showRunningStatus !== false) {
         records.push({ label: '运行状态', value: '▶️ 运行中' })
       }
       
@@ -285,7 +269,7 @@ export default {
       
       return records.filter(record => record.value !== undefined && record.value !== null && record.value !== '')
     },
-    // 向后兼容：如果没有配置，使用默认的统计信息
+    // 统计信息：优先使用配置，如果没有配置返回空数组
     computedStats() {
       if (this.stats.length > 0) {
         return this.stats
@@ -297,47 +281,8 @@ export default {
         return configRecords
       }
       
-      // 默认统计信息（向后兼容）
-      const defaultStats = []
-      
-      if (this.type === 'game') {
-        // 如果游戏正在运行，在最前面显示运行状态
-        if (this.isRunning) {
-          defaultStats.push(
-            { label: '运行状态', value: '▶️ 运行中' }
-          )
-        }
-        defaultStats.push(
-          { label: '总游戏时长', value: this.formatPlayTime(this.item?.playTime?.value ?? this.item?.playTime) },
-          { label: '运行次数', value: `${(this.item?.playCount?.value ?? this.item?.playCount) || 0} 次` },
-          { label: '最后游玩', value: this.formatLastPlayed(this.item?.lastPlayed?.value ?? this.item?.lastPlayed) },
-          { label: '第一次游玩', value: this.formatFirstPlayed(this.item?.firstPlayed?.value ?? this.item?.firstPlayed) },
-          { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) }
-        )
-      } else if (this.type === 'software') {
-        // 如果软件正在运行，在最前面显示运行状态
-        if (this.isRunning) {
-          defaultStats.push(
-            { label: '运行状态', value: '▶️ 运行中' }
-          )
-        }
-        defaultStats.push(
-          { label: '总运行时长', value: this.formatPlayTime(this.item?.playTime?.value ?? this.item?.playTime) },
-          { label: '运行次数', value: `${(this.item?.playCount?.value ?? this.item?.playCount) || 0} 次` },
-          { label: '最后运行', value: this.formatLastPlayed(this.item?.lastPlayed?.value ?? this.item?.lastPlayed) },
-          { label: '第一次运行', value: this.formatFirstPlayed(this.item?.firstPlayed?.value ?? this.item?.firstPlayed) },
-          { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) }
-        )
-      } else if (this.type === 'image' || this.type === 'album') {
-        defaultStats.push(
-          { label: '总页数', value: (this.item?.pageCount?.value ?? this.item?.pageCount) || 0 },
-          { label: '浏览次数', value: (this.item?.viewCount?.value ?? this.item?.viewCount) || 0 },
-          { label: '添加时间', value: this.formatDate(this.item?.addedDate?.value ?? this.item?.addedDate) },
-          { label: '最后查看', value: this.formatDate(this.item?.lastViewed?.value ?? this.item?.lastViewed) }
-        )
-      }
-      
-      return defaultStats.filter(stat => stat.value !== undefined && stat.value !== null)
+      // 如果没有配置，返回空数组（不再提供向后兼容的默认值）
+      return []
     },
     computedActions() {
       console.log('📋 [DetailPanel] computedActions 被调用:', {
@@ -356,80 +301,22 @@ export default {
       
       // 尝试从配置中获取按钮组
       const config = this.detailPanelConfig
+      console.log('📋 [DetailPanel] 检查配置:', {
+        hasConfig: !!config,
+        hasActions: !!(config?.actions),
+        actionsIsArray: Array.isArray(config?.actions),
+        actionsLength: config?.actions?.length || 0,
+        actions: config?.actions
+      })
       if (config?.actions && Array.isArray(config.actions)) {
-        return this.generateActionsFromConfig(config.actions)
+        const generatedActions = this.generateActionsFromConfig(config.actions)
+        console.log('📋 [DetailPanel] 从配置生成的按钮:', generatedActions)
+        return generatedActions
       }
       
-      // 默认操作按钮（向后兼容）
-      const defaultActions = []
-      
-      if (this.type === 'game') {
-        // 检查是否为压缩包
-        const resourcePath = this.item?.resourcePath?.value ?? this.item?.resourcePath ?? this.item?.executablePath?.value ?? this.item?.executablePath
-        const itemIsArchive = this.item?.isArchive?.value ?? this.item?.isArchive
-        const isArchive = itemIsArchive || (resourcePath && this.isArchiveFile(resourcePath))
-        
-        // 如果游戏正在运行，显示"结束游戏"按钮，否则显示"开始游戏"按钮
-        // 压缩包不能运行，所以不显示启动按钮
-        if (this.isRunning) {
-          defaultActions.push(
-            { key: 'terminate', icon: '⏹️', label: '结束游戏', class: 'btn-stop-game' },
-            { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
-            { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },
-            { key: 'remove', icon: '🗑️', label: '删除游戏', class: 'btn-remove' }
-          )
-        } else {
-          // 压缩包不显示启动按钮
-          if (!isArchive) {
-            defaultActions.push(
-              { key: 'launch', icon: '▶️', label: '开始游戏', class: 'btn-play' }
-            )
-          }
-          defaultActions.push(
-            { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
-            { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },
-            { key: 'remove', icon: '🗑️', label: '删除游戏', class: 'btn-remove' }
-          )
-        }
-      } else if (this.type === 'software') {
-        // 检查是否为压缩包
-        const resourcePath = this.item?.resourcePath?.value ?? this.item?.resourcePath ?? this.item?.executablePath?.value ?? this.item?.executablePath
-        const itemIsArchive = this.item?.isArchive?.value ?? this.item?.isArchive
-        const isArchive = itemIsArchive || (resourcePath && this.isArchiveFile(resourcePath))
-        
-        // 如果软件正在运行，显示"结束软件"按钮，否则显示"启动软件"按钮
-        // 压缩包不能运行，所以不显示启动按钮
-        if (this.isRunning) {
-          defaultActions.push(
-            { key: 'terminate', icon: '⏹️', label: '结束软件', class: 'btn-stop-software' },
-            { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
-            { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },
-            { key: 'remove', icon: '🗑️', label: '删除软件', class: 'btn-remove' }
-          )
-        } else {
-          // 压缩包不显示启动按钮
-          if (!isArchive) {
-            defaultActions.push(
-              { key: 'launch', icon: '▶️', label: '启动软件', class: 'btn-play' }
-            )
-          }
-          defaultActions.push(
-            { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
-            { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },
-            { key: 'remove', icon: '🗑️', label: '删除软件', class: 'btn-remove' }
-          )
-        }
-      } else if (this.type === 'image' || this.type === 'album') {
-        defaultActions.push(
-          { key: 'open', icon: '📖', label: '开始阅读', class: 'btn-play' },
-          { key: 'folder', icon: '📁', label: '打开文件夹', class: 'btn-open-folder' },
-          { key: 'edit', icon: '✏️', label: '编辑信息', class: 'btn-edit' },
-          { key: 'remove', icon: '🗑️', label: '删除漫画', class: 'btn-remove' }
-        )
-      }
-      
-      console.log('📋 [DetailPanel] 使用默认 actions:', defaultActions)
-      return defaultActions
+      // 如果没有配置，返回空数组（不再提供向后兼容的默认值）
+      console.log('📋 [DetailPanel] 没有配置的 actions，返回空数组')
+      return []
     },
     hasRating() {
       // 判断是否有评价数据（有星级或评论）
@@ -439,9 +326,9 @@ export default {
       return (rating && rating > 0) || comment || notes
     },
     showFileError() {
-      // 检查文件是否存在，对于支持文件存在性检查的类型
-      const fileCheckTypes = ['game', 'audio', 'image', 'album', 'novel', 'video', 'file', 'folder']
-      if (!fileCheckTypes.includes(this.type)) {
+      // 从配置中判断是否需要检查文件存在性
+      const config = this.detailPanelConfig
+      if (config?.checkFileExists === false) {
         return false
       }
       // 检查 fileExists 属性，如果明确为 false 则显示错误
@@ -613,19 +500,12 @@ export default {
         imagePath = imagePath.value
       }
       
-      // 空值返回默认图片
+      // 获取配置（只获取一次）
+      const config = this.detailPanelConfig
+      
+      // 空值返回默认图片（从配置中读取，如果没有配置使用通用默认图片）
       if (!imagePath || (typeof imagePath === 'string' && imagePath.trim() === '')) {
-        const defaultImages = {
-          game: './default-game.png',
-          software: './default-game.png',
-          image: './default-image.png',
-          album: './default-image.png',
-          video: './default-video.png',
-          audio: './default-audio.png',
-          novel: './default-novel.png',
-          website: './default-image.png'
-        }
-        return defaultImages[this.type] || './default-image.png'
+        return config?.defaultImage || './default-image.png'
       }
       
       // 网络资源直接返回
@@ -638,8 +518,8 @@ export default {
         return imagePath
       }
       
-      // 对于视频缩略图，使用更复杂的路径处理
-      if (this.type === 'video') {
+      // 对于视频缩略图，从配置中判断是否需要特殊处理
+      if (config?.useVideoThumbnail === true) {
         return this.resolveVideoThumbnail(imagePath)
       }
       
@@ -695,17 +575,9 @@ export default {
       return thumbnail
     },
     handleImageError(event) {
-      const defaultImages = {
-        game: './default-game.png',
-        software: './default-game.png',
-        image: './default-image.png',
-        album: './default-image.png',
-        video: './default-video.png',
-        audio: './default-audio.png',
-        novel: './default-novel.png',
-        website: './default-image.png'
-      }
-      event.target.src = defaultImages[this.type] || './default-image.png'
+      // 从配置中读取默认图片，如果没有配置使用通用默认图片
+      const config = this.detailPanelConfig
+      event.target.src = config?.defaultImage || './default-image.png'
     },
     formatDate(date) {
       if (!date) return '未知'

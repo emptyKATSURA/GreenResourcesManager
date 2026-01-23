@@ -55,15 +55,15 @@
       @close="closeDetail"
       @action="handleDetailAction"
     >
-      <!-- 图片/漫画预览（仅 Image/Manga 类型） -->
-      <template #extra v-if="detailPanelType === 'album' && detailPages.length > 0">
+      <!-- 图片/漫画预览 -->
+      <template #extra>
         <AlbumPagesGrid
           :pages="detailPages"
           :currentPage="detailCurrentPage"
           :pageSize="detailPageSize"
           :totalPages="detailTotalPages"
-          :resolveImage="resolveDetailImage"
-          :handleImageError="handleDetailImageError"
+          :resolveImage="resolveImage"
+          :handleImageError="handleImageError"
           @page-click="handleDetailPageClick"
           @page-change="handleDetailPageChange"
         />
@@ -183,6 +183,7 @@ import notify from '../utils/NotificationService.ts'
 import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
 import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
+import { useImageCache } from '../composables/image/useImageCache'
 
 // 资源类型到资源类和页面配置的映射
 const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; testPageClass?: any }> = {
@@ -308,8 +309,9 @@ export default defineComponent({
     
     // 详情页图片预览相关状态（用于 Image/Manga 资源类型）
     const detailPages = ref<string[]>([])
+    const showDetailModal = ref(false) // 用于 imageCacheComposable（完全复刻 ImageView.vue）
     
-    // 使用图片分页 composable（用于详情页预览）
+    // 使用详情页图片分页 composable（完全复刻 ImageView.vue）
     const imagePagesComposable = useImagePages({
       pages: detailPages,
       defaultPageSize: 50
@@ -994,6 +996,18 @@ export default defineComponent({
     }
 
     // 使用工厂函数创建资源页面（简化版）
+    // 使用图片缓存 composable（完全复刻 ImageView.vue，需要在 resourcePage 之前创建）
+    const imageCacheComposable = useImageCache({
+      enableThumbnails: true,
+      jpegQuality: 80,
+      thumbnailSize: 200,
+      maxCacheSize: 50 * 1024 * 1024, // 50MB
+      preloadCount: 3,
+      isComicViewer: showComicViewer,
+      isDetailModal: showDetailModal,
+      pages: detailPages
+    })
+    
     const resourcePage = createResourcePage({
       pageConfig: {
         pageType: (resourceType.value || 'game').toLowerCase() + 's',
@@ -1408,31 +1422,101 @@ export default defineComponent({
       { immediate: false }
     )
     
-    // 监听详情面板显示，如果是 Image/Manga 类型，加载图片列表
+    // 详情面板类型（计算属性）- 完全从资源的配置中读取
+    const detailPanelType = computed(() => {
+      // 从当前选中资源的配置中读取
+      if (resourcePage.selectedItem.value) {
+        const selectedItem = resourcePage.selectedItem.value
+        const ResourceClass = selectedItem.constructor
+        const config = ResourceClass?.detailPanelConfig
+        
+        // 如果配置中有 type 字段，使用配置的 type
+        if (config?.type) {
+          return config.type
+        }
+      }
+      
+      // 如果配置中没有 type，返回默认值（DetailPanel 需要 type prop）
+      return 'game'
+    })
+    
+    // 计算是否应该显示预览（完全从配置中读取）
+    const shouldShowPreview = computed(() => {
+      if (!resourcePage.selectedItem.value) return false
+      const selectedItem = resourcePage.selectedItem.value
+      const ResourceClass = selectedItem.constructor
+      const config = ResourceClass?.detailPanelConfig
+      // 完全从配置中读取，如果配置中启用了预览，就显示预览
+      return config?.enablePreview === true
+    })
+    
+    // 监听详情面板显示，同步 showDetailModal（完全复刻 ImageView.vue）
+    watch(
+      () => resourcePage.showDetailDialog.value,
+      (showDetail) => {
+        showDetailModal.value = showDetail
+      }
+    )
+    
+    // 监听详情面板显示，如果是 Image/Manga 类型且配置启用了预览，加载图片列表（完全复刻 ImageView.vue 的 showAlbumDetail 方法）
     watch(
       () => [resourcePage.showDetailDialog.value, resourcePage.selectedItem.value],
       async ([showDetail, selectedItem]) => {
-        if (showDetail && selectedItem && (resourceType.value === 'Image' || resourceType.value === 'Manga')) {
-          console.log('[GenericResourceView] 加载图片列表用于预览')
-          try {
-            detailPages.value = []
-            imagePagesComposable.resetPagination()
-            
-            if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
-              const resourcePath = BaseResources.extractPrimitiveValue(
-                selectedItem.resourcePath?.value || selectedItem.resourcePath
-              )
-              if (resourcePath) {
-                const resp = await window.electronAPI.listImageFiles(resourcePath)
-                if (resp.success) {
-                  detailPages.value = resp.files || []
-                  imagePagesComposable.updateTotalPages()
-                  console.log(`[GenericResourceView] 加载了 ${detailPages.value.length} 张图片`)
+        if (showDetail && selectedItem) {
+          // 检查是否应该加载预览（完全从配置中读取）
+          const ResourceClass = selectedItem.constructor
+          const config = ResourceClass?.detailPanelConfig
+          // 只根据配置的 enablePreview 判断，不依赖 detailPanelType
+          const shouldLoad = config?.enablePreview === true
+          
+          console.log('[GenericResourceView] 预览加载检查（从配置读取）:', {
+            hasConfig: !!config,
+            enablePreview: config?.enablePreview,
+            shouldLoad,
+            ResourceClassName: ResourceClass?.name
+          })
+          
+          if (shouldLoad) {
+            try {
+              detailPages.value = []
+              imagePagesComposable.resetPagination()
+              
+              // 确保pageSize已从设置中加载（完全复刻 ImageView.vue）
+              // 注意：在 watch 中无法直接访问 this，需要通过闭包访问
+              // 这里先调用，如果方法不存在会在运行时处理
+              try {
+                if (imagePagesComposable.loadImageSettings && typeof imagePagesComposable.loadImageSettings === 'function') {
+                  await imagePagesComposable.loadImageSettings()
+                }
+              } catch (error) {
+                console.warn('[GenericResourceView] 加载图片设置失败:', error)
+              }
+              
+              let files = []
+              if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
+                const resourcePath = BaseResources.extractPrimitiveValue(
+                  selectedItem.resourcePath?.value || selectedItem.resourcePath
+                )
+                if (resourcePath) {
+                  const resp = await window.electronAPI.listImageFiles(resourcePath)
+                  if (resp.success) {
+                    files = resp.files || []
+                  }
                 }
               }
+              detailPages.value = files
+              // 更新总页数（使用 composable 的方法）
+              imagePagesComposable.updateTotalPages()
+              
+              // 更新资源的页数信息（如果资源有 pagesCount 字段）
+              if (selectedItem.pagesCount && typeof selectedItem.pagesCount === 'object' && 'value' in selectedItem.pagesCount) {
+                selectedItem.pagesCount.value = files.length
+              } else if (selectedItem.pagesCount !== undefined) {
+                selectedItem.pagesCount = files.length
+              }
+            } catch (error) {
+              console.error('[GenericResourceView] 加载图片列表失败:', error)
             }
-          } catch (error) {
-            console.error('[GenericResourceView] 加载图片列表失败:', error)
           }
         } else if (!showDetail) {
           // 关闭详情时清空图片列表
@@ -1442,49 +1526,45 @@ export default defineComponent({
       { immediate: false }
     )
     
-    // 图片解析方法（用于详情页预览）
-    const resolveDetailImage = (imagePath: string): string => {
-      if (!imagePath) return './default-image.png'
-      
-      // 网络资源直接返回
-      if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
-        return imagePath
-      }
-      
-      // 已是 data: 或 file: 直接返回
-      if (typeof imagePath === 'string' && (imagePath.startsWith('data:') || imagePath.startsWith('file:'))) {
-        return imagePath
-      }
-      
-      // 处理本地文件路径
-      try {
-        const normalized = String(imagePath).replace(/\\/g, '/').replace(/^([A-Za-z]:)/, '/$1')
-        const encoded = normalized.split('/').map(seg => {
-          if (seg.includes(':')) return seg
-          return encodeURIComponent(seg)
-        }).join('/')
-        return `file://${encoded}`
-      } catch (error) {
-        console.error('构建文件URL失败:', error)
-        const normalizedPath = String(imagePath).replace(/\\/g, '/')
-        return `file:///${normalizedPath}`
-      }
-    }
+    // 注意：resolveImage 和 handleImageError 来自 imageCacheComposable（通过 ...imageCacheComposable 展开）
+    // 不需要单独定义，完全复刻 ImageView.vue 的方式
     
-    // 图片错误处理方法
-    const handleDetailImageError = (event: Event) => {
-      const target = event.target as HTMLImageElement
-      if (target) {
-        target.src = './default-image.png'
-      }
-    }
-    
-    // 处理图片点击（打开阅读器）
-    const handleDetailPageClick = (index: number) => {
+    // 处理图片点击（打开阅读器，完全复刻 ImageView.vue 的 viewPage 方法）
+    const handleDetailPageClick = async (index: number) => {
+      // 计算实际索引（考虑分页，使用 composable 的 detailCurrentPageStartIndex）
       const actualIndex = imagePagesComposable.detailCurrentPageStartIndex.value + index
       currentPageIndex.value = actualIndex
       currentAlbum.value = resourcePage.selectedItem.value
       pages.value = detailPages.value
+      
+      // 增加浏览次数（使用 context 中的 updateViewInfo 方法，完全复刻 ImageView.vue）
+      if (currentAlbum.value) {
+        try {
+          // 更新最后查看时间
+          const now = new Date().toISOString()
+          const albumId = BaseResources.extractPrimitiveValue(currentAlbum.value.id?.value || currentAlbum.value.id)
+          const item = items.value.find((i: any) => (i.id?.value || i.id) === albumId)
+          if (item) {
+            if (item.lastViewed && typeof item.lastViewed === 'object' && 'value' in item.lastViewed) {
+              item.lastViewed.value = now
+            } else {
+              item.lastViewed = now
+            }
+            
+            // 增加浏览次数
+            const currentViewCount = BaseResources.extractPrimitiveValue(item.viewCount?.value || item.viewCount) || 0
+            if (item.viewCount && typeof item.viewCount === 'object' && 'value' in item.viewCount) {
+              item.viewCount.value = currentViewCount + 1
+            } else {
+              item.viewCount = currentViewCount + 1
+            }
+          }
+        } catch (error) {
+          console.warn('[GenericResourceView] 更新浏览信息失败:', error)
+        }
+      }
+      
+      // 确保pages数组已加载完成后再显示阅读器
       showComicViewer.value = true
     }
     
@@ -1537,29 +1617,24 @@ export default defineComponent({
       closeDetail: resourcePage.closeDetail,
       updateResource: resourcePage.updateResource,
       // 详情面板类型映射（计算属性）
-      detailPanelType: computed(() => {
-        // 将资源类型映射到 DetailPanel 支持的 type
-        const typeMap: Record<string, string> = {
-          'Game': 'game',
-          'Software': 'software',
-          'Image': 'album',
-          'Manga': 'album',
-          'Novel': 'novel',
-          'Video': 'video',
-          'Audio': 'audio',
-          'Website': 'website',
-          'File': 'file',
-          'Folder': 'folder'
-        }
-        return typeMap[resourceType.value] || 'game'
-      }),
-      // 详情页图片预览相关（仅 Image/Manga 类型）
-      detailPages,
+      detailPanelType,
+      // 详情页图片预览相关（完全复刻 ImageView.vue）
+      // 图片缓存相关
+      ...imageCacheComposable,
+      // 详情页图片分页相关（排除 loadImageSettings，重命名为 loadImagePagesSettings 避免与方法冲突）
+      loadImagePagesSettings: imagePagesComposable.loadImageSettings,
       detailCurrentPage: imagePagesComposable.detailCurrentPage,
       detailPageSize: imagePagesComposable.detailPageSize,
       detailTotalPages: imagePagesComposable.detailTotalPages,
-      resolveDetailImage,
-      handleDetailImageError,
+      jumpToPageInput: imagePagesComposable.jumpToPageInput,
+      paginatedPages: imagePagesComposable.paginatedPages,
+      detailCurrentPageStartIndex: imagePagesComposable.detailCurrentPageStartIndex,
+      nextPageGroup: imagePagesComposable.nextPageGroup,
+      previousPageGroup: imagePagesComposable.previousPageGroup,
+      jumpToPageGroup: imagePagesComposable.jumpToPageGroup,
+      resetPagination: imagePagesComposable.resetPagination,
+      updateTotalPages: imagePagesComposable.updateTotalPages,
+      detailPages,
       handleDetailPageClick,
       handleDetailPageChange,
       // 详情面板操作处理

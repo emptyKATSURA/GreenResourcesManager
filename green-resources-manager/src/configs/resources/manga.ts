@@ -213,6 +213,8 @@ export class Manga extends BaseResources {
 				label: '删除漫画',
 				class: 'btn-remove'
 			}
-		]
+		],
+		// 预览配置：是否启用图片预览
+		enablePreview: true
 	}
 }
