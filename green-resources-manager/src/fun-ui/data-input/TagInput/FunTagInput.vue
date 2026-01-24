@@ -11,6 +11,7 @@
     </div>
     <fun-input
       v-if="!disabled && (!maxTags || modelValue.length < maxTags)"
+      ref="inputRef"
       v-model="tagInput"
       type="text"
       :placeholder="placeholder"
@@ -28,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 
 interface Props {
   /** 标签数组（v-model） */
@@ -72,6 +73,7 @@ const emit = defineEmits<{
 }>()
 
 const tagInput = ref('')
+const inputRef = ref<any>(null)
 
 // 添加标签
 function handleAddTag() {
@@ -123,6 +125,37 @@ function handleBlur(event: FocusEvent) {
     handleAddTag()
   }
 }
+
+// 设置输入框的值（用于外部调用，如从标签选择面板填充）
+async function setInputValue(value: string) {
+  console.log('[FunTagInput] setInputValue 被调用，value:', value, '当前 tagInput.value:', tagInput.value)
+  
+  // 更新 tagInput ref（这会触发 v-model 更新）
+  tagInput.value = value
+  
+  // 使用 nextTick 确保 DOM 已更新
+  await nextTick()
+  
+  // 如果 fun-input 组件暴露了方法，也可以直接调用
+  // 但通常 v-model 应该已经同步了
+  if (inputRef.value) {
+    const inputElement = inputRef.value.getInputElement?.()
+    if (inputElement && inputElement instanceof HTMLInputElement) {
+      // 确保 DOM 元素的值也更新（作为备选方案）
+      inputElement.value = value
+      // 触发 input 事件，确保 Vue 的响应式系统知道值已更新
+      inputElement.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+  }
+  
+  console.log('[FunTagInput] setInputValue 执行后，tagInput.value:', tagInput.value)
+}
+
+// 暴露方法供外部调用
+defineExpose({
+  setInputValue,
+  inputRef // 也暴露 inputRef，以便外部可以直接访问
+})
 </script>
 
 <style scoped lang="scss">

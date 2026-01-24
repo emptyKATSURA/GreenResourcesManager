@@ -70,6 +70,22 @@
       </template>
     </DetailPanel>
     
+    <!-- 编辑资源对话框 -->
+    <ResourcesEditDialog
+      :visible="showEditDialog"
+      mode="edit"
+      :resource-class="ResourceClass"
+      :resource-data="editForm"
+      :is-electron-environment="isElectronEnvironment"
+      :available-tags="allTags"
+      add-title="添加资源"
+      edit-title="编辑资源"
+      add-button-text="添加"
+      edit-button-text="保存修改"
+      @close="closeEdit"
+      @confirm="handleEditConfirm"
+    />
+    
     <!-- 漫画/图片查看器（用于 Image/Manga 资源类型） -->
     <ComicViewer
       v-if="showComicViewer || currentAlbum"
@@ -184,6 +200,8 @@ import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../
 import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
 import { useImageCache } from '../composables/image/useImageCache'
+import ResourcesEditDialog from './ResourcesEditDialog.vue'
+import type { FilterItem } from '../types/filter'
 
 // 资源类型到资源类和页面配置的映射
 const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; testPageClass?: any }> = {
@@ -218,7 +236,8 @@ export default defineComponent({
     PdfReader,
     TextReader,
     EbookReader,
-    ContentView
+    ContentView,
+    ResourcesEditDialog
   },
   emits: ['filter-data-updated'],
   props: {
@@ -377,6 +396,12 @@ export default defineComponent({
       pageConfig, 
       { isGameRunning: isGameRunningForFilter }
     )
+    
+    // 从筛选器状态中获取所有标签（用于编辑对话框）
+    const allTags = computed<FilterItem[]>(() => {
+      const tagsState = filterComposable.filterStates?.tags
+      return tagsState?.items?.value || []
+    })
     
     // 调试：检查 filterComposable 的内容
     console.log('[GenericResourceView] 🔍 filterComposable 内容:', {
@@ -1652,8 +1677,10 @@ export default defineComponent({
             console.log('打开文件夹:', item)
             break
           case 'edit':
-            // 编辑资源（需要根据资源类型实现）
-            console.log('编辑资源:', item)
+            // 编辑资源（调用 resourcePage 的 showEdit 方法）
+            if ((resourcePage as any).showEdit) {
+              (resourcePage as any).showEdit(item)
+            }
             break
           case 'remove':
             // 删除资源（使用 resourcePage 的 deleteItem）
@@ -1685,7 +1712,15 @@ export default defineComponent({
       // 重要：使用 filterComposable.filteredGames（即 filteredItems），而不是 resourcePage.filteredItems
       // 因为 resourcePage.filteredItems 可能没有正确响应筛选变化
       filteredItems: filterComposable.filteredGames, // 直接使用筛选 composable 的结果
-      paginatedItems: resourcePage.paginatedItems
+      paginatedItems: resourcePage.paginatedItems,
+      // 编辑对话框相关
+      ResourceClass,
+      allTags,
+      // 编辑对话框状态和方法（从 resourcePage 获取）
+      showEditDialog: resourcePage.showEditDialog,
+      editForm: resourcePage.editForm,
+      closeEdit: resourcePage.closeEdit,
+      handleEditConfirm: resourcePage.handleEditConfirm
     }
     
     // 调试：检查 setup 返回的对象中的筛选方法

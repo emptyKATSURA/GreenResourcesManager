@@ -31,9 +31,9 @@ function getFieldValue<T>(field: any): T | undefined {
  * 包含模拟数据，用于测试通用 ResourceView 组件
  */
 export class TestGamePage extends BasePage {
-	name: string = '测试游戏'
+	name: string = '测试'
 	icon: string = '🧪'
-	description: string = '测试游戏页面，包含模拟数据用于测试通用 ResourceView 组件'
+	description: string = '测试页面，包含模拟数据用于测试通用 ResourceView 组件'
 
 	// 接受的资源类型（可以多个）
 	resourceTypes: string[] = ['Game']

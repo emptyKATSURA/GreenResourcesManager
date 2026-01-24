@@ -71,6 +71,13 @@
             </div>
           </template>
           
+
+
+
+
+
+
+
           <!-- 普通选择字段 -->
           <fun-select
             v-else-if="field instanceof FormField_Select"
@@ -79,11 +86,12 @@
             :options="getSelectOptions(key, field)"
             :placeholder="getFieldPlaceholder(key, field)"
           />
-
+          
           <!-- 标签字段 -->
           <fun-tag-input
             v-else-if="field instanceof FormField_Tags"
             :id="key"
+            :ref="(el: any) => setTagInputRef(key, el)"
             v-model="formData[key]"
             :placeholder="getFieldPlaceholder(key, field)"
             :allowDuplicate="false"
@@ -469,7 +477,8 @@ export default {
     
     return {
       formData: initFormData(),
-      initFormData
+      initFormData,
+      tagInputRefs: {} as Record<string, any> // 存储标签输入框的 refs
     }
   },
   computed: {
@@ -1404,28 +1413,65 @@ export default {
       const fileName = imagePath.split(/[\\/]/).pop()
       return fileName || imagePath
     },
-    handleSelectTag(tag: string) {
+    // 设置标签输入框的 ref
+    setTagInputRef(key: string, el: any) {
+      if (el) {
+        this.tagInputRefs[key] = el
+      } else {
+        delete this.tagInputRefs[key]
+      }
+    },
+    async handleSelectTag(tag: string) {
+      console.log('[ResourcesEditDialog] handleSelectTag 被调用，tag:', tag)
       if (!tag) return
       
       const resourceInstance = this.createResourceInstance()
-      if (!resourceInstance) return
+      if (!resourceInstance) {
+        console.warn('[ResourcesEditDialog] resourceInstance 为空')
+        return
+      }
       
       let tagsKey = ''
       for (const key in resourceInstance) {
-        const field = (resourceInstance as any)[key]
+        const value = (resourceInstance as any)[key]
+        let field: FormFieldType | null = null
+        
+        // 支持 ResourceField 和 FormField 两种形式（与 getTagsFieldValue 保持一致）
+        if (value instanceof ResourceField) {
+          field = value.editType
+        } else if (value instanceof FormFieldType) {
+          field = value
+        }
+        
         if (field instanceof FormField_Tags) {
           tagsKey = key
           break
         }
       }
       
+      console.log('[ResourcesEditDialog] 找到的 tagsKey:', tagsKey)
+      console.log('[ResourcesEditDialog] tagInputRefs:', this.tagInputRefs)
+      console.log('[ResourcesEditDialog] formData keys:', Object.keys(this.formData))
+      
       if (tagsKey && Array.isArray(this.formData[tagsKey])) {
         const index = this.formData[tagsKey].indexOf(tag)
+        console.log('[ResourcesEditDialog] 标签索引:', index, '当前标签列表:', this.formData[tagsKey])
+        
         if (index > -1) {
+          // 如果标签已存在，则移除
+          console.log('[ResourcesEditDialog] 移除标签:', tag)
           this.formData[tagsKey].splice(index, 1)
         } else {
+          // 如果标签不存在，直接添加到标签列表
+          console.log('[ResourcesEditDialog] 添加标签:', tag)
           this.formData[tagsKey].push(tag)
         }
+      } else {
+        console.warn('[ResourcesEditDialog] tagsKey 不存在或 formData[tagsKey] 不是数组', {
+          tagsKey,
+          formDataTagsKey: tagsKey ? this.formData[tagsKey] : undefined,
+          isArray: tagsKey ? Array.isArray(this.formData[tagsKey]) : false
+        })
       }
     }
   }
