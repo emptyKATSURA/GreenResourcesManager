@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 import type { PageConfig } from '../types/page'
-import customPageManager from '../utils/CustomPageManager'
+import pageConfigManager from '../utils/PageConfigManager'
 
 // 固定页面路由
 const fixedRoutes: RouteRecordRaw[] = [
@@ -140,30 +140,11 @@ const fixedRoutes: RouteRecordRaw[] = [
   }
 ]
 
-// 资源类型到组件的映射
-const resourceTypeToComponent: Record<string, () => Promise<any>> = {
-  Game: () => import('../pages/resources/GameView.vue'),
-  Software: () => import('../pages/resources/SoftwareView.vue'),
-  Image: () => import('../pages/resources/ImageView.vue'),
-  SingleImage: () => import('../pages/resources/SingleImageView.vue'),
-  Video: () => import('../pages/resources/VideoView.vue'),
-  Anime: () => import('../pages/resources/VideoAnimeSeriesView.vue'),
-  Novel: () => import('../pages/resources/NovelView.vue'),
-  Website: () => import('../pages/resources/WebsiteView.vue'),
-  Audio: () => import('../pages/resources/AudioView.vue'),
-  Other: () => import('../pages/resources/OtherView.vue')
-}
-
 /**
  * 根据页面配置创建资源路由
+ * 所有页面都使用 ResourceView 组件，由配置驱动生成页面内容
  */
 function createResourceRoute(pageConfig: PageConfig): RouteRecordRaw {
-  const component = resourceTypeToComponent[pageConfig.type]
-  
-  if (!component) {
-    throw new Error(`未知的资源类型: ${pageConfig.type}`)
-  }
-
   return {
     path: `/${pageConfig.id}`,
     name: pageConfig.id,
@@ -182,11 +163,10 @@ function createResourceRoute(pageConfig: PageConfig): RouteRecordRaw {
 }
 
 /**
- * 从 customPageManager 加载动态路由
+ * 从 pageConfigManager 加载动态路由
  */
-export async function loadDynamicRoutes(): Promise<RouteRecordRaw[]> {
-  await customPageManager.init()
-  const pages = customPageManager.getPages()
+export function loadDynamicRoutes(): RouteRecordRaw[] {
+  const pages = pageConfigManager.getPages()
   
   return pages
     .filter(page => !page.isHidden)
@@ -196,9 +176,9 @@ export async function loadDynamicRoutes(): Promise<RouteRecordRaw[]> {
 /**
  * 创建路由实例
  */
-export async function createAppRouter() {
+export function createAppRouter() {
   // 加载动态路由
-  const dynamicRoutes = await loadDynamicRoutes()
+  const dynamicRoutes = loadDynamicRoutes()
   
   // 合并所有路由
   const routes: RouteRecordRaw[] = [
@@ -231,7 +211,7 @@ export async function createAppRouter() {
 /**
  * 更新动态路由（当页面配置变化时调用）
  */
-export async function updateDynamicRoutes(router: ReturnType<typeof createRouter>) {
+export function updateDynamicRoutes(router: ReturnType<typeof createRouter>) {
   // 移除旧的动态路由（除了固定路由）
   const routesToRemove = router.getRoutes().filter(route => {
     const meta = route.meta as any
@@ -245,7 +225,7 @@ export async function updateDynamicRoutes(router: ReturnType<typeof createRouter
   })
 
   // 添加新的动态路由
-  const newRoutes = await loadDynamicRoutes()
+  const newRoutes = loadDynamicRoutes()
   newRoutes.forEach(route => {
     router.addRoute(route)
   })

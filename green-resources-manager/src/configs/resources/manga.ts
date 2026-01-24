@@ -91,12 +91,6 @@ export class Manga extends BaseResources {
 		buttonAction: 'showAddAlbumDialog'
 	}
 
-	// 静态配置：工具栏配置
-	// 注意：sortOptions 已移至页面配置（ImagePage.getSortOptions），这里不再包含
-	static toolbarConfig = {
-		addButtonText: '添加漫画',
-		searchPlaceholder: '搜索漫画...'
-	}
 
 	// 静态配置：启动方式配置
 	static actionConfig = {

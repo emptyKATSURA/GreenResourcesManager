@@ -2529,76 +2529,68 @@ class SaveManager {
   }
 
   /**
-   * 加载页面数据
+   * 加载页面数据（统一路径：SaveData/pages/{pageId}.json）
    * @param {string} pageId - 页面ID
    * @returns {Promise<any[]>} 页面数据
    */
   async loadPageData(pageId) {
-    // 检查是否为默认页面类型
-    switch (pageId) {
-      case 'games': return this.loadGames()
-      case 'software': return this.loadSoftware()
-      case 'images': return this.loadImages()
-      case 'single-image': return this.loadSingleImage()
-      case 'videos': return this.loadVideos()
-      case 'anime-series': return this.loadAnimeSeries() // 番剧使用独立的数据源
-      case 'novels': return this.loadNovels()
-      case 'websites': return this.loadWebsites()
-      case 'audios': return this.loadAudios()
-    }
-
-    // 自定义页面
     // 检查缓存
-    if (this.dataCache[`custom_${pageId}`]) {
-      console.log(`从缓存加载自定义页面 ${pageId} 数据`)
-      return JSON.parse(JSON.stringify(this.dataCache[`custom_${pageId}`]))
+    const cacheKey = `page_${pageId}`
+    if (this.dataCache[cacheKey]) {
+      console.log(`[SaveManager] 从缓存加载页面 ${pageId} 数据`)
+      return JSON.parse(JSON.stringify(this.dataCache[cacheKey]))
     }
 
-    const customPath = `${this.dataDirectory}/CustomPages/${pageId}/data.json`
-    const data = await this.readJsonFile(customPath)
-    // 自定义页面直接存储数组
+    // 统一路径：SaveData/pages/{pageId}.json
+    const pagePath = `${this.dataDirectory}/pages/${pageId}.json`
+    console.log(`[SaveManager] 加载页面数据：${pageId}，路径：${pagePath}`)
+    
+    const data = await this.readJsonFile(pagePath)
+    
+    // 页面数据应该是数组
     if (!Array.isArray(data)) {
-      console.error(
-        `加载自定义页面数据失败：${pageId}，路径：${customPath}。期望为数组，实际为：`,
-        data
+      console.warn(
+        `[SaveManager] 页面数据格式异常：${pageId}，期望为数组，实际为：`,
+        typeof data,
+        '，返回空数组'
       )
     }
+    
     const result = Array.isArray(data) ? data : []
-    this.dataCache[`custom_${pageId}`] = result // 更新缓存
+    this.dataCache[cacheKey] = result // 更新缓存
+    
+    console.log(`[SaveManager] 页面 ${pageId} 数据加载完成，共 ${result.length} 条记录`)
     return result
   }
 
   /**
-   * 保存页面数据
+   * 保存页面数据（统一路径：SaveData/pages/{pageId}.json）
    * @param {string} pageId - 页面ID
    * @param {any[]} data - 页面数据
    * @returns {Promise<boolean>} 是否保存成功
    */
   async savePageData(pageId, data) {
-    // 检查是否为默认页面类型
-    switch (pageId) {
-      case 'games': return this.saveGames(data)
-      case 'software': return this.saveSoftware(data)
-      case 'images': return this.saveImages(data)
-      case 'single-image': return this.saveSingleImage(data)
-      case 'videos': return this.saveVideos(data)
-      case 'anime-series': return this.saveAnimeSeries(data) // 番剧使用独立的数据源
-      case 'novels': return this.saveNovels(data)
-      case 'websites': return this.saveWebsites(data)
-      case 'audios': return this.saveAudios(data)
-    }
-
-    // 自定义页面
-    const customDir = `${this.dataDirectory}/CustomPages/${pageId}`
-    const customPath = `${customDir}/data.json`
+    console.log(`[SaveManager] 保存页面数据：${pageId}，共 ${data?.length || 0} 条记录`)
+    
+    // 统一路径：SaveData/pages/{pageId}.json
+    const pagesDir = `${this.dataDirectory}/pages`
+    const pagePath = `${pagesDir}/${pageId}.json`
     
     // 确保目录存在
-    await this.ensureDirectoryByPath(customDir)
+    await this.ensureDirectoryByPath(pagesDir)
     
-    const success = await this.writeJsonFile(customPath, data)
+    // 保存数据
+    const success = await this.writeJsonFile(pagePath, data)
+    
     if (success) {
-      this.dataCache[`custom_${pageId}`] = JSON.parse(JSON.stringify(data)) // 更新缓存
+      // 更新缓存
+      const cacheKey = `page_${pageId}`
+      this.dataCache[cacheKey] = JSON.parse(JSON.stringify(data))
+      console.log(`[SaveManager] 页面 ${pageId} 数据保存成功`)
+    } else {
+      console.error(`[SaveManager] 页面 ${pageId} 数据保存失败`)
     }
+    
     return success
   }
 

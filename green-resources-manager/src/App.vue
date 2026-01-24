@@ -194,7 +194,8 @@ import alertService from './utils/AlertService.ts'
 import confirmService from './utils/ConfirmService.ts'
 
 import saveManager from './utils/SaveManager.ts'
-import customPageManager from './utils/CustomPageManager.ts'
+// ✨ 使用新的配置管理器（基于配置文件，无需存档）
+import pageConfigManager from './utils/PageConfigManager.ts'
 import pluginManager from './utils/PluginManager.ts'
 import pluginNavigationManager from './utils/PluginNavigationManager.ts'
 import { unlockAchievement } from './pages/user/AchievementView.vue'
@@ -470,10 +471,11 @@ export default {
     },
 
     // 重新加载自定义页面配置并刷新导航（用于"页面管理"修改后即时生效）
-    async reloadCustomPages() {
+    // ✨ 新版：使用 PageConfigManager（同步操作，无需 async/await）
+    reloadCustomPages() {
       try {
-        await customPageManager.init()
-        this.pages = customPageManager.getPages()
+        // 直接从配置文件读取页面列表（自动初始化，无需 await）
+        this.pages = pageConfigManager.getPages()
 
         // 更新 viewConfig
         this.pages.forEach(page => {
@@ -495,7 +497,7 @@ export default {
 
         // 更新动态路由
         if (this.$router) {
-          await updateDynamicRoutes(this.$router)
+          updateDynamicRoutes(this.$router)
         }
 
         // 当前页面如果变为隐藏/已删除（仅资源视图会有 pageConfig）则回退
@@ -1255,12 +1257,13 @@ export default {
     }
 
     // 初始化自定义页面管理器
+    // ✨ 新版：使用 PageConfigManager（同步操作，立即完成）
     try {
-      await customPageManager.init()
-      await this.reloadCustomPages()
-      console.log('自定义页面初始化成功:', this.pages.length, '个页面')
+      this.reloadCustomPages()
+      console.log('✅ 页面配置加载成功:', this.pages.length, '个页面')
+      console.log('📄 页面列表:', this.pages.map(p => `${p.name}(${p.id})`).join(', '))
     } catch (error) {
-      console.error('自定义页面初始化失败:', error)
+      console.error('❌ 页面配置加载失败:', error)
     }
 
     // 加载最后访问的页面

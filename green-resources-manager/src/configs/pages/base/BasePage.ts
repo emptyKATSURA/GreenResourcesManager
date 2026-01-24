@@ -22,17 +22,85 @@ function getFieldValue<T>(field: any): T | undefined {
 }
 
 /**
+ * 空状态配置接口
+ */
+export interface EmptyStateConfig {
+	icon: string
+	title: string
+	description: string
+	buttonText: string
+	buttonAction: string
+}
+
+/**
+ * 工具栏配置接口
+ */
+export interface ToolbarConfig {
+	addButtonText: string
+	searchPlaceholder: string
+}
+
+/**
  * 页面基类（抽象类）
  * 定义所有页面类型必须实现的基础字段
  * 参考资源类的设计模式，使用 ResourceField 来定义字段
  */
 export abstract class BasePage {
 	/**
+	 * 页面唯一标识（用于路由和数据存储）
+	 * 子类必须定义此属性
+	 * 例如：'games', 'software', 'images' 等
+	 */
+	abstract readonly id: string
+	
+	/**
+	 * 页面显示名称
+	 * 子类必须定义此属性
+	 * 例如：'游戏', '软件', '图片' 等
+	 */
+	abstract readonly name: string
+	
+	/**
+	 * 页面图标（emoji 或图标类名）
+	 * 子类必须定义此属性
+	 * 例如：'🎮', '💾', '🖼️' 等
+	 */
+	abstract readonly icon: string
+	
+	/**
+	 * 页面描述信息（可选）
+	 * 子类可以定义此属性
+	 */
+	readonly description?: string
+	
+	/**
+	 * 接受的资源类型（可以多个）
+	 * 子类应该定义此属性
+	 * 例如：['Game'], ['Image', 'Manga'], ['Software'] 等
+	 * 注意：resourceTypes[0] 会被用作页面的主资源类型
+	 */
+	resourceTypes?: string[]
+	
+	/**
 	 * 获取排序选项配置
 	 * 子类必须实现此方法，返回该页面支持的排序选项
 	 * @returns 排序选项数组
 	 */
 	abstract getSortOptions(): SortOption[]
+	
+	/**
+	 * 获取空状态配置
+	 * 子类必须实现此方法，返回该页面的空状态配置
+	 * @returns 空状态配置对象
+	 */
+	abstract getEmptyStateConfig(): EmptyStateConfig
+	
+	/**
+	 * 获取工具栏配置
+	 * 子类必须实现此方法，返回该页面的工具栏配置
+	 * @returns 工具栏配置对象
+	 */
+	abstract getToolbarConfig(): ToolbarConfig
 	
 	/**
 	 * 获取筛选配置

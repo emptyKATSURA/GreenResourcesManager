@@ -68,26 +68,6 @@ export class Software extends BaseResources {
 		{ key: 'remove', icon: '🗑️', label: '删除软件' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '🎮',
-		title: '你的软件库是空的',
-		description: '点击"添加软件"按钮来添加你的第一个软件，或直接拖拽软件文件（.exe、.swf、.bat）或压缩包（.zip、.rar、.7z 等）到此处',
-		buttonText: '添加第一个软件',
-		buttonAction: 'showAddGameDialog'
-	}
-
-	// 静态配置：工具栏配置
-	static toolbarConfig = {
-		addButtonText: '添加软件',
-		searchPlaceholder: '搜索软件...',
-		sortOptions: [
-			{ value: 'name', label: '按名称排序' },
-			{ value: 'lastPlayed', label: '按最后运行时间' },
-			{ value: 'playTime', label: '按运行时长' },
-			{ value: 'added', label: '按添加时间' }
-		]
-	}
 
 	// 静态配置：启动方式配置
 	static actionConfig = {

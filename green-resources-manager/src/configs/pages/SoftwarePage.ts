@@ -19,9 +19,10 @@ function getFieldValue<T>(field: any): T | undefined {
 }
 
 export class SoftwarePage extends BasePage {
-	name: string = '软件'
-	icon: string = '💾'
-	description: string = '可以管理软件、应用等exe文件'
+	readonly id: string = 'software'
+	readonly name: string = '软件'
+	readonly icon: string = '💾'
+	readonly description: string = '可以管理软件、应用等exe文件'
 
 	// 接受的资源类型（可以多个）
 	resourceTypes: string[] = ['Software']
@@ -30,6 +31,29 @@ export class SoftwarePage extends BasePage {
 	displayLayoutConfig = {
 		minWidth: 80,
 		maxWidth: 400
+	}
+	
+	/**
+	 * 获取空状态配置
+	 */
+	getEmptyStateConfig() {
+		return {
+			icon: '💾',
+			title: '你的软件库是空的',
+			description: '点击"添加软件"按钮来添加你的第一个软件，或直接拖拽软件文件（.exe、.swf、.bat）或压缩包（.zip、.rar、.7z 等）到此处',
+			buttonText: '添加第一个软件',
+			buttonAction: 'showAddGameDialog'
+		}
+	}
+	
+	/**
+	 * 获取工具栏配置
+	 */
+	getToolbarConfig() {
+		return {
+			addButtonText: '添加软件',
+			searchPlaceholder: '搜索软件...'
+		}
 	}
 
 	/**

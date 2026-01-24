@@ -33,9 +33,10 @@ function getFieldValue<T>(field: any): T | undefined {
 }
 
 export class GamePage extends BasePage {
-	name: string = '游戏'
-	icon: string = '🎮'
-	description: string = '可以管理游戏、应用等exe文件'
+	readonly id: string = 'games'
+	readonly name: string = '游戏'
+	readonly icon: string = '🎮'
+	readonly description: string = '可以管理游戏、应用等exe文件'
 
 	// 接受的资源类型（可以多个）
 	resourceTypes: string[] = ['Game']
@@ -44,6 +45,29 @@ export class GamePage extends BasePage {
 	displayLayoutConfig = {
 		minWidth: 80,
 		maxWidth: 400
+	}
+	
+	/**
+	 * 获取空状态配置
+	 */
+	getEmptyStateConfig() {
+		return {
+			icon: '🎮',
+			title: '你的游戏库是空的',
+			description: '点击"添加游戏"按钮来添加你的第一个游戏，或直接拖拽游戏文件到此处',
+			buttonText: '添加第一个游戏',
+			buttonAction: 'showAddGameDialog'
+		}
+	}
+	
+	/**
+	 * 获取工具栏配置
+	 */
+	getToolbarConfig() {
+		return {
+			addButtonText: '添加游戏',
+			searchPlaceholder: '搜索游戏...'
+		}
 	}
 
 	/**

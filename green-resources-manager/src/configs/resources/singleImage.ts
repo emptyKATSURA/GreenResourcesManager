@@ -71,18 +71,6 @@ export class SingleImage extends BaseResources {
 		buttonAction: 'showAddAlbumDialog'
 	}
 
-	// 静态配置：工具栏配置
-	static toolbarConfig = {
-		addButtonText: '添加图片',
-		searchPlaceholder: '搜索图片...',
-		sortOptions: [
-			{ value: 'name', label: '按名称排序' },
-			{ value: 'author', label: '按作者排序' },
-			{ value: 'added', label: '按添加时间' },
-			{ value: 'viewCount', label: '按查看次数' }
-		]
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'open',

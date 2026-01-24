@@ -3,6 +3,7 @@ import {
 	FormField_Textarea, 
 	FormField_Tags, 
 	FormField_SelectFile, 
+	FormField_SelectGameCover,
 	FormField as FormFieldType,
 	FormField
 } from './base/FormField.ts'
@@ -10,172 +11,177 @@ import { BaseResources } from './base/ResourcesDataBase.ts'
 import { ResourceField } from './base/ResourceField.ts'
 
 /**
- * 音频类
+ * 其它资源类
+ * 用于存储任意类型的文件或资源
  */
-export class Audio extends BaseResources {
-
+export class Other extends BaseResources {
+	
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		defaultValue: 'audio'
+		defaultValue: 'other'
 	})
 	
 	name: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		editType: new FormField_Text('音频名称', false)
+		editType: new FormField_Text('资源名称', false)
 	})
 	
 	description: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		editType: new FormField_Textarea('备注', false)
+		editType: new FormField_Textarea('资源简介', false)
 	})
 	
-	artist: ResourceField<string> = new ResourceField<string>({
+	category: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		editType: new FormField_Text('艺术家', false)
+		editType: new FormField_Text('资源分类', false)
 	})
 	
 	tags: ResourceField<string[]> = new ResourceField<string[]>({
 		saveable: true,
-		editType: new FormField_Tags('标签', false)
-	})
-	
-	actors: ResourceField<string[]> = new ResourceField<string[]>({
-		saveable: true,
-		editType: new FormField_Tags('演员', false)
+		editType: new FormField_Tags('资源标签', false)
 	})
 	
 	resourcePath: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		editType: new FormField_SelectFile('音频文件', [
-			{ name: '音频文件', extensions: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus'] },
+		editType: new FormField_SelectFile('资源文件', [
 			{ name: '所有文件', extensions: ['*'] }
 		], true)
 	})
 	
-	thumbnailPath: ResourceField<string> = new ResourceField<string>({
+	coverPath: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		editType: new FormField_SelectFile('缩略图', [
-			{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] },
-			{ name: '所有文件', extensions: ['*'] }
-		], false)
+		editType: new FormField_SelectGameCover('资源封面', false)
 	})
 
 	// 静态配置：编辑对话框配置
 	static editDialogConfig = {
-		addTitle: '添加音频',
-		editTitle: '编辑音频',
+		addTitle: '添加资源',
+		editTitle: '编辑资源',
 	}
 
 	// 静态配置：右键菜单项
 	static contextMenuItems = [
 		{ key: 'detail', icon: '👁️', label: '查看详情' },
-		{ key: 'play', icon: '▶️', label: '播放' },
-		{ key: 'addToPlaylist', icon: '➕', label: '添加到播放列表' },
+		{ key: 'launch', icon: '▶️', label: '打开资源' },
 		{ key: 'folder', icon: '📁', label: '打开文件夹' },
 		{ key: 'edit', icon: '✏️', label: '编辑信息' },
-		{ key: 'delete', icon: '🗑️', label: '删除音频' }
+		{ key: 'remove', icon: '🗑️', label: '删除资源' }
 	]
 
 	// 静态配置：空状态配置
 	static emptyStateConfig = {
-		icon: '🎵',
-		title: '你的音频库是空的',
-		description: '点击"添加音频"按钮来添加你的第一个音频',
-		buttonText: '添加第一个音频',
+		icon: '📄',
+		title: '暂无其它资源',
+		description: '点击"添加"按钮或拖拽文件到此处添加资源',
+		buttonText: '添加资源',
 		buttonAction: 'showAddDialog'
+	}
+
+	// 静态配置：工具栏配置
+	static toolbarConfig = {
+		title: '其它资源',
+		enableSearch: true,
+		enableSort: true,
+		enableAdd: true,
+		enableExport: true
 	}
 
 	// 静态配置：启动方式配置
 	static actionConfig = {
-		key: 'play',
+		key: 'launch',
 		icon: '▶️',
-		label: '播放',
-		handlerName: 'playAudio' // 组件中对应的方法名
+		label: '打开资源',
+		handlerName: 'launchExecutable' // 使用通用的可执行文件启动 handler
 	}
 
 	// 静态方法：获取显示文本配置（支持多态）
 	static getDisplayTexts() {
 		return {
-			neverAccessed: '从未播放',
+			neverAccessed: '从未打开',
 			justAccessed: '刚刚',
-			accessAction: '播放',
+			accessAction: '打开',
 			yesterdayAccessed: '昨天'
 		}
 	}
 
 	// 静态方法：获取默认图标路径
 	static getDefaultIcon() {
-		return './default-audio.png'
+		return './default-game.png'
 	}
 
 	// 静态配置：卡片显示配置
 	static cardDisplayConfig = {
 		title: 'name', // 标题：使用 name 字段
-		subtitle: 'artist', // 副标题：艺术家字段
-		extra: 'description', // 额外信息：描述字段（备注）
+		subtitle: 'category', // 副标题：分类字段
+		extra: 'description', // 额外信息：描述字段
 		tags: 'tags', // 标签字段
-		maxTags: 3, // 最多显示 3 个标签
-		specialItems: [
-			{
-				field: 'actors',
-				label: '演员:',
-				isArray: true,
-				maxArrayItems: 2,
-				arrayJoin: ', '
-			}
-		],
+		maxTags: 9, // 最多显示 9 个标签
 		stats: [
 			{
-				type: 'count' as const,
-				field: 'playCount',
-				label: '播放',
-				formatter: 'formatPlayCount'
+				type: 'text' as const,
+				field: 'playTime',
+				label: '总时长:',
+				formatter: 'formatPlayTime'
 			},
 			{
-				type: 'date' as const,
+				type: 'text' as const,
 				field: 'lastPlayed',
 				label: '',
-				formatter: 'formatLastPlayed'
+				formatter: 'formatLastPlayed',
+				showRunningStatus: false
 			}
-		]
+		],
+		badge: {
+			field: 'folderSize',
+			formatter: 'formatFileSize',
+			position: 'top-right' as const,
+			color: '#3b82f6'
+		}
 	}
 
 	// 静态配置：详情页显示配置
 	static detailPanelConfig = {
+		type: 'other', // 用于 DetailPanel 的 type prop
 		title: {
 			field: 'name',
 			formatter: undefined
 		},
 		objectiveInfo: [
 			{
-				field: 'artist',
-				label: '艺术家',
+				field: 'category',
+				label: '资源分类',
 				formatter: undefined
 			},
 			{
-				field: 'actors',
-				label: '演员',
-				formatter: undefined,
-				arrayJoin: '、'
-			},
-			{
 				field: 'resourcePath',
-				label: '音频路径',
+				label: '资源路径',
 				formatter: undefined
 			}
 		],
 		dataRecords: [
 			{
+				field: 'playTime',
+				label: '总使用时长',
+				formatter: 'formatPlayTime',
+				defaultValue: '0 分钟'
+			},
+			{
 				field: 'playCount',
-				label: '播放次数',
+				label: '使用次数',
 				formatter: undefined,
 				defaultValue: '0 次'
 			},
 			{
 				field: 'lastPlayed',
-				label: '最后播放',
+				label: '最后使用',
 				formatter: 'formatLastPlayed',
-				defaultValue: '从未播放'
+				defaultValue: '从未使用'
+			},
+			{
+				field: 'firstPlayed',
+				label: '第一次使用',
+				formatter: 'formatFirstPlayed',
+				defaultValue: '从未使用'
 			},
 			{
 				field: 'addedDate',
@@ -186,10 +192,13 @@ export class Audio extends BaseResources {
 		],
 		actions: [
 			{
-				key: 'play',
+				key: 'launch',
 				icon: '▶️',
-				label: '播放',
-				class: 'btn-play'
+				label: '打开资源',
+				class: 'btn-play',
+				showCondition: {
+					notArchive: true
+				}
 			},
 			{
 				key: 'folder',
@@ -204,9 +213,9 @@ export class Audio extends BaseResources {
 				class: 'btn-edit'
 			},
 			{
-				key: 'delete',
+				key: 'remove',
 				icon: '🗑️',
-				label: '删除音频',
+				label: '删除资源',
 				class: 'btn-remove'
 			}
 		]

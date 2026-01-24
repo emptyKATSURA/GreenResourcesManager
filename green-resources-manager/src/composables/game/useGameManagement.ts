@@ -31,7 +31,7 @@ const GAME_TIME_ACHIEVEMENTS = [
  */
 export function useGameManagement(
   games: Ref<Game[]>,
-  extractAllTags: () => void,
+  extractAllFilters: () => void,
   isElectronEnvironment: Ref<boolean>,
   pageId: string = 'games'
 ) {
@@ -42,7 +42,7 @@ export function useGameManagement(
   async function loadGames() {
     const jsonData = await saveManager.loadPageData(pageId)
     games.value = jsonData.map((data: any) => GameClass.fromJSON(data))
-    extractAllTags()
+    extractAllFilters()
   }
 
   /**
@@ -91,7 +91,7 @@ export function useGameManagement(
       }
     }
     
-    extractAllTags()
+    extractAllFilters()
     return gameInstance
   }
 
@@ -175,7 +175,7 @@ export function useGameManagement(
     }
 
     await saveGames()
-    extractAllTags()
+    extractAllFilters()
   }
 
   /**

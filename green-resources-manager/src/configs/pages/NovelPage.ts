@@ -19,9 +19,10 @@ function getFieldValue<T>(field: any): T | undefined {
 }
 
 export class NovelPage extends BasePage {
-	name: string = '小说'
-	icon: string = '📚'
-	description: string = '可以管理小说文件，支持 TXT、EPUB、PDF 等格式'
+	readonly id: string = 'novels'
+	readonly name: string = '小说'
+	readonly icon: string = '📚'
+	readonly description: string = '可以管理小说文件，支持 TXT、EPUB、PDF 等格式'
 
 	// 接受的资源类型
 	resourceTypes: string[] = ['Novel']
@@ -30,6 +31,29 @@ export class NovelPage extends BasePage {
 	displayLayoutConfig = {
 		minWidth: 150,
 		maxWidth: 400
+	}
+	
+	/**
+	 * 获取空状态配置
+	 */
+	getEmptyStateConfig() {
+		return {
+			icon: '📚',
+			title: '你的小说库是空的',
+			description: '点击"添加小说"按钮来添加你的第一本小说',
+			buttonText: '添加第一本小说',
+			buttonAction: 'showAddGameDialog'
+		}
+	}
+	
+	/**
+	 * 获取工具栏配置
+	 */
+	getToolbarConfig() {
+		return {
+			addButtonText: '添加小说',
+			searchPlaceholder: '搜索小说...'
+		}
 	}
 
 	/**

@@ -120,13 +120,6 @@ export class Game extends BaseResources {
     buttonAction: 'showAddGameDialog'
   }
 
-  // 静态配置：工具栏配置
-  // 注意：sortOptions 已移至页面配置（GamePage.getSortOptions），这里不再包含
-  static toolbarConfig = {
-    addButtonText: '添加游戏',
-    searchPlaceholder: '搜索游戏...'
-  }
-
   // 静态配置：启动方式配置
   static actionConfig = {
     key: 'launch',

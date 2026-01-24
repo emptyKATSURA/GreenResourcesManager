@@ -82,19 +82,6 @@ export class Video extends BaseResources {
 		buttonAction: 'showAddVideoDialog'
 	}
 
-	// 静态配置：工具栏配置
-	static toolbarConfig = {
-		addButtonText: '添加视频',
-		addFolderButtonText: '添加文件夹',
-		searchPlaceholder: '搜索视频...',
-		sortOptions: [
-			{ value: 'name', label: '按名称排序' },
-			{ value: 'lastWatched', label: '按最后观看时间' },
-			{ value: 'watchCount', label: '按观看次数' },
-			{ value: 'added', label: '按添加时间' }
-		]
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'play',

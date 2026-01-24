@@ -19,9 +19,10 @@ function getFieldValue<T>(field: any): T | undefined {
 }
 
 export class ImagePage extends BasePage {
-	name: string = '图片'
-	icon: string = '🖼️'
-	description: string = '可以管理图片文件夹，暂不支持单一图片的管理'
+	readonly id: string = 'images'
+	readonly name: string = '图片'
+	readonly icon: string = '🖼️'
+	readonly description: string = '可以管理图片文件夹，暂不支持单一图片的管理'
 
 	// 接受的资源类型（可以多个）
 	resourceTypes: string[] = ['Image', 'Manga']
@@ -30,6 +31,29 @@ export class ImagePage extends BasePage {
 	displayLayoutConfig = {
 		minWidth: 150,
 		maxWidth: 400
+	}
+	
+	/**
+	 * 获取空状态配置
+	 */
+	getEmptyStateConfig() {
+		return {
+			icon: '🖼️',
+			title: '你的图片库是空的',
+			description: '点击"添加图片"按钮来添加你的第一个图片文件夹',
+			buttonText: '添加第一个图片',
+			buttonAction: 'showAddGameDialog'
+		}
+	}
+	
+	/**
+	 * 获取工具栏配置
+	 */
+	getToolbarConfig() {
+		return {
+			addButtonText: '添加漫画',
+			searchPlaceholder: '搜索漫画...'
+		}
 	}
 
 	/**

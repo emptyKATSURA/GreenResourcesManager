@@ -31,9 +31,10 @@ function getFieldValue<T>(field: any): T | undefined {
  * 包含模拟数据，用于测试通用 ResourceView 组件
  */
 export class TestGamePage extends BasePage {
-	name: string = '测试'
-	icon: string = '🧪'
-	description: string = '测试页面，包含模拟数据用于测试通用 ResourceView 组件'
+	readonly id: string = 'test-game'
+	readonly name: string = '测试'
+	readonly icon: string = '🧪'
+	readonly description: string = '测试页面，包含模拟数据用于测试通用 ResourceView 组件'
 
 	// 接受的资源类型（可以多个）
 	resourceTypes: string[] = ['Game']
@@ -42,6 +43,29 @@ export class TestGamePage extends BasePage {
 	displayLayoutConfig = {
 		minWidth: 150,
 		maxWidth: 600
+	}
+	
+	/**
+	 * 获取空状态配置
+	 */
+	getEmptyStateConfig() {
+		return {
+			icon: '🧪',
+			title: '测试页面无数据',
+			description: '这是一个测试页面，用于测试通用组件',
+			buttonText: '添加测试数据',
+			buttonAction: 'showAddGameDialog'
+		}
+	}
+	
+	/**
+	 * 获取工具栏配置
+	 */
+	getToolbarConfig() {
+		return {
+			addButtonText: '添加测试游戏',
+			searchPlaceholder: '搜索测试游戏...'
+		}
 	}
 
 	/**

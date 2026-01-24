@@ -5,8 +5,8 @@ import { createAppRouter } from './router'
 import { pinia } from './stores'
 import FunUI from './fun-ui'
 
-async function initApp() {
-  const router = await createAppRouter()
+function initApp() {
+  const router = createAppRouter()
   const app = createApp(App)
   
   app.use(pinia)
@@ -15,4 +15,4 @@ async function initApp() {
   app.mount('#app')
 }
 
-initApp().catch(console.error)
+initApp()

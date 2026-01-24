@@ -187,7 +187,7 @@ export default {
     // 使用管理 composable
     const managementComposable = useGameManagement(
       games,
-      filterComposable.extractAllTags,
+      filterComposable.extractAllFilters,
       isElectronEnvironment,
       props.pageConfig.id
     )

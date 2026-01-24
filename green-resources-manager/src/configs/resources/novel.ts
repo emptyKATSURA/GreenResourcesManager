@@ -88,18 +88,6 @@ export class Novel extends BaseResources {
 		buttonAction: 'showAddNovelDialog'
 	}
 
-	// 静态配置：工具栏配置
-	static toolbarConfig = {
-		addButtonText: '添加小说',
-		searchPlaceholder: '搜索小说...',
-		sortOptions: [
-			{ value: 'name', label: '按名称排序' },
-			{ value: 'author', label: '按作者排序' },
-			{ value: 'readProgress', label: '按阅读进度' },
-			{ value: 'added', label: '按添加时间' }
-		]
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'read',

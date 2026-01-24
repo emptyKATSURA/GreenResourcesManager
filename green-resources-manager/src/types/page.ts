@@ -14,7 +14,7 @@ export interface PageConfig {
   id: string;
   name: string;
   icon: string;
-  type: ResourceType;
+  type: ResourceType;  // 从 resourceTypes[0] 自动推导
   description?: string;
   isDefault?: boolean;
   isHidden?: boolean;

@@ -21,10 +21,20 @@
       @context-menu-click="handleContextMenuClick" 
       @page-change="handlePageChange">
       
-      <!-- 主内容区域 -->
-      <div class="resource-content">
+    <!-- 主内容区域 -->
+    <fun-drop-zone 
+      class="resource-content"
+      :accept="[]"
+      :clickable="false"
+      title="拖拽文件到这里添加资源"
+      hint="支持任意类型文件"
+      drag-text="松开鼠标添加资源"
+      @drop="handleFileDrop"
+      @error="handleDropError"
+    >
+      <template #default="{ isDragging }">
         <!-- 这里可以根据资源类型动态加载不同的网格组件 -->
-        <div class="resources-grid">
+        <div class="resources-grid" :class="{ 'is-dragging': isDragging }">
           <div 
             v-for="item in paginatedItems" 
             :key="item.id?.value || item.id"
@@ -42,7 +52,8 @@
             />
           </div>
         </div>
-      </div>
+      </template>
+    </fun-drop-zone>
     </BaseView>
     
     <!-- 详情面板 -->
@@ -185,17 +196,35 @@ import TextReader from './TextReader.vue'
 import EbookReader from './epub-reader-v2/EbookReader.vue'
 import ContentView from './epub-reader-v2/ContentView.vue'
 import { createResourcePage } from '../composables/createResourcePage'
+import { FunDropZone } from '../fun-ui'
+// 资源类导入
 import { Game } from '@resources/game.ts'
+import { Software } from '@resources/soft.ts'
+import { Manga } from '@resources/manga.ts'
+import { SingleImage } from '@resources/singleImage.ts'
+import { Video } from '@resources/video.ts'
+import { VideoFolder } from '@resources/videoFolder.ts'
+import { Novel } from '@resources/novel.ts'
+import { Website } from '@resources/website.ts'
+import { Audio } from '@resources/audio.ts'
+import { Other } from '@resources/other.ts'
+// 页面配置类导入
 import { GamePage } from '../configs/pages/GamePage.ts'
 import { TestGamePage } from '../configs/pages/TestPage.ts'
-import { Manga } from '@resources/manga.ts'
+import { SoftwarePage } from '../configs/pages/SoftwarePage.ts'
 import { ImagePage } from '../configs/pages/ImagePage.ts'
-import { Novel } from '@resources/novel.ts'
+import { SingleImagePage } from '../configs/pages/SingleImagePage.ts'
+import { VideoPage } from '../configs/pages/VideoPage.ts'
+import { AnimePage } from '../configs/pages/AnimePage.ts'
 import { NovelPage } from '../configs/pages/NovelPage.ts'
+import { WebsitePage } from '../configs/pages/WebsitePage.ts'
+import { AudioPage } from '../configs/pages/AudioPage.ts'
+import { OtherPage } from '../configs/pages/OtherPage.ts'
 import { executeActionHandler, type ActionHandlerContext } from '../utils/ResourceActionHandlers'
 import { useGameRunningStore } from '../stores/game-running'
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import notify from '../utils/NotificationService.ts'
+import saveManager from '../utils/SaveManager.ts'
 import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
 import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
@@ -208,21 +237,48 @@ const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; tes
   Game: {
     resourceClass: Game,
     pageClass: GamePage,
-    testPageClass: TestGamePage // 测试页面配置（包含模拟数据）
+    testPageClass: TestGamePage
+  },
+  Software: {
+    resourceClass: Software,
+    pageClass: SoftwarePage
   },
   Image: {
-    resourceClass: Manga, // 图片资源使用 Manga 类（图片文件夹/专辑）
+    resourceClass: Manga,
     pageClass: ImagePage
   },
   Manga: {
     resourceClass: Manga,
-    pageClass: ImagePage // Manga 和 Image 共用 ImagePage
+    pageClass: ImagePage
+  },
+  SingleImage: {
+    resourceClass: SingleImage,
+    pageClass: SingleImagePage
+  },
+  Video: {
+    resourceClass: Video,
+    pageClass: VideoPage
+  },
+  Anime: {
+    resourceClass: VideoFolder, // 番剧使用文件夹结构
+    pageClass: AnimePage
   },
   Novel: {
     resourceClass: Novel,
     pageClass: NovelPage
+  },
+  Website: {
+    resourceClass: Website,
+    pageClass: WebsitePage
+  },
+  Audio: {
+    resourceClass: Audio,
+    pageClass: AudioPage
+  },
+  Other: {
+    resourceClass: Other, // Other 类型使用独立的 Other 资源类
+    pageClass: OtherPage
   }
-  // 未来可以添加其他资源类型
 }
 
 export default defineComponent({
@@ -237,7 +293,8 @@ export default defineComponent({
     TextReader,
     EbookReader,
     ContentView,
-    ResourcesEditDialog
+    ResourcesEditDialog,
+    FunDropZone
   },
   emits: ['filter-data-updated'],
   props: {
@@ -282,43 +339,190 @@ export default defineComponent({
     }
 
     const ResourceClass = resourceConfig.resourceClass
-    const PageClass = resourceConfig.pageClass
     
-    // 优先使用测试页面配置（如果存在且需要测试数据）
-    // 如果传入了 items，使用普通页面配置；如果没有 items，使用测试页面配置获取模拟数据
-    // 或者如果页面 ID 是 'test-game'，强制使用测试页面配置
+    // 根据页面 ID 选择正确的页面配置类
+    // 只有 'test-game' 页面使用 TestGamePage，其他都使用正常的 pageClass
     const isTestPage = props.pageConfig?.id === 'test-game'
-    const useTestPage = isTestPage || (!props.items || props.items.length === 0)
-    const ActualPageClass = useTestPage && resourceConfig.testPageClass 
+    const PageClass = (isTestPage && resourceConfig.testPageClass) 
       ? resourceConfig.testPageClass 
-      : PageClass
+      : resourceConfig.pageClass
     
-    console.log('[GenericResourceView] 页面配置:', {
-      pageConfigId: props.pageConfig?.id,
-      pageConfigType: props.pageConfig?.type,
-      isTestPage,
-      useTestPage,
-      ActualPageClass: ActualPageClass?.name,
-      hasTestPageClass: !!resourceConfig.testPageClass
-    })
-    
-    const pageConfig = new ActualPageClass()
+    const pageConfig = new PageClass()
 
     // 响应式数据
-    // 优先使用传入的 items，如果没有则从测试页面配置获取模拟数据
-    const mockData = pageConfig.getMockData ? pageConfig.getMockData() : []
-    console.log('[GenericResourceView] 模拟数据:', {
-      hasMockData: !!pageConfig.getMockData,
-      mockDataLength: mockData.length,
-      mockData: mockData
-    })
-    
-    const items = ref(props.items && props.items.length > 0 
-      ? props.items 
-      : mockData)
+    const items = ref<any[]>([])
     const isElectronEnvironment = ref(false)
     const searchQuery = ref('')
     const sortBy = ref('name-asc')
+    
+    // 数据加载状态
+    const isLoadingData = ref(false)
+    
+    /**
+     * 从文件路径提取资源名称
+     */
+    const extractNameFromPath = (filePath: string): string => {
+      if (!filePath) return '未知资源'
+      const fileName = filePath.split(/[\\/]/).pop() || ''
+      const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
+      
+      let cleanName = nameWithoutExt
+        .replace(/[-_\s]+/g, ' ')
+        .trim()
+      
+      if (!cleanName) {
+        cleanName = nameWithoutExt
+      }
+      
+      return cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
+    }
+    
+    /**
+     * 处理拖拽文件
+     */
+    const handleFileDrop = async (files: File[]) => {
+      try {
+        console.log('[GenericResourceView] 拖拽文件数量:', files.length)
+        
+        if (files.length === 0) {
+          notify.toast('error', '拖拽失败', '请拖拽文件到此处')
+          return
+        }
+        
+        let addedCount = 0
+        let failedCount = 0
+        
+        for (const file of files) {
+          try {
+            const filePath = (file as any).path || file.name
+            
+            // 检查是否已存在相同路径
+            const existingItem = items.value.find((item: any) => {
+              const itemPath = BaseResources.extractPrimitiveValue(
+                item.resourcePath?.value || item.resourcePath
+              )
+              return itemPath === filePath
+            })
+            
+            if (existingItem) {
+              console.log(`[GenericResourceView] 资源已存在: ${file.name}`)
+              failedCount++
+              continue
+            }
+            
+            // 创建其它类型资源
+            const resourceData: any = {
+              name: extractNameFromPath(file.name),
+              category: '其它',
+              description: '',
+              tags: [],
+              resourcePath: filePath,
+              coverPath: '',
+              folderSize: 0,
+              playTime: 0,
+              playCount: 0,
+              lastPlayed: null,
+              firstPlayed: null,
+              addedDate: new Date().toISOString(),
+              fileExists: true,
+              resourceType: 'other'
+            }
+            
+            // 获取文件大小
+            if (isElectronEnvironment.value && window.electronAPI) {
+              try {
+                if (window.electronAPI.getFileStats) {
+                  const result = await window.electronAPI.getFileStats(filePath)
+                  if (result.success && result.size) {
+                    resourceData.folderSize = result.size
+                  }
+                } else if (window.electronAPI.getFolderSize) {
+                  const result = await window.electronAPI.getFolderSize(filePath)
+                  if (result.success) {
+                    resourceData.folderSize = result.size
+                  }
+                }
+              } catch (error) {
+                console.warn('[GenericResourceView] 获取文件大小失败:', error)
+              }
+            }
+            
+            // 创建资源实例
+            const resource = ResourceClass.fromJSON(resourceData)
+            console.log('[GenericResourceView] 创建资源对象:', resource)
+            
+            // 添加到列表
+            items.value.push(resource)
+            addedCount++
+            
+          } catch (error: any) {
+            console.error(`[GenericResourceView] 添加文件失败: ${file.name}`, error)
+            failedCount++
+          }
+        }
+        
+        // 保存数据
+        if (addedCount > 0) {
+          await saveData()
+        }
+        
+        // 显示结果通知
+        if (addedCount > 0) {
+          notify.toast(
+            'success',
+            '添加成功',
+            `成功添加 ${addedCount} 个资源${failedCount > 0 ? `，${failedCount} 个文件添加失败` : ''}`
+          )
+        } else if (failedCount > 0) {
+          notify.toast(
+            'error',
+            '添加失败',
+            `${failedCount} 个文件添加失败（可能已存在）`
+          )
+        }
+        
+      } catch (error: any) {
+        console.error('[GenericResourceView] 处理拖拽失败:', error)
+        notify.toast('error', '处理失败', `处理拖拽文件失败: ${error.message}`)
+      }
+    }
+    
+    /**
+     * 处理拖拽错误
+     */
+    const handleDropError = (error: { type: 'size' | 'count' | 'type', message: string }) => {
+      const title = error.type === 'size' ? '文件过大' : 
+                    error.type === 'count' ? '文件数量超限' : 
+                    '文件类型不支持'
+      notify.toast('error', title, error.message)
+    }
+    
+    /**
+     * 保存页面数据到文件
+     */
+    const saveData = async () => {
+      const pageId = props.pageConfig?.id
+      if (!pageId) {
+        console.warn('[GenericResourceView] 无法保存数据：pageId 不存在')
+        return false
+      }
+      
+      try {
+        // 将资源实例转换为可保存的 JSON 数据
+        const saveableData = items.value.map(item => 
+          BaseResources.getSaveableData ? BaseResources.getSaveableData(item) : item
+        )
+        
+        const success = await saveManager.savePageData(pageId, saveableData)
+        if (!success) {
+          console.error(`[GenericResourceView] 页面 ${pageId} 数据保存失败`)
+        }
+        return success
+      } catch (error) {
+        console.error(`[GenericResourceView] 保存页面 ${pageId} 数据时出错:`, error)
+        return false
+      }
+    }
 
     // 图片/漫画查看器相关状态（用于 Image/Manga 资源类型）
     const currentAlbum = ref<any>(null)
@@ -376,17 +580,6 @@ export default defineComponent({
       return gameRunningStore.isGameRunning(game.id?.value || game.id)
     }
 
-    // 调试：检查 items 的初始状态
-    console.log('[GenericResourceView] 🔍 items 初始状态:', {
-      itemsLength: items.value.length,
-      itemsType: typeof items.value,
-      isArray: Array.isArray(items.value),
-      firstItem: items.value[0] ? {
-        id: items.value[0].id?.value || items.value[0].id,
-        name: items.value[0].name?.value || items.value[0].name,
-        developers: items.value[0].developers?.value || items.value[0].developers
-      } : null
-    })
     
     // 使用通用筛选 composable（传入页面配置实例和额外数据）
     const filterComposable = useResourceFilter(
@@ -402,39 +595,6 @@ export default defineComponent({
       const tagsState = filterComposable.filterStates?.tags
       return tagsState?.items?.value || []
     })
-    
-    // 调试：检查 filterComposable 的内容
-    console.log('[GenericResourceView] 🔍 filterComposable 内容:', {
-      keys: Object.keys(filterComposable),
-      hasFilteredGames: 'filteredGames' in filterComposable,
-      hasExtractAllFilters: 'extractAllFilters' in filterComposable,
-      hasGetFilterData: 'getFilterData' in filterComposable,
-      hasFilterStates: 'filterStates' in filterComposable,
-      // 检查动态生成的方法
-      filterMethods: Object.keys(filterComposable).filter(key => 
-        key.startsWith('filterBy') || 
-        key.startsWith('excludeBy') || 
-        (key.startsWith('clear') && key.endsWith('Filter'))
-      )
-    })
-    
-    // 列出所有筛选方法
-    const filterMethodNames = Object.keys(filterComposable).filter(key => 
-      key.startsWith('filterBy') || 
-      key.startsWith('excludeBy') || 
-      (key.startsWith('clear') && key.endsWith('Filter'))
-    )
-    console.log('[GenericResourceView] 📋 filterComposable 中的筛选方法:', filterMethodNames)
-    
-    // 检查每个方法是否是函数
-    filterMethodNames.forEach(methodName => {
-      const method = (filterComposable as any)[methodName]
-      console.log(`[GenericResourceView] 🔧 ${methodName}:`, {
-        exists: method !== undefined,
-        isFunction: typeof method === 'function',
-        type: typeof method
-      })
-    })
 
     // 终止游戏方法
     const terminateGame = async (resource: any) => {
@@ -445,8 +605,6 @@ export default defineComponent({
         )
         const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
         
-        console.log('[GenericResourceView] 🛑 开始强制结束游戏:', resourceName, executablePath)
-        
         if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.terminateGame) {
           notify.toast('error', '操作失败', '当前环境不支持强制结束游戏功能')
           return
@@ -455,8 +613,6 @@ export default defineComponent({
         const result = await window.electronAPI.terminateGame(executablePath)
         
         if (result.success) {
-          console.log('[GenericResourceView] ✅ 游戏已强制结束，PID:', result.pid, '运行时长:', result.playTime, '秒')
-          
           // 从运行列表中移除
           if (resourceType.value === 'Game') {
             gameRunningStore.removeRunningGame(resourceId)
@@ -503,8 +659,6 @@ export default defineComponent({
 
     // 处理游戏进程结束事件
     const handleGameProcessEnded = (data: { executablePath: string; playTime: number; pid: number }) => {
-      console.log('[GenericResourceView] 📥 收到 game-process-ended 事件，数据:', data)
-      
       // 根据 executablePath 找到对应的资源
       const resource = items.value.find((item: any) => {
         const itemPath = BaseResources.extractPrimitiveValue(
@@ -516,8 +670,6 @@ export default defineComponent({
       if (resource) {
         const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
         const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
-        
-        console.log('[GenericResourceView] ✅ 找到对应资源:', resourceName)
         
         // 从运行列表中移除
         if (resourceType.value === 'Game') {
@@ -556,8 +708,6 @@ export default defineComponent({
           // 清除保存的初始值
           gameInitialPlayTimes.value.delete(resourceId)
         }
-        
-        console.log('[GenericResourceView] ✅ 游戏进程结束处理完成')
       } else {
         console.warn('[GenericResourceView] ⚠️ 未找到对应的资源，executablePath:', data.executablePath)
       }
@@ -569,14 +719,6 @@ export default defineComponent({
       const actualResourceType = BaseResources.extractPrimitiveValue(
         resource.resourceType?.value || resource.resourceType
       ) || resource?.constructor?.name || resourceType.value
-      
-      console.log('[GenericResourceView] handleResourceAction 被调用', {
-        resource,
-        resourceType: resourceType.value,
-        actualResourceType,
-        resourceConstructor: resource?.constructor?.name,
-        actionConfig: resource?.constructor?.actionConfig
-      })
       
       // 构建 handler 上下文
       const context: ActionHandlerContext = {
@@ -627,7 +769,6 @@ export default defineComponent({
         saveInitialPlayTime: (resourceId: string, playTime: number) => {
           // 保存初始运行时长到 Map 中
           gameInitialPlayTimes.value.set(resourceId, playTime)
-          console.log(`[GenericResourceView] 保存资源 ${resourceId} 的初始运行时长: ${playTime} 秒`)
         },
         closeDetail: () => {
           // 关闭详情页面（如果有的话）
@@ -693,12 +834,10 @@ export default defineComponent({
           
           try {
             if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
-              console.log('[GenericResourceView] 开始加载专辑页面，路径:', resourcePath)
               const resp = await window.electronAPI.listImageFiles(resourcePath)
               
               if (resp.success) {
                 pages.value = resp.files || []
-                console.log('[GenericResourceView] 加载完成，图片数量:', pages.value.length)
               } else {
                 console.error('[GenericResourceView] 加载图片文件失败:', resp.error)
                 pages.value = []
@@ -713,9 +852,7 @@ export default defineComponent({
           }
         },
         showComicViewer: (show: boolean) => {
-          console.log('[GenericResourceView] showComicViewer 被调用', { show, currentValue: showComicViewer.value })
           showComicViewer.value = show
-          console.log('[GenericResourceView] showComicViewer 已设置为', showComicViewer.value)
         },
         // 小说阅读器相关方法（用于 Novel 资源类型）
         setCurrentNovel: (novel: any) => {
@@ -923,31 +1060,6 @@ export default defineComponent({
     // 直接使用 filterComposable.filteredGames，确保引用正确
     const filteredItems = filterComposable.filteredGames
     
-    // 调试：监听 filteredGames 的变化
-    watch(() => filterComposable.filteredGames.value, (newValue, oldValue) => {
-      console.log('[GenericResourceView] 🔄 filteredGames 发生变化:', {
-        oldLength: oldValue?.length || 0,
-        newLength: newValue?.length || 0,
-        newValue: newValue?.slice(0, 3).map((item: any) => ({
-          id: item.id?.value || item.id,
-          name: item.name?.value || item.name,
-          developers: item.developers?.value || item.developers
-        }))
-      })
-      
-      // 同时检查 filteredItems 的值
-      console.log('[GenericResourceView] 🔄 filteredItems 当前值:', {
-        filteredItemsLength: filteredItems?.value?.length || 0,
-        isSameRef: filteredItems === filterComposable.filteredGames
-      })
-    }, { immediate: true, deep: false })
-    
-    // 调试：检查 filteredItems 的响应式
-    console.log('[GenericResourceView] 🔍 filteredItems 初始化:', {
-      isRef: filteredItems && typeof filteredItems === 'object' && 'value' in filteredItems,
-      currentLength: filteredItems?.value?.length || 0,
-      type: typeof filteredItems
-    })
 
     // 监听 items 变化，自动提取筛选器数据（完全按照 ImageView 的方式）
     watch([items], () => {
@@ -963,17 +1075,15 @@ export default defineComponent({
     // 创建右键菜单处理器（简化版）
     const contextMenuHandlers = {
       detail: (item: any) => {
-        console.log('查看详情:', item)
         // 调用 showDetail 方法（从 resourcePage 获取）
         if ((resourcePage as any).showDetail) {
           (resourcePage as any).showDetail(item)
         }
       },
       edit: (item: any) => {
-        console.log('编辑:', item)
+        // 编辑
       },
       remove: (item: any) => {
-        console.log('删除:', item)
         const index = items.value.findIndex((i: any) => (i.id?.value || i.id) === (item.id?.value || item.id))
         if (index > -1) {
           items.value.splice(index, 1)
@@ -1060,6 +1170,10 @@ export default defineComponent({
           }
           
           items.value.push(newItem)
+          
+          // 保存数据
+          await saveData()
+          
           return newItem
         },
         onUpdate: async (id: string, updates: any) => {
@@ -1077,28 +1191,33 @@ export default defineComponent({
                 await calculateAndUpdateResourceSize(item, isElectronEnvironment.value)
               }
             }
+            
+            // 保存数据
+            await saveData()
           }
         },
         onDelete: async (id: string) => {
           const index = items.value.findIndex((i: any) => (i.id?.value || i.id) === id)
           if (index > -1) {
             items.value.splice(index, 1)
+            
+            // 保存数据
+            await saveData()
           }
         },
         onLoad: async () => {
-          // 模拟加载，实际应该从存储加载
-          console.log('加载数据')
+          // 数据已在 onMounted 时加载
         },
         onSave: async () => {
-          // 模拟保存，实际应该保存到存储
-          console.log('保存数据')
+          // 调用统一的保存函数
+          await saveData()
         },
         getItemName: (item: any) => item.name?.value || item.name,
         itemType: pageConfig.name || '资源'
       },
       contextMenuItems: ResourceClass.contextMenuItems || [],
       contextMenuHandlers: contextMenuHandlers,
-      emptyState: ResourceClass.emptyStateConfig || {
+      emptyState: pageConfig.getEmptyStateConfig ? pageConfig.getEmptyStateConfig() : {
         icon: '📄',
         title: '暂无数据',
         description: '点击"添加"按钮添加新项目',
@@ -1106,7 +1225,7 @@ export default defineComponent({
         buttonAction: 'showAddDialog'
       },
       toolbar: {
-        ...ResourceClass.toolbarConfig,
+        ...pageConfig.getToolbarConfig(),
         sortOptions: sortOptions.map(option => ({
           value: option.value,
           label: option.label
@@ -1128,50 +1247,6 @@ export default defineComponent({
       //   ]
       // }
     })
-    
-    // 添加调试日志
-    console.log('[GenericResourceView] resourcePage 创建完成:', {
-      hasPaginatedItems: !!resourcePage.paginatedItems,
-      paginatedItemsLength: resourcePage.paginatedItems?.value?.length || 0,
-      hasFilteredItems: !!resourcePage.filteredItems,
-      filteredItemsLength: resourcePage.filteredItems?.value?.length || 0,
-      itemsLength: items.value.length,
-      resourcePageKeys: Object.keys(resourcePage),
-      hasEmptyStateConfig: !!resourcePage.emptyStateConfig,
-      hasToolbarConfig: !!resourcePage.toolbarConfig,
-      hasPaginationConfig: !!resourcePage.paginationConfig,
-      // 检查 filteredItems 的引用
-      filteredItemsIsSame: resourcePage.filteredItems === filteredItems,
-      filteredItemsType: typeof resourcePage.filteredItems,
-      filteredItemsIsRef: resourcePage.filteredItems && typeof resourcePage.filteredItems === 'object' && 'value' in resourcePage.filteredItems,
-      // 检查 filteredItems 的实际值
-      filteredItemsValue: resourcePage.filteredItems?.value?.slice(0, 3).map((item: any) => ({
-        id: item.id?.value || item.id,
-        name: item.name?.value || item.name
-      })) || [],
-      // 检查传入的 filteredItems
-      inputFilteredItemsLength: filteredItems?.value?.length || 0,
-      inputFilteredItemsValue: filteredItems?.value?.slice(0, 3).map((item: any) => ({
-        id: item.id?.value || item.id,
-        name: item.name?.value || item.name
-      })) || []
-    })
-    
-    // 监听 resourcePage.filteredItems 的变化
-    watch(() => resourcePage.filteredItems?.value, (newValue, oldValue) => {
-      console.log('[GenericResourceView] 🔄 resourcePage.filteredItems 发生变化:', {
-        oldLength: oldValue?.length || 0,
-        newLength: newValue?.length || 0
-      })
-    }, { immediate: true, deep: false })
-    
-    // 监听 resourcePage.paginatedItems 的变化
-    watch(() => resourcePage.paginatedItems?.value, (newValue, oldValue) => {
-      console.log('[GenericResourceView] 🔄 resourcePage.paginatedItems 发生变化:', {
-        oldLength: oldValue?.length || 0,
-        newLength: newValue?.length || 0
-      })
-    }, { immediate: true, deep: false })
 
     // 获取文件存在性状态（辅助函数）
     const getFileExists = (item: any): boolean => {
@@ -1206,10 +1281,7 @@ export default defineComponent({
 
     // 通用的文件存在性检查函数
     const checkFileExistence = async (): Promise<void> => {
-      console.log(`[GenericResourceView] 🔍 开始检测 ${resourceType.value} 资源文件存在性...`)
-      
       if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.checkFileExists) {
-        console.log('[GenericResourceView] ⚠️ Electron API 不可用，跳过文件存在性检测')
         // 如果API不可用，默认设置为存在
         items.value.forEach((item: any) => {
           setFileExists(item, true)
@@ -1239,13 +1311,8 @@ export default defineComponent({
           // 更新 fileExists 字段
           setFileExists(item, exists)
           
-          const itemName = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || '未知资源'
-          
           if (!exists) {
             missingCount++
-            console.log(`[GenericResourceView] ❌ 文件不存在: ${itemName} - ${filePath}`)
-          } else {
-            console.log(`[GenericResourceView] ✅ 文件存在: ${itemName}`)
           }
         } catch (error) {
           const itemName = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || '未知资源'
@@ -1258,8 +1325,6 @@ export default defineComponent({
         
         checkedCount++
       }
-      
-      console.log(`[GenericResourceView] 📊 文件存在性检测完成: 检查了 ${checkedCount} 个资源，${missingCount} 个文件不存在`)
       
       // 如果有丢失的文件，显示提醒
       if (missingCount > 0) {
@@ -1295,20 +1360,11 @@ export default defineComponent({
         return
       }
       
-      console.log('[GenericResourceView] 开始自动计算资源大小，数量:', resourcesToCalculate.length)
-      
       // 批量计算大小
       await calculateResourceSizesBatch(
         resourcesToCalculate,
-        isElectronEnvironment.value,
-        (current, total) => {
-          if (current % 10 === 0 || current === total) {
-            console.log(`[GenericResourceView] 计算进度: ${current}/${total}`)
-          }
-        }
+        isElectronEnvironment.value
       )
-      
-      console.log('[GenericResourceView] 资源大小计算完成')
     }
 
     // 监听请求更新游戏时长事件（实时更新总时长）
@@ -1332,8 +1388,6 @@ export default defineComponent({
         } else {
           resource.playTime = totalPlayTime
         }
-        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
-        console.log(`[GenericResourceView] 游戏 ${resourceName} 时长已更新: ${totalPlayTime} 秒 (初始: ${initialPlayTime}, 会话: ${totalPlayTime - initialPlayTime})`)
       }
     }
     
@@ -1355,8 +1409,6 @@ export default defineComponent({
         }
         // 清除保存的初始值
         gameInitialPlayTimes.value.delete(gameId)
-        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
-        console.log(`[GenericResourceView] 游戏 ${resourceName} 最终时长已保存: ${totalPlayTime} 秒`)
         
         // 注意：这里不调用保存方法，因为 GenericResourceView 是通用组件，保存逻辑由上层管理
         // 如果需要保存，可以通过事件通知上层组件
@@ -1365,19 +1417,50 @@ export default defineComponent({
 
     // 监听游戏进程结束事件
     onMounted(async () => {
+      // 1. 加载页面数据
+      const pageId = props.pageConfig?.id
+      if (pageId) {
+        isLoadingData.value = true
+        try {
+          const loadedData = await saveManager.loadPageData(pageId)
+          
+          // 将 JSON 数据转换为资源类实例
+          if (ResourceClass && ResourceClass.fromJSON) {
+            items.value = loadedData.map((data: any) => ResourceClass.fromJSON(data))
+          } else {
+            items.value = loadedData
+          }
+          
+          // 数据加载完成后，触发筛选器更新并通知 App.vue
+          if (filterComposable.extractAllFilters) {
+            filterComposable.extractAllFilters()
+            // 延迟更新，确保筛选数据已提取
+            setTimeout(() => {
+              const filterData = filterComposable.getFilterData()
+              emit('filter-data-updated', filterData)
+            }, 100)
+          }
+        } catch (error) {
+          console.error(`[GenericResourceView] 页面 ${pageId} 数据加载失败:`, error)
+          items.value = []
+        } finally {
+          isLoadingData.value = false
+        }
+      } else {
+        console.warn('[GenericResourceView] 没有 pageId，无法加载数据')
+        items.value = []
+      }
+      
+      // 2. 注册事件监听器
       if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.onGameProcessEnded) {
-        console.log('[GenericResourceView] 🎧 注册 game-process-ended 事件监听器')
         window.electronAPI.onGameProcessEnded((event: any, data: any) => {
           handleGameProcessEnded(data)
         })
-      } else {
-        console.log('[GenericResourceView] ⚠️ 无法注册 game-process-ended 事件监听器')
       }
       
       // 注册游戏时长更新事件监听器（用于实时更新总时长）
       window.addEventListener('game-request-update-playtime', handleRequestUpdatePlaytime as EventListener)
       window.addEventListener('game-request-final-playtime', handleRequestFinalPlaytime as EventListener)
-      console.log('[GenericResourceView] ✅ 已注册游戏时长更新事件监听器')
       
       // 启动定时器，定期触发游戏时长更新（每1秒）
       // 只有当有游戏在运行时才触发更新
@@ -1397,20 +1480,11 @@ export default defineComponent({
       }, 1000) // 每1秒更新一次
       
       // 组件挂载后自动检查文件存在性
+      // 注意：数据加载在前面已经处理了，这里的 items.value 检查是为了处理传入 props.items 的情况
       if (items.value && items.value.length > 0) {
         await checkFileExistence()
         // 自动计算资源大小
         await calculateResourceSizes()
-      }
-      
-      // 提取筛选数据并更新到 App.vue
-      if (filterComposable.extractAllFilters) {
-        filterComposable.extractAllFilters()
-        // 延迟更新，确保筛选数据已提取
-        setTimeout(() => {
-          const filterData = filterComposable.getFilterData()
-          emit('filter-data-updated', filterData)
-        }, 100)
       }
     })
     
@@ -1423,13 +1497,8 @@ export default defineComponent({
         clearInterval(playtimeUpdateTimer)
         playtimeUpdateTimer = null
       }
-      console.log('[GenericResourceView] ✅ 已清理游戏时长更新事件监听器和定时器')
     })
 
-    // 监听 showComicViewer 变化，用于调试
-    watch(showComicViewer, (newVal) => {
-      console.log('[GenericResourceView] showComicViewer 值变化:', newVal, 'currentAlbum:', currentAlbum.value, 'pages.length:', pages.value.length)
-    }, { immediate: true })
 
     // 监听 items 变化，当数据更新时自动检查文件存在性和计算大小
     watch(
@@ -1437,7 +1506,6 @@ export default defineComponent({
       async (newLength, oldLength) => {
         // 只在数据从空变为有数据，或者数据数量变化时检查
         if (newLength > 0 && (oldLength === 0 || newLength !== oldLength)) {
-          console.log('[GenericResourceView] 检测到数据变化，自动检查文件存在性和计算大小')
           // 延迟一点执行，确保数据已经更新完成
           await new Promise(resolve => setTimeout(resolve, 100))
           await checkFileExistence()
@@ -1493,13 +1561,6 @@ export default defineComponent({
           const config = ResourceClass?.detailPanelConfig
           // 只根据配置的 enablePreview 判断，不依赖 detailPanelType
           const shouldLoad = config?.enablePreview === true
-          
-          console.log('[GenericResourceView] 预览加载检查（从配置读取）:', {
-            hasConfig: !!config,
-            enablePreview: config?.enablePreview,
-            shouldLoad,
-            ResourceClassName: ResourceClass?.name
-          })
           
           if (shouldLoad) {
             try {
@@ -1662,6 +1723,9 @@ export default defineComponent({
       detailPages,
       handleDetailPageClick,
       handleDetailPageChange,
+      // 拖拽相关
+      handleFileDrop,
+      handleDropError,
       // 详情面板操作处理
       handleDetailAction: (actionKey: string, item: any) => {
         // 根据 actionKey 处理不同的操作
@@ -1689,7 +1753,7 @@ export default defineComponent({
             }
             break
           default:
-            console.log('未知操作:', actionKey)
+            // 未知操作
         }
       },
       ...resourcePage, // 展开所有方法和属性，使模板可以直接访问
@@ -1771,26 +1835,6 @@ export default defineComponent({
       ...toRefs(filterComposable),
       ...filterComposable
     }
-    
-    // 检查返回对象中的筛选方法
-    const returnedFilterMethods = Object.keys(setupReturn).filter(key => 
-      key.startsWith('filterBy') || 
-      key.startsWith('excludeBy') || 
-      (key.startsWith('clear') && key.endsWith('Filter'))
-    )
-    console.log('[GenericResourceView] 📤 setup 返回对象中的筛选方法:', returnedFilterMethods)
-    console.log('[GenericResourceView] 📤 setup 返回对象的所有键:', Object.keys(setupReturn))
-    
-    // 检查每个方法
-    returnedFilterMethods.forEach(methodName => {
-      const method = (setupReturn as any)[methodName]
-      console.log(`[GenericResourceView] ✅ setup 返回的 ${methodName}:`, {
-        exists: method !== undefined,
-        isFunction: typeof method === 'function',
-        type: typeof method,
-        value: method
-      })
-    })
     
     return setupReturn as any // 使用 as any 绕过类型检查，因为方法确实存在
   },
@@ -1924,23 +1968,56 @@ export default defineComponent({
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .generic-resource-view {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
+// resource-content 本身就是 fun-drop-zone，需要直接覆盖样式
 .resource-content {
   flex: 1;
-  padding: var(--spacing-xl);
   overflow-y: auto;
+  
+  // 覆盖 FunDropZone 的默认样式（resource-content 本身就是 fun-drop-zone）
+  // 布局相关：使用 block 布局，不居中对齐
+  display: block !important;
+  align-items: unset !important;
+  justify-content: unset !important;
+  min-height: auto !important;
+  height: 100%;
+  
+  // 移除默认边框和背景
+  border: none !important;
+  background: transparent !important;
+  padding: var(--spacing-xl);
+  cursor: default !important;
+  
+  // 移除默认 hover 效果
+  &:hover {
+    background: transparent !important;
+    border-color: transparent !important;
+  }
+  
+  // 拖拽时才显示边框和背景
+  &.fun-drop-zone--dragging {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border: 2px dashed var(--accent-color) !important;
+    border-radius: var(--radius-xl);
+  }
 }
 
 .resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--spacing-xl);
+  
+  // 拖拽时降低不透明度
+  &.is-dragging {
+    opacity: 0.5;
+    pointer-events: none;
+  }
 }
 
 .resource-card {

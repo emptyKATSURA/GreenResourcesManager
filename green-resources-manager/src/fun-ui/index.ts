@@ -24,6 +24,7 @@ import FunRate from './data-input/Rate/FunRate.vue'
 import FunTagInput from './data-input/TagInput/FunTagInput.vue'
 import FunTextarea from './data-input/Textarea/FunTextarea.vue'
 import FunSelect from './data-input/Select/FunSelect.vue'
+import FunDropZone from './data-input/DropZone/FunDropZone.vue'
 
 // Data Display 数据展示
 import FunBusinessCard from './data-display/BusinessCard/FunBusinessCard.vue'
@@ -57,6 +58,7 @@ const components = {
   FunTagInput,
   FunTextarea,
   FunSelect,
+  FunDropZone,
   // Data Display
   FunBusinessCard,
   FunCard,
@@ -88,6 +90,7 @@ export function install(app: App) {
   app.component('fun-tag-input', FunTagInput)
   app.component('fun-textarea', FunTextarea)
   app.component('fun-select', FunSelect)
+  app.component('fun-drop-zone', FunDropZone)
   app.component('fun-business-card', FunBusinessCard)
   app.component('fun-card', FunCard)
   app.component('fun-empty-state', FunEmptyState)
@@ -114,6 +117,7 @@ export {
   FunTagInput,
   FunTextarea,
   FunSelect,
+  FunDropZone,
   // Data Display
   FunBusinessCard,
   FunCard,

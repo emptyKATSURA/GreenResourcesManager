@@ -62,19 +62,6 @@ export class Website extends BaseResources {
 		buttonAction: 'showAddDialog'
 	}
 
-	// 静态配置：工具栏配置
-	static toolbarConfig = {
-		addButtonText: '添加网站',
-		importBookmarkButtonText: '从书签导入',
-		searchPlaceholder: '搜索网站...',
-		sortOptions: [
-			{ value: 'name', label: '按名称' },
-			{ value: 'visitCount', label: '按访问次数' },
-			{ value: 'addedDate', label: '按添加时间' },
-			{ value: 'lastVisited', label: '按最后访问' }
-		]
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'visit',
