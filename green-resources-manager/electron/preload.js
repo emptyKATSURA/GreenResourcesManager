@@ -76,6 +76,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 磁盘信息
   getDiskInfo: () => ipcRenderer.invoke('get-disk-info'),
   getDiskTypeByPath: (filePath) => ipcRenderer.invoke('get-disk-type-by-path', filePath),
+
+  // SQLite demo 数据（数据库页面展示）
+  sqliteDemoGetData: () => ipcRenderer.invoke('sqlite-demo-get-data'),
+  // 从数据库读取页面数据
+  sqliteGetPageData: (pageId) => ipcRenderer.invoke('sqlite-get-page-data', pageId),
+  // 保存资源到数据库
+  sqliteSaveResource: (resourceType, resource) => ipcRenderer.invoke('sqlite-save-resource', resourceType, resource),
+  // 添加资源到页面索引
+  sqliteAddResourceToPage: (pageId, resourceType, resourceId) => ipcRenderer.invoke('sqlite-add-resource-to-page', pageId, resourceType, resourceId),
+  // 保存页面资源（批量）
+  sqliteSavePageResources: (pageId, resources) => ipcRenderer.invoke('sqlite-save-page-resources', pageId, resources),
   
   // 获取文件图标
   getFileIcon: (filePath, size) => ipcRenderer.invoke('get-file-icon', filePath, size),

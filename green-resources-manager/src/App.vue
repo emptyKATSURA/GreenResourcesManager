@@ -92,6 +92,21 @@
             <span class="nav-text">{{ viewConfig.debug?.name || 'Debug' }}</span>
           </div>
         </li>
+
+        <!-- 本地存档（一级菜单） -->
+        <li 
+          class="nav-item-wrapper"
+          :class="{ active: $route.name === 'database' }"
+        >
+          <div 
+            class="nav-item"
+            :class="{ active: $route.name === 'database' }"
+            @click="navigateTo('database')"
+          >
+            <span class="nav-icon">{{ viewConfig.database?.icon || '🗄️' }}</span>
+            <span class="nav-text">{{ viewConfig.database?.name || '本地存档' }}</span>
+          </div>
+        </li>
         
         <!-- 插件注册的导航项 -->
         <li 
@@ -282,6 +297,11 @@ export default {
           icon: '🐛',
           description: '用于各种调试和测试'
         },
+        database: {
+          name: '本地存档',
+          icon: '🗄️',
+          description: '展示 SQLite demo 表数据'
+        },
         workshop: {
           name: '创意工坊',
           icon: '🎨',
@@ -332,8 +352,8 @@ export default {
     },
     // 主导航页面ID列表（一级菜单）
     mainNavViewIds() {
-      // 主页、搜索和debug是一级菜单，资源页面是主页的子菜单
-      return ['home', 'search', 'debug']
+      // 主页、搜索、debug、本地存档是一级菜单，资源页面是主页的子菜单
+      return ['home', 'search', 'debug', 'database']
     },
     // 资源页面列表（主页的子菜单）
     resourcePages() {

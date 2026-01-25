@@ -16,11 +16,12 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Manga extends BaseResources {
 
-	// 接受的文件扩展名（主要是压缩包和图片）
+	// 接受的文件扩展名（只允许压缩包和文件夹）
+	// 注意：使用 '<folder>' 标记表示接受文件夹（无扩展名）
 	static acceptedExtensions = [
 		'.zip', '.rar', '.7z', '.cbr', '.cbz',  // 漫画压缩包格式
 		'.pdf',  // PDF 格式漫画
-		'.jpg', '.jpeg', '.png', '.gif', '.webp'  // 图片格式
+		'<folder>'  // 文件夹标记（无扩展名）
 	]
 
 	resourceType: ResourceField<string> = new ResourceField<string>({
@@ -74,6 +75,29 @@ export class Manga extends BaseResources {
 		defaultValue: 0
 	})
 
+	/**
+	 * 获取可保存的数据（纯 JSON 对象）
+	 * @returns {any} 可保存的纯 JSON 对象
+	 */
+	getSaveData(): any {
+		return {
+			id: this.id.value || this.id.defaultValue || '',
+			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'manga',
+			name: this.name.value || '',
+			description: this.description.value || '',
+			author: this.author.value || '',
+			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
+			resourcePath: this.resourcePath.value || '',
+			coverPath: this.coverPath.value || '',
+			lastViewed: this.lastViewed.value || null,
+			viewCount: this.viewCount.value || 0,
+			addedDate: this.addedDate.value || '',
+			rating: this.rating.value || 0,
+			comment: this.comment.value || '',
+			isFavorite: this.isFavorite.value || false
+		}
+	}
+
 	// 静态配置：编辑对话框配置
 	static editDialogConfig = {
 		addTitle: '添加漫画',
@@ -93,7 +117,7 @@ export class Manga extends BaseResources {
 	static emptyStateConfig = {
 		icon: '🖼️',
 		title: '还没有添加漫画',
-		description: '点击"添加漫画"按钮选择文件夹或压缩包，或直接拖拽文件夹/压缩包到此处（支持多选，支持 .zip、.rar、.7z 等格式）',
+		description: '点击"添加漫画"按钮选择文件夹或压缩包，或直接拖拽文件夹/压缩包到此处（支持多选，支持 .zip、.rar、.7z、.cbr、.cbz、.pdf 等格式，不支持单个图片文件）',
 		buttonText: '添加第一个漫画',
 		buttonAction: 'showAddAlbumDialog'
 	}

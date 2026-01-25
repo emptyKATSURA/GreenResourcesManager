@@ -64,6 +64,28 @@ export class Video extends BaseResources {
 		editType: new FormField_SelectVideoThumbnail('缩略图', false)
 	})
 
+	/**
+	 * 获取可保存的数据（纯 JSON 对象）
+	 * @returns {any} 可保存的纯 JSON 对象
+	 */
+	getSaveData(): any {
+		return {
+			id: this.id.value || this.id.defaultValue || '',
+			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'video',
+			name: this.name.value || '',
+			description: this.description.value || '',
+			series: this.series.value || '',
+			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
+			actors: Array.isArray(this.actors.value) ? [...this.actors.value] : [],
+			resourcePath: this.resourcePath.value || '',
+			thumbnail: this.thumbnail.value || '',
+			addedDate: this.addedDate.value || '',
+			rating: this.rating.value || 0,
+			comment: this.comment.value || '',
+			isFavorite: this.isFavorite.value || false
+		}
+	}
+
 	// 静态配置：编辑对话框配置
 	static editDialogConfig = {
 		addTitle: '添加视频',

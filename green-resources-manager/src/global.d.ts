@@ -173,6 +173,13 @@ declare global {
       // 获取游戏数据（用于收益页面）
       getPetGamesData: () => Promise<{ success: boolean; totalCount?: number; games?: any[]; error?: string }>
       
+      // SQLite 数据库操作
+      sqliteDemoGetData: () => Promise<{ ok: boolean; tables?: Array<{ tableName: string; rows: Array<any> }>; message?: string }>
+      sqliteGetPageData: (pageId: string) => Promise<{ ok: boolean; data?: Array<any>; message?: string }>
+      sqliteSaveResource: (resourceType: string, resource: any) => Promise<{ ok: boolean; message?: string }>
+      sqliteAddResourceToPage: (pageId: string, resourceType: string, resourceId: string) => Promise<{ ok: boolean; message?: string }>
+      sqliteSavePageResources: (pageId: string, resources: Array<any>) => Promise<{ ok: boolean; message?: string }>
+      
       // 其他方法
       [key: string]: any
     }

@@ -170,6 +170,21 @@ if (!gotTheLock) {
     
     // 注册标签页相关的 IPC 处理器
     tabHandlers.registerTabHandlers(ipcMain, mainWindow, isDev)
+
+    // SQLite demo 数据查询（供「数据库」页面展示）
+    ipcMain.handle('sqlite-demo-get-data', () => sqliteDemo.getDemoData())
+    
+    // 从数据库读取页面数据
+    ipcMain.handle('sqlite-get-page-data', (event, pageId) => sqliteDemo.getPageData(pageId))
+    
+    // 保存资源到数据库
+    ipcMain.handle('sqlite-save-resource', (event, resourceType, resource) => sqliteDemo.saveResourceToTable(resourceType, resource))
+    
+    // 添加资源到页面索引
+    ipcMain.handle('sqlite-add-resource-to-page', (event, pageId, resourceType, resourceId) => sqliteDemo.addResourceToPage(pageId, resourceType, resourceId))
+    
+    // 保存页面资源（批量）
+    ipcMain.handle('sqlite-save-page-resources', (event, pageId, resources) => sqliteDemo.savePageResources(pageId, resources))
     
     // 注册快捷键相关的 IPC 处理器
     shortcuts.registerIpcHandlers(

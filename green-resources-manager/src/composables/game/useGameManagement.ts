@@ -47,12 +47,12 @@ export function useGameManagement(
 
   /**
    * 保存游戏列表
-   * 使用 BaseResources.getSaveableData 过滤数据，只保存定义的字段
+   * 使用 getSaveData 过滤数据，只保存定义的字段
    */
   async function saveGames() {
-    // 使用 BaseResources.getSaveableData 提取需要保存的字段
+    // 使用 getSaveData 提取需要保存的字段
     const saveableGames = games.value.map(game => 
-      BaseResources.getSaveableData(game)
+      game.getSaveData()
     )
     return await saveManager.savePageData(pageId, saveableGames)
   }

@@ -235,23 +235,41 @@ export default {
         const imagePath = this.pages[this.currentPageIndex]
         console.log('加载当前页，图片路径:', imagePath)
         
-        // 使用优化的图片解析
-        this.currentPageImage = await this.resolveImageAsync(imagePath)
-        this.jumpToPage = this.currentPageIndex + 1
+        // 先清空当前图片，确保显示加载状态
+        this.currentPageImage = null
         
-        // 异步获取文件大小，不阻塞图片显示
-        this.getFileSize(imagePath).then(size => {
-          this.currentFileSize = size
-        }).catch(error => {
-          console.error('获取文件大小失败:', error)
-          this.currentFileSize = 0
-        })
-        
-        // 预加载相邻图片
-        this.preloadImages(this.currentPageIndex, 2)
-        
-        // 通知父组件页面变化
-        this.$emit('page-change', this.currentPageIndex)
+        try {
+          // 使用优化的图片解析
+          const imageUrl = await this.resolveImageAsync(imagePath)
+          
+          // 验证 URL 是否有效
+          if (!imageUrl || imageUrl.trim() === '') {
+            console.error('图片解析返回空URL:', imagePath)
+            this.currentPageImage = './default-image.png'
+            return
+          }
+          
+          this.currentPageImage = imageUrl
+          this.jumpToPage = this.currentPageIndex + 1
+          
+          // 异步获取文件大小，不阻塞图片显示
+          this.getFileSize(imagePath).then(size => {
+            this.currentFileSize = size
+          }).catch(error => {
+            console.error('获取文件大小失败:', error)
+            this.currentFileSize = 0
+          })
+          
+          // 预加载相邻图片
+          this.preloadImages(this.currentPageIndex, 2)
+          
+          // 通知父组件页面变化
+          this.$emit('page-change', this.currentPageIndex)
+        } catch (error) {
+          console.error('加载当前页失败:', imagePath, error)
+          // 加载失败时设置默认图片，避免无限加载
+          this.currentPageImage = './default-image.png'
+        }
       }
     },
 

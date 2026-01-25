@@ -141,11 +141,37 @@ export abstract class BaseResources {
 	abstract resourceType: ResourceField<string> // 资源类型
 
 	/**
+	 * 获取可保存的数据（纯 JSON 对象）
+	 * 子类必须实现此方法，返回可直接序列化的纯数据对象
+	 * @returns {any} 可保存的纯 JSON 对象
+	 */
+	abstract getSaveData(): any
+
+	/**
 	 * 生成唯一的资源ID
 	 * @returns {string} 资源ID
 	 */
 	protected generateId(): string {
 		return Date.now().toString() + Math.random().toString(36).substr(2, 9)
+	}
+
+	/**
+	 * 辅助方法：提取所有 saveable 字段的值，返回纯 JSON 对象
+	 * 子类可以在 getSaveData() 中调用此方法
+	 * @returns {any} 包含所有 saveable 字段的纯 JSON 对象
+	 */
+	protected extractSaveableFields(): any {
+		const saveableData: any = {}
+		for (const key in this) {
+			const field = (this as any)[key]
+			if (field instanceof ResourceField && field.saveable) {
+				const valueToSave = field.value !== undefined ? field.value : field.defaultValue
+				const extracted = BaseResources.extractPrimitiveValue(valueToSave)
+				// 直接赋值，确保是原始类型或纯数组/对象
+				saveableData[key] = extracted
+			}
+		}
+		return saveableData
 	}
 
 	/**
@@ -177,6 +203,27 @@ export abstract class BaseResources {
 		if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in value) {
 			return BaseResources.extractPrimitiveValue(value.value)
 		}
+		// 对于数组和对象，检查是否是 Proxy
+		if (value && typeof value === 'object') {
+			const isArray = Array.isArray(value)
+			const valueType = isArray ? 'array' : 'object'
+			const constructorName = value.constructor?.name
+			const hasProxyIndicator = constructorName !== (isArray ? 'Array' : 'Object')
+			
+			if (hasProxyIndicator || valueType === 'array') {
+				console.log(`[BaseResources.extractPrimitiveValue] 检测到 ${valueType}，constructor: ${constructorName}，尝试序列化检查:`, {
+					canStringify: (() => {
+						try {
+							JSON.stringify(value)
+							return true
+						} catch (e) {
+							return `失败: ${e.message}`
+						}
+					})(),
+					length: isArray ? value.length : Object.keys(value).length
+				})
+			}
+		}
 		// 否则直接返回（原始类型或数组）
 		return value
 	}
@@ -188,15 +235,30 @@ export abstract class BaseResources {
 	 */
 	static getSaveableData(instance: BaseResources): any {
 		const saveableData: any = {}
+		console.log(`[BaseResources.getSaveableData] 开始提取，instance 类型:`, instance?.constructor?.name)
+		
 		for (const key in instance) {
 			const field = (instance as any)[key]
 			if (field instanceof ResourceField && field.saveable) {
 				// 如果 value 是 undefined 但 defaultValue 存在，使用 defaultValue
 				const valueToSave = field.value !== undefined ? field.value : field.defaultValue
 				// 使用 extractPrimitiveValue 确保保存的是原始值
-				saveableData[key] = BaseResources.extractPrimitiveValue(valueToSave)
+				const extracted = BaseResources.extractPrimitiveValue(valueToSave)
+				saveableData[key] = extracted
+				
+				// 记录关键字段的类型信息
+				if (key === 'id' || key === 'resourceType' || key === 'tags' || key === 'developers') {
+					console.log(`[BaseResources.getSaveableData] 字段 ${key}:`, {
+						valueType: typeof extracted,
+						isArray: Array.isArray(extracted),
+						constructor: extracted?.constructor?.name,
+						value: Array.isArray(extracted) ? `[数组，长度: ${extracted.length}]` : (typeof extracted === 'object' ? '[对象]' : extracted)
+					})
+				}
 			}
 		}
+		
+		console.log(`[BaseResources.getSaveableData] 提取完成，返回对象 keys:`, Object.keys(saveableData))
 		return saveableData
 	}
 

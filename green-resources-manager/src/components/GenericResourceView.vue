@@ -33,25 +33,35 @@
       @error="handleDropError"
     >
       <template #default="{ isDragging }">
-        <!-- 这里可以根据资源类型动态加载不同的网格组件 -->
-        <div class="resources-grid" :class="{ 'is-dragging': isDragging }">
-          <div 
-            v-for="item in paginatedItems" 
+        <!-- 使用 FunGrid 组件进行布局 -->
+        <FunGrid
+          v-if="paginatedItems.length > 0"
+          mode="auto-fill"
+          :scale="scale"
+          :baseWidth="displayLayoutBaseWidth"
+          :minScaledWidth="displayLayoutMinWidth"
+          :maxScaledWidth="displayLayoutMaxWidth"
+          gap="20px"
+          padding="10px 20px"
+          :singleColumnOnMobile="true"
+          :customStyle="customLayoutStyle"
+          :class="{ 'is-dragging': isDragging }"
+        >
+          <MediaCard
+            v-for="item in paginatedItems"
             :key="item.id?.value || item.id"
-            class="resource-card"
+            :item="item"
+            :type="(resourceType || 'game').toLowerCase()"
+            :is-electron-environment="isElectronEnvironment"
+            :file-exists="getFileExists(item)"
+            :scale="scale"
+            :is-running="isResourceRunning(item)"
             @click="() => (this as any).showDetail(item)"
-            @contextmenu.prevent="handleContextMenu($event, item)">
-            <MediaCard
-              :item="item"
-              :type="(resourceType || 'game').toLowerCase()"
-              :is-electron-environment="isElectronEnvironment"
-              :file-exists="getFileExists(item)"
-              :scale="scale"
-              :is-running="isResourceRunning(item)"
-              @action="handleResourceAction"
-            />
-          </div>
-        </div>
+            @contextmenu.prevent="handleContextMenu($event, item)"
+            @action="handleResourceAction"
+          />
+        </FunGrid>
+        <div v-else class="empty-grid" :class="{ 'is-dragging': isDragging }"></div>
       </template>
     </fun-drop-zone>
     </BaseView>
@@ -181,6 +191,42 @@
         </div>
       </div>
     </div>
+    
+    <!-- 路径更新确认对话框 -->
+    <PathUpdateDialog
+      :visible="showPathUpdateDialog"
+      :title="pathUpdateDialogTitle"
+      :description="pathUpdateDialogDescription"
+      :item-name-label="pathUpdateItemNameLabel"
+      :item-name="pathUpdateItemName"
+      :old-path="pathUpdateOldPath"
+      :new-path="pathUpdateNewPath"
+      :missing-label="pathUpdateMissingLabel"
+      :found-label="pathUpdateFoundLabel"
+      :question="pathUpdateQuestion"
+      @confirm="confirmPathUpdate"
+      @cancel="closePathUpdateDialog"
+    />
+    
+    <!-- 强制结束游戏确认对话框 -->
+    <div v-if="showTerminateConfirmDialog" class="modal-overlay" @click="closeTerminateConfirmDialog">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>强制结束游戏</h3>
+          <button class="btn-close" @click="closeTerminateConfirmDialog">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>确定要强制结束游戏 <strong>{{ terminateResourceName }}</strong> 吗？</p>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 10px;">
+            此操作将立即终止游戏进程，未保存的数据可能会丢失。
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="closeTerminateConfirmDialog">取消</button>
+          <button class="btn-confirm" @click="confirmTerminateGame" style="background: #ef4444;">确认结束</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -195,8 +241,10 @@ import PdfReader from './PdfReader.vue'
 import TextReader from './TextReader.vue'
 import EbookReader from './epub-reader-v2/EbookReader.vue'
 import ContentView from './epub-reader-v2/ContentView.vue'
+import PathUpdateDialog from './PathUpdateDialog.vue'
 import { createResourcePage } from '../composables/createResourcePage'
 import { FunDropZone } from '../fun-ui'
+import FunGrid from '../fun-ui/layout/Grid/FunGrid.vue'
 // 资源类导入
 import { Game } from '@resources/game.ts'
 import { Software } from '@resources/soft.ts'
@@ -294,7 +342,9 @@ export default defineComponent({
     EbookReader,
     ContentView,
     ResourcesEditDialog,
-    FunDropZone
+    PathUpdateDialog,
+    FunDropZone,
+    FunGrid
   },
   emits: ['filter-data-updated'],
   props: {
@@ -394,8 +444,7 @@ export default defineComponent({
         let typeMismatchCount = 0
         
         for (const file of files) {
-          try {
-            const filePath = (file as any).path || file.name
+          const filePath = (file as any).path || file.name
             const fileName = file.name.toLowerCase()
             
             // 获取文件扩展名
@@ -403,7 +452,25 @@ export default defineComponent({
               ? '.' + fileName.split('.').pop() 
               : ''
             
-            console.log(`[GenericResourceView] 处理文件: ${file.name}, 扩展名: ${fileExt}`)
+            // 检测是否为文件夹
+            const isFolder = (() => {
+              // 方法1: 检查 webkitGetAsEntry
+              const entry = typeof (file as any).webkitGetAsEntry === 'function'
+                ? (file as any).webkitGetAsEntry()
+                : null
+              if (entry && entry.isDirectory) {
+                return true
+              }
+              
+              // 方法2: 检查文件类型和扩展名
+              // 文件夹通常没有文件类型，且没有扩展名（或扩展名不在常见文件扩展名列表中）
+              const hasExtension = /\.\w+$/.test(fileName)
+              const isLikelyDirectory = (!file.type || file.type === '') && !hasExtension
+              
+              return isLikelyDirectory
+            })()
+            
+            console.log(`[GenericResourceView] 处理文件: ${file.name}, 扩展名: ${fileExt}, 是否为文件夹: ${isFolder}`)
             
             // 检查是否已存在相同路径
             const existingItem = items.value.find((item: any) => {
@@ -447,8 +514,16 @@ export default defineComponent({
                 break
               }
               
-              // 检查文件扩展名是否匹配
-              if (acceptedExtensions.some((ext: string) => ext.toLowerCase() === fileExt)) {
+              // 如果是文件夹，检查是否接受文件夹
+              if (isFolder && acceptedExtensions.includes('<folder>')) {
+                matchedResourceType = resType
+                MatchedResourceClass = ResourceClassToCheck
+                console.log(`[GenericResourceView] 匹配成功（文件夹）: ${resType}`)
+                break
+              }
+              
+              // 检查文件扩展名是否匹配（非文件夹情况）
+              if (!isFolder && acceptedExtensions.some((ext: string) => ext.toLowerCase() === fileExt)) {
                 matchedResourceType = resType
                 MatchedResourceClass = ResourceClassToCheck
                 console.log(`[GenericResourceView] 匹配成功: ${resType}`)
@@ -479,22 +554,18 @@ export default defineComponent({
               fileExists: true
             }
             
-            // 获取文件大小
+            // 获取文件大小（失败则抛出，不静默吞错）
             if (isElectronEnvironment.value && window.electronAPI) {
-              try {
-                if (window.electronAPI.getFileStats) {
-                  const result = await window.electronAPI.getFileStats(filePath)
-                  if (result.success && result.size) {
-                    resourceData.folderSize = result.size
-                  }
-                } else if (window.electronAPI.getFolderSize) {
-                  const result = await window.electronAPI.getFolderSize(filePath)
-                  if (result.success) {
-                    resourceData.folderSize = result.size
-                  }
+              if (window.electronAPI.getFileStats) {
+                const result = await window.electronAPI.getFileStats(filePath)
+                if (result.success && result.size) {
+                  resourceData.folderSize = result.size
                 }
-              } catch (error) {
-                console.warn('[GenericResourceView] 获取文件大小失败:', error)
+              } else if (window.electronAPI.getFolderSize) {
+                const result = await window.electronAPI.getFolderSize(filePath)
+                if (result.success) {
+                  resourceData.folderSize = result.size
+                }
               }
             }
             
@@ -503,22 +574,12 @@ export default defineComponent({
             console.log(`[GenericResourceView] 创建资源对象 (类型: ${matchedResourceType}):`, resource)
             
             // 添加到列表
-            items.value.push(resource)
-            addedCount++
-            
-          } catch (error: any) {
-            console.error(`[GenericResourceView] 添加文件失败: ${file.name}`, error)
-            failedCount++
-          }
+          items.value.push(resource)
+          addedCount++
         }
         
-        // 保存数据
         if (addedCount > 0) {
           await saveData()
-        }
-        
-        // 显示结果通知
-        if (addedCount > 0) {
           notify.toast(
             'success',
             '添加成功',
@@ -537,10 +598,10 @@ export default defineComponent({
             `${failedCount} 个文件添加失败（可能已存在）`
           )
         }
-        
       } catch (error: any) {
         console.error('[GenericResourceView] 处理拖拽失败:', error)
         notify.toast('error', '处理失败', `处理拖拽文件失败: ${error.message}`)
+        throw error
       }
     }
     
@@ -560,25 +621,20 @@ export default defineComponent({
     const saveData = async () => {
       const pageId = props.pageConfig?.id
       if (!pageId) {
-        console.warn('[GenericResourceView] 无法保存数据：pageId 不存在')
-        return false
+        throw new Error('无法保存数据：pageId 不存在')
       }
       
-      try {
-        // 将资源实例转换为可保存的 JSON 数据
-        const saveableData = items.value.map(item => 
-          BaseResources.getSaveableData ? BaseResources.getSaveableData(item) : item
-        )
-        
-        const success = await saveManager.savePageData(pageId, saveableData)
-        if (!success) {
-          console.error(`[GenericResourceView] 页面 ${pageId} 数据保存失败`)
-        }
-        return success
-      } catch (error) {
-        console.error(`[GenericResourceView] 保存页面 ${pageId} 数据时出错:`, error)
-        return false
+      if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.sqliteSavePageResources) {
+        throw new Error('不在 Electron 环境或数据库 API 不可用，无法保存')
       }
+      const saveableData = items.value.map(item => (item as any).getSaveData())
+      console.log(`[GenericResourceView] 保存页面 ${pageId} 数据到数据库，共 ${saveableData.length} 条记录`)
+      const result = await window.electronAPI.sqliteSavePageResources(pageId, saveableData)
+      if (!result || !result.ok) {
+        throw new Error((result && result.message) ? result.message : '保存页面数据到数据库失败')
+      }
+      console.log(`[GenericResourceView] 页面 ${pageId} 数据保存成功`)
+      return true
     }
 
     // 图片/漫画查看器相关状态（用于 Image/Manga 资源类型）
@@ -617,6 +673,10 @@ export default defineComponent({
     
     // 定时器引用（用于定期更新总时长）
     let playtimeUpdateTimer: ReturnType<typeof setInterval> | null = null
+    
+    // 强制结束游戏确认对话框状态
+    const showTerminateConfirmDialog = ref(false)
+    const resourceToTerminate = ref<any>(null)
 
     // 检查资源是否正在运行（通用方法，支持所有资源类型）
     const isResourceRunning = (resource: any): boolean => {
@@ -715,7 +775,7 @@ export default defineComponent({
     }
 
     // 处理游戏进程结束事件
-    const handleGameProcessEnded = (data: { executablePath: string; playTime: number; pid: number }) => {
+    const handleGameProcessEnded = async (data: { executablePath: string; playTime: number; pid: number }) => {
       // 根据 executablePath 找到对应的资源
       const resource = items.value.find((item: any) => {
         const itemPath = BaseResources.extractPrimitiveValue(
@@ -726,7 +786,6 @@ export default defineComponent({
       
       if (resource) {
         const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
-        const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
         
         // 从运行列表中移除
         if (resourceType.value === 'Game') {
@@ -741,10 +800,8 @@ export default defineComponent({
           // 计算最终总时长（使用 store 中的会话时长，如果 store 中还有数据）
           let totalPlayTime = currentPlayTime
           if (gameRunningStore.isGameRunning(resourceId)) {
-            // 如果还在运行列表中，使用 store 计算
             totalPlayTime = gameRunningStore.getCurrentPlayTime(resourceId, initialPlayTime)
           } else {
-            // 否则直接累加
             totalPlayTime = currentPlayTime + data.playTime
           }
           
@@ -755,15 +812,22 @@ export default defineComponent({
             resource.playTime = totalPlayTime
           }
           
-          // 更新最后游玩时间
           if (resource.lastPlayed && typeof resource.lastPlayed === 'object' && 'value' in resource.lastPlayed) {
             resource.lastPlayed.value = new Date().toISOString()
           } else {
             resource.lastPlayed = new Date().toISOString()
           }
           
-          // 清除保存的初始值
           gameInitialPlayTimes.value.delete(resourceId)
+          
+          // 持久化到数据库
+          try {
+            await saveData()
+          } catch (err: any) {
+            console.error('[GenericResourceView] 游戏时长保存到数据库失败:', err)
+            notify.toast('error', '保存失败', `游戏时长未能写入数据库: ${err.message}`)
+            throw err
+          }
         }
       } else {
         console.warn('[GenericResourceView] ⚠️ 未找到对应的资源，executablePath:', data.executablePath)
@@ -835,11 +899,8 @@ export default defineComponent({
         },
         showTerminateConfirmDialog: (resource: any) => {
           // 显示终止确认对话框
-          const resourceName = resource.name?.value || resource.name || '资源'
-          if (confirm(`资源 "${resourceName}" 正在运行，是否要终止？`)) {
-            // 调用终止方法
-            terminateGame(resource)
-          }
+          showTerminateConfirmDialog.value = true
+          resourceToTerminate.value = resource
         },
         // 图片/漫画查看器相关方法（用于 Image/Manga 资源类型）
         setCurrentAlbum: (album: any) => {
@@ -1187,6 +1248,137 @@ export default defineComponent({
       }
     }
 
+    // 路径更新对话框相关方法
+    const confirmPathUpdate = async () => {
+      try {
+        const { existingItem, newPath } = resourcePage.pathUpdateInfo.value
+
+        if (!existingItem || !newPath) {
+          console.error('[GenericResourceView] 路径更新信息不完整')
+          return
+        }
+
+        const itemName = BaseResources.extractPrimitiveValue(existingItem.name?.value || existingItem.name)
+        const oldPath = BaseResources.extractPrimitiveValue(
+          existingItem.resourcePath?.value || existingItem.executablePath?.value || existingItem.resourcePath || existingItem.executablePath
+        )
+        console.log(`[GenericResourceView] 更新资源 "${itemName}" 的路径:`)
+        console.log(`旧路径: ${oldPath}`)
+        console.log(`新路径: ${newPath}`)
+
+        // 更新资源路径
+        if (existingItem.resourcePath && typeof existingItem.resourcePath === 'object' && 'value' in existingItem.resourcePath) {
+          existingItem.resourcePath.value = newPath
+        } else if (existingItem.executablePath && typeof existingItem.executablePath === 'object' && 'value' in existingItem.executablePath) {
+          existingItem.executablePath.value = newPath
+        } else {
+          existingItem.resourcePath = newPath
+          existingItem.executablePath = newPath
+        }
+        
+        if (existingItem.fileExists && typeof existingItem.fileExists === 'object' && 'value' in existingItem.fileExists) {
+          existingItem.fileExists.value = true
+        } else {
+          existingItem.fileExists = true
+        }
+
+        // 重新计算文件夹大小（如果资源类型支持）
+        if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.getFolderSize) {
+          try {
+            const result = await window.electronAPI.getFolderSize(newPath)
+            if (result.success) {
+              if (existingItem.folderSize && typeof existingItem.folderSize === 'object' && 'value' in existingItem.folderSize) {
+                existingItem.folderSize.value = result.size
+              } else {
+                existingItem.folderSize = result.size
+              }
+              console.log(`[GenericResourceView] 资源 ${itemName} 文件夹大小: ${result.size} 字节`)
+            }
+          } catch (error) {
+            console.error('[GenericResourceView] 获取文件夹大小失败:', error)
+          }
+        }
+
+        // 保存更新后的数据
+        await saveData()
+
+        // 关闭对话框
+        resourcePage.closePathUpdateDialog()
+
+        // 显示成功通知
+        notify.toast(
+          'success',
+          '路径更新成功',
+          `资源 "${itemName}" 的路径已更新`
+        )
+
+        console.log(`[GenericResourceView] 资源 "${itemName}" 路径更新完成`)
+
+      } catch (error: any) {
+        console.error('[GenericResourceView] 更新资源路径失败:', error)
+        notify.toast('error', '更新失败', `更新资源路径失败: ${error.message}`)
+      }
+    }
+
+    // 强制结束游戏确认对话框相关方法
+    const closeTerminateConfirmDialog = () => {
+      showTerminateConfirmDialog.value = false
+      resourceToTerminate.value = null
+    }
+
+    const confirmTerminateGame = async () => {
+      if (resourceToTerminate.value) {
+        await terminateGame(resourceToTerminate.value)
+        closeTerminateConfirmDialog()
+      }
+    }
+
+    // 计算属性：获取终止资源的名称
+    const terminateResourceName = computed(() => {
+      if (!resourceToTerminate.value) return ''
+      return BaseResources.extractPrimitiveValue(
+        resourceToTerminate.value.name?.value || resourceToTerminate.value.name
+      ) || '未知资源'
+    })
+
+    // 路径更新对话框的计算属性（根据资源类型动态生成）
+    const pathUpdateDialogTitle = computed(() => {
+      const itemType = pageConfig.name || '资源'
+      return `更新${itemType}路径`
+    })
+
+    const pathUpdateDialogDescription = computed(() => {
+      const itemType = pageConfig.name || '资源'
+      return `发现同名但路径不同的${itemType}文件：`
+    })
+
+    const pathUpdateItemNameLabel = computed(() => {
+      const itemType = pageConfig.name || '资源'
+      return `${itemType}名称`
+    })
+
+    const pathUpdateItemName = computed(() => {
+      const existingItem = resourcePage.pathUpdateInfo.value.existingItem
+      if (!existingItem) return ''
+      return BaseResources.extractPrimitiveValue(existingItem.name?.value || existingItem.name) || ''
+    })
+
+    const pathUpdateOldPath = computed(() => {
+      const existingItem = resourcePage.pathUpdateInfo.value.existingItem
+      if (!existingItem) return ''
+      return BaseResources.extractPrimitiveValue(
+        existingItem.resourcePath?.value || existingItem.executablePath?.value || existingItem.resourcePath || existingItem.executablePath
+      ) || ''
+    })
+
+    const pathUpdateNewPath = computed(() => {
+      return resourcePage.pathUpdateInfo.value.newPath || ''
+    })
+
+    const pathUpdateMissingLabel = computed(() => '文件丢失')
+    const pathUpdateFoundLabel = computed(() => '文件存在')
+    const pathUpdateQuestion = computed(() => '是否要更新路径？')
+
     // 使用工厂函数创建资源页面（简化版）
     // 使用图片缓存 composable（完全复刻 ImageView.vue，需要在 resourcePage 之前创建）
     const imageCacheComposable = useImageCache({
@@ -1236,16 +1428,28 @@ export default defineComponent({
         onUpdate: async (id: string, updates: any) => {
           const item = items.value.find((i: any) => (i.id?.value || i.id) === id)
           if (item) {
-            Object.assign(item, updates)
+            // 更新 ResourceField 的值（而不是直接覆盖对象）
+            Object.keys(updates).forEach(key => {
+              if (item[key] && typeof item[key] === 'object' && 'value' in item[key]) {
+                // 是 ResourceField，更新 value
+                item[key].value = BaseResources.extractPrimitiveValue(updates[key])
+              } else {
+                // 不是 ResourceField，直接赋值（如 folderSize, playTime 等额外字段）
+                item[key] = updates[key]
+              }
+            })
             
-            // 如果更新了 resourcePath，且资源有 folderSize 字段配置，重新计算大小
+            // 仅当更新了 resourcePath、且当前没有 folderSize 数据时才计算大小（不覆盖已有值）
             if (updates.resourcePath && isElectronEnvironment.value) {
               const cardConfig = item.constructor?.cardDisplayConfig || 
                                (typeof item.constructor?.getCardDisplayConfig === 'function' 
                                  ? item.constructor.getCardDisplayConfig() 
                                  : null)
               if (cardConfig?.badge?.field === 'folderSize') {
-                await calculateAndUpdateResourceSize(item, isElectronEnvironment.value)
+                const folderSize = BaseResources.extractPrimitiveValue(item.folderSize?.value ?? item.folderSize)
+                if (folderSize === undefined || folderSize === null || folderSize === 0) {
+                  await calculateAndUpdateResourceSize(item, isElectronEnvironment.value)
+                }
               }
             }
             
@@ -1389,39 +1593,43 @@ export default defineComponent({
       }
     }
 
-    // 自动计算资源大小（仅针对配置了 folderSize 的资源）
+    // 自动计算资源大小（仅针对配置了 folderSize 且尚未有数据的资源；有值则不覆盖）
     const calculateResourceSizes = async () => {
       if (!isElectronEnvironment.value) {
         return
       }
       
-      // 检查资源类是否配置了 folderSize badge
       const cardConfig = ResourceClass.cardDisplayConfig || 
                         (typeof ResourceClass.getCardDisplayConfig === 'function' 
                           ? ResourceClass.getCardDisplayConfig() 
                           : null)
-      
       if (cardConfig?.badge?.field !== 'folderSize') {
         return
       }
       
-      // 筛选出有 resourcePath 的资源
+      // 筛选：有 resourcePath，且 folderSize 为空（undefined、null 或 0）才计算
       const resourcesToCalculate = items.value.filter((item: any) => {
         const resourcePath = BaseResources.extractPrimitiveValue(
           item.resourcePath?.value || item.resourcePath || item.executablePath?.value || item.executablePath
         )
-        return resourcePath && typeof resourcePath === 'string' && resourcePath.trim()
+        if (!resourcePath || typeof resourcePath !== 'string' || !resourcePath.trim()) {
+          return false
+        }
+        const folderSize = BaseResources.extractPrimitiveValue(item.folderSize?.value ?? item.folderSize)
+        return folderSize === undefined || folderSize === null || folderSize === 0
       })
       
       if (resourcesToCalculate.length === 0) {
         return
       }
       
-      // 批量计算大小
-      await calculateResourceSizesBatch(
+      const updatedCount = await calculateResourceSizesBatch(
         resourcesToCalculate,
         isElectronEnvironment.value
       )
+      if (updatedCount > 0) {
+        await saveData()
+      }
     }
 
     // 监听请求更新游戏时长事件（实时更新总时长）
@@ -1474,38 +1682,40 @@ export default defineComponent({
 
     // 监听游戏进程结束事件
     onMounted(async () => {
-      // 1. 加载页面数据
+      // 1. 加载页面数据（仅从数据库读取）
       const pageId = props.pageConfig?.id
-      if (pageId) {
-        isLoadingData.value = true
-        try {
-          const loadedData = await saveManager.loadPageData(pageId)
-          
-          // 将 JSON 数据转换为资源类实例
-          if (ResourceClass && ResourceClass.fromJSON) {
-            items.value = loadedData.map((data: any) => ResourceClass.fromJSON(data))
-          } else {
-            items.value = loadedData
-          }
-          
-          // 数据加载完成后，触发筛选器更新并通知 App.vue
-          if (filterComposable.extractAllFilters) {
-            filterComposable.extractAllFilters()
-            // 延迟更新，确保筛选数据已提取
-            setTimeout(() => {
-              const filterData = filterComposable.getFilterData()
-              emit('filter-data-updated', filterData)
-            }, 100)
-          }
-        } catch (error) {
-          console.error(`[GenericResourceView] 页面 ${pageId} 数据加载失败:`, error)
-          items.value = []
-        } finally {
-          isLoadingData.value = false
+      if (!pageId) {
+        throw new Error('[GenericResourceView] 没有 pageId，无法加载数据')
+      }
+      isLoadingData.value = true
+      try {
+        if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.sqliteGetPageData) {
+          throw new Error('[GenericResourceView] 不在 Electron 环境或数据库 API 不可用')
         }
-      } else {
-        console.warn('[GenericResourceView] 没有 pageId，无法加载数据')
-        items.value = []
+        console.log(`[GenericResourceView] 从数据库加载页面 ${pageId} 数据`)
+        const result = await window.electronAPI.sqliteGetPageData(pageId)
+        if (!result || !result.ok) {
+          throw new Error(result?.message || '[GenericResourceView] 获取页面数据失败')
+        }
+        const loadedData = result.data
+        console.log(`[GenericResourceView] 从数据库加载成功，共 ${loadedData.length} 条记录`)
+        if (ResourceClass && ResourceClass.fromJSON) {
+          items.value = loadedData.map((data: any) => ResourceClass.fromJSON(data))
+        } else {
+          items.value = loadedData
+        }
+        if (filterComposable.extractAllFilters) {
+          filterComposable.extractAllFilters()
+          setTimeout(() => {
+            const filterData = filterComposable.getFilterData()
+            emit('filter-data-updated', filterData)
+          }, 100)
+        }
+      } catch (error) {
+        console.error(`[GenericResourceView] 页面 ${pageId} 数据加载失败:`, error)
+        throw error
+      } finally {
+        isLoadingData.value = false
       }
       
       // 2. 注册事件监听器
@@ -1716,6 +1926,39 @@ export default defineComponent({
       imagePagesComposable.jumpToPageGroup(page)
     }
 
+    // FunGrid 布局相关计算属性
+    const displayLayoutConfig = pageConfig.displayLayoutConfig || { minWidth: 200, maxWidth: 400 }
+
+    const displayLayoutBaseWidth = computed(() => {
+      // 使用 maxWidth 作为基础宽度，如果没有则使用默认值
+      return displayLayoutConfig.maxWidth || 400
+    })
+
+    const displayLayoutMinWidth = computed(() => {
+      // 使用 minWidth 作为最小缩放宽度
+      return displayLayoutConfig.minWidth || 100
+    })
+
+    const displayLayoutMaxWidth = computed(() => {
+      // 使用 maxWidth 作为最大缩放宽度
+      return displayLayoutConfig.maxWidth || undefined
+    })
+
+    // 从 layoutStyles 中提取额外的样式（如 justifyContent）
+    const customLayoutStyle = computed(() => {
+      const layoutStyles = (resourcePage as any).layoutStyles
+      if (!layoutStyles) return undefined
+      
+      const custom: Record<string, string> = {}
+      // layoutStyles 是 computed，需要访问 .value
+      const styles = layoutStyles.value || layoutStyles
+      
+      if (styles && typeof styles === 'object' && 'justifyContent' in styles) {
+        custom.justifyContent = styles.justifyContent as string
+      }
+      return Object.keys(custom).length > 0 ? custom : undefined
+    })
+
     return {
       resourceType, // 返回 computed，保持响应式
       isElectronEnvironment,
@@ -1752,6 +1995,11 @@ export default defineComponent({
       handleTextProgressChanged,
       getFileExists, // 获取文件存在性状态
       checkFileExistence, // 文件存在性检查方法
+      // FunGrid 布局相关
+      displayLayoutBaseWidth,
+      displayLayoutMinWidth,
+      displayLayoutMaxWidth,
+      customLayoutStyle,
       // 详情面板相关（从 resourcePage 获取）
       showDetailDialog: resourcePage.showDetailDialog,
       selectedItem: resourcePage.selectedItem,
@@ -1783,6 +2031,26 @@ export default defineComponent({
       // 拖拽相关
       handleFileDrop,
       handleDropError,
+      // 路径更新对话框相关
+      showPathUpdateDialog: resourcePage.showPathUpdateDialog,
+      pathUpdateInfo: resourcePage.pathUpdateInfo,
+      closePathUpdateDialog: resourcePage.closePathUpdateDialog,
+      confirmPathUpdate,
+      pathUpdateDialogTitle,
+      pathUpdateDialogDescription,
+      pathUpdateItemNameLabel,
+      pathUpdateItemName,
+      pathUpdateOldPath,
+      pathUpdateNewPath,
+      pathUpdateMissingLabel,
+      pathUpdateFoundLabel,
+      pathUpdateQuestion,
+      // 强制结束游戏确认对话框相关
+      showTerminateConfirmDialog,
+      resourceToTerminate,
+      terminateResourceName,
+      closeTerminateConfirmDialog,
+      confirmTerminateGame,
       // 详情面板操作处理
       handleDetailAction: (actionKey: string, item: any) => {
         // 根据 actionKey 处理不同的操作
@@ -1791,7 +2059,9 @@ export default defineComponent({
             handleResourceAction(item)
             break
           case 'terminate':
-            terminateGame(item)
+            // 显示终止确认对话框
+            showTerminateConfirmDialog.value = true
+            resourceToTerminate.value = item
             break
           case 'folder':
             // 打开文件夹（需要根据资源类型实现）
@@ -2065,25 +2335,19 @@ export default defineComponent({
   }
 }
 
-.resources-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--spacing-xl);
+// FunGrid 拖拽状态样式
+:deep(.fun-grid.is-dragging) {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+// 空网格占位
+.empty-grid {
+  min-height: 200px;
   
-  // 拖拽时降低不透明度
   &.is-dragging {
     opacity: 0.5;
-    pointer-events: none;
   }
-}
-
-.resource-card {
-  cursor: pointer;
-  transition: transform var(--transition-base);
-}
-
-.resource-card:hover {
-  transform: translateY(-4px);
 }
 
 /* 小说阅读器样式 */
@@ -2192,5 +2456,114 @@ export default defineComponent({
 .reader-content-main {
   flex: 1;
   overflow: hidden;
+}
+
+/* 强制结束游戏确认对话框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal-backdrop);
+}
+
+.modal-content {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  width: 500px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px var(--shadow-medium);
+  transition: background-color var(--transition-base);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
+
+  h3 {
+    color: var(--text-primary);
+    margin: 0;
+    transition: color var(--transition-base);
+  }
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+}
+
+.modal-body {
+  padding: var(--spacing-xl);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-cancel {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+
+  &:hover {
+    background: var(--bg-secondary);
+  }
+}
+
+.btn-confirm {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background var(--transition-base);
+
+  &:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95vw;
+    margin: var(--spacing-xl);
+  }
 }
 </style>

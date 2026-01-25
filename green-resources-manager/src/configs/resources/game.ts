@@ -80,8 +80,56 @@ export class Game extends BaseResources {
 		defaultValue: 0
 	})
 
-	
+	// 游戏时长（分钟）
+	playTime: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
 
+	// 运行次数
+	playCount: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
+	// 最后运行时间（ISO 字符串）
+	lastPlayed: ResourceField<string | null> = new ResourceField<string | null>({
+		saveable: true,
+		defaultValue: null
+	})
+
+	// 首次运行时间（ISO 字符串）
+	firstPlayed: ResourceField<string | null> = new ResourceField<string | null>({
+		saveable: true,
+		defaultValue: null
+	})
+
+	/**
+	 * 获取可保存的数据（纯 JSON 对象）
+	 * @returns {any} 可保存的纯 JSON 对象
+	 */
+	getSaveData(): any {
+		return {
+			id: this.id.value,
+			resourceType: this.resourceType.value,
+			name: this.name.value,
+			description: this.description.value,
+			developers: Array.isArray(this.developers.value) ? [...this.developers.value] : this.developers.value,
+			publisher: this.publisher.value,
+			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : this.tags.value,
+			engine: this.engine.value,
+			coverPath: this.coverPath.value,
+			resourcePath: this.resourcePath.value,
+			playTime: this.playTime.value,
+			playCount: this.playCount.value,
+			lastPlayed: this.lastPlayed.value,
+			firstPlayed: this.firstPlayed.value,
+			addedDate: this.addedDate.value,
+			rating: this.rating.value,
+			comment: this.comment.value,
+			isFavorite: this.isFavorite.value
+		}
+	}
 
 	  
   // 静态配置：编辑对话框配置

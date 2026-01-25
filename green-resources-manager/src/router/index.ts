@@ -38,6 +38,17 @@ const fixedRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/database',
+    name: 'database',
+    component: () => import('../pages/DatabaseView.vue'),
+    meta: {
+      title: '数据库',
+      icon: '🗄️',
+      description: '展示 SQLite demo 表数据',
+      requiresFilter: false
+    }
+  },
+  {
     path: '/workshop',
     name: 'workshop',
     component: () => import('../pages/WorkshopView.vue'),

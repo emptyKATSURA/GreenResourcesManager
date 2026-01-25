@@ -65,6 +65,27 @@ export class Software extends BaseResources {
 		editType: new FormField_SelectGameCover('软件封面', false)
 	})
 
+	/**
+	 * 获取可保存的数据（纯 JSON 对象）
+	 * @returns {any} 可保存的纯 JSON 对象
+	 */
+	getSaveData(): any {
+		return {
+			id: this.id.value || this.id.defaultValue || '',
+			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'software',
+			name: this.name.value || '',
+			description: this.description.value || '',
+			developer: this.developer.value || '',
+			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
+			resourcePath: this.resourcePath.value || '',
+			coverPath: this.coverPath.value || '',
+			addedDate: this.addedDate.value || '',
+			rating: this.rating.value || 0,
+			comment: this.comment.value || '',
+			isFavorite: this.isFavorite.value || false
+		}
+	}
+
 	// 静态配置：编辑对话框配置
 	static editDialogConfig = {
 		addTitle: '添加软件',

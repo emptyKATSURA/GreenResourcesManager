@@ -54,13 +54,13 @@ export function useImageAlbum(pageId: string = 'images') {
 
   /**
    * 保存所有专辑
-   * 使用 BaseResources.getSaveableData 过滤数据，只保存定义的字段
+   * 使用 getSaveData 过滤数据，只保存定义的字段
    */
   const saveAlbums = async (): Promise<void> => {
     try {
-      // 使用 BaseResources.getSaveableData 提取需要保存的字段
+      // 使用 getSaveData 提取需要保存的字段
       const saveableAlbums = albums.value.map(album => 
-        BaseResources.getSaveableData(album)
+        album.getSaveData()
       )
       await saveManager.savePageData(pageId, saveableAlbums)
     } catch (error) {
