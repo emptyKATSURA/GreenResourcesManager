@@ -15,6 +15,9 @@ import { ResourceField } from './base/ResourceField.ts'
  * 用于存储任意类型的文件或资源
  */
 export class Other extends BaseResources {
+
+	// 接受的文件扩展名（接受所有类型）
+	static acceptedExtensions = ['*']  // * 表示接受所有文件类型
 	
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,

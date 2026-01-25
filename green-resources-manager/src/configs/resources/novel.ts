@@ -16,6 +16,12 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Novel extends BaseResources {
 	
+	// 接受的文件扩展名
+	static acceptedExtensions = [
+		'.txt', '.epub', '.pdf', '.mobi', '.azw', '.azw3',  // 电子书格式
+		'.doc', '.docx', '.rtf', '.md'  // 文档格式
+	]
+	
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'novel'

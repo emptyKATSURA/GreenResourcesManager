@@ -16,6 +16,13 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Manga extends BaseResources {
 
+	// 接受的文件扩展名（主要是压缩包和图片）
+	static acceptedExtensions = [
+		'.zip', '.rar', '.7z', '.cbr', '.cbz',  // 漫画压缩包格式
+		'.pdf',  // PDF 格式漫画
+		'.jpg', '.jpeg', '.png', '.gif', '.webp'  // 图片格式
+	]
+
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'manga'

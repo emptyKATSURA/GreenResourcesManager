@@ -13,6 +13,13 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Website extends BaseResources {
 
+	// 接受的文件扩展名（主要是网站快捷方式）
+	static acceptedExtensions = [
+		'.url',     // Windows 网站快捷方式
+		'.webloc',  // macOS 网站快捷方式
+		'.html', '.htm'  // HTML 文件
+	]
+
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'website'

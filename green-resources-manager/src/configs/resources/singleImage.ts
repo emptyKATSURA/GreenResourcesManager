@@ -14,6 +14,12 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class SingleImage extends BaseResources {
 
+	// 接受的文件扩展名
+	static acceptedExtensions = [
+		'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico',  // 常见图片格式
+		'.tiff', '.tif', '.heic', '.heif'  // 其他图片格式
+	]
+
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'single-image'

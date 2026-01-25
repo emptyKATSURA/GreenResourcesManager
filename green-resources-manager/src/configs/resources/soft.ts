@@ -15,6 +15,18 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Software extends BaseResources {
 	
+	// 接受的文件扩展名（用于拖拽文件时自动匹配资源类型）
+	static acceptedExtensions = [
+		'.exe',  // 可执行文件
+		'.msi',  // Windows 安装包
+		'.dmg',  // macOS 安装包
+		'.app',  // macOS 应用
+		'.apk',  // Android 应用
+		'.bat',  // 批处理文件
+		'.sh',   // Shell 脚本
+		'.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz', '.bz2', '.tar.bz2', '.xz', '.tar.xz'  // 压缩包
+	]
+	
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'software'

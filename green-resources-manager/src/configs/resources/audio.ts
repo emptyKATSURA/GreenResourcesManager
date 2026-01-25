@@ -14,6 +14,12 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Audio extends BaseResources {
 
+	// 接受的文件扩展名
+	static acceptedExtensions = [
+		'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma',  // 常见音频格式
+		'.opus', '.ape', '.alac', '.aiff', '.mid', '.midi'  // 其他音频格式
+	]
+
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'audio'

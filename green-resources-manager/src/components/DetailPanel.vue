@@ -40,7 +40,10 @@
         </div>
         <div class="detail-info">
           <!-- 主标题（根据配置动态生成） -->
-          <h2 class="detail-title">{{ computedTitle }}</h2>
+          <h2 class="detail-title">
+            {{ computedTitle }}
+            <span class="resource-type-badge">{{ resourceTypeLabel }}</span>
+          </h2>
           
           <!-- 客观信息区（根据配置动态生成） -->
           <template v-for="(info, index) in computedObjectiveInfo" :key="index">
@@ -187,6 +190,11 @@ export default {
       }
       // 如果没有配置，使用默认的 name 字段
       return this.item.name?.value ?? this.item.name ?? ''
+    },
+    // 资源类型标签
+    resourceTypeLabel() {
+      // 优先从 item.resourceType 获取，直接返回原始类型
+      return this.item?.resourceType?.value ?? this.item?.resourceType ?? this.type
     },
     // 根据配置生成客观信息区
     computedObjectiveInfo() {
@@ -852,6 +860,22 @@ export default {
   overflow-wrap: break-word; /* 允许在单词内部换行 */
   word-wrap: break-word; /* 兼容旧浏览器 */
   max-width: 100%; /* 确保不超过容器宽度 */
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.resource-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--accent-color);
+  color: white;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .detail-author,

@@ -391,10 +391,19 @@ export default defineComponent({
         
         let addedCount = 0
         let failedCount = 0
+        let typeMismatchCount = 0
         
         for (const file of files) {
           try {
             const filePath = (file as any).path || file.name
+            const fileName = file.name.toLowerCase()
+            
+            // 获取文件扩展名
+            const fileExt = fileName.includes('.') 
+              ? '.' + fileName.split('.').pop() 
+              : ''
+            
+            console.log(`[GenericResourceView] 处理文件: ${file.name}, 扩展名: ${fileExt}`)
             
             // 检查是否已存在相同路径
             const existingItem = items.value.find((item: any) => {
@@ -410,10 +419,53 @@ export default defineComponent({
               continue
             }
             
-            // 创建其它类型资源
+            // 根据页面配置的 resourceTypes 自动匹配资源类型
+            const pageResourceTypes = props.pageConfig?.resourceTypes || [resourceType.value]
+            console.log('[GenericResourceView] 页面支持的资源类型:', pageResourceTypes)
+            
+            let matchedResourceType: string | null = null
+            let MatchedResourceClass: any = null
+            
+            // 遍历页面支持的资源类型，找到第一个匹配的
+            for (const resType of pageResourceTypes) {
+              const config = resourceClassMap[resType]
+              if (!config) {
+                console.warn(`[GenericResourceView] 未找到资源类型配置: ${resType}`)
+                continue
+              }
+              
+              const ResourceClassToCheck = config.resourceClass
+              const acceptedExtensions = ResourceClassToCheck.acceptedExtensions || []
+              
+              console.log(`[GenericResourceView] 检查资源类型 ${resType}, 接受的扩展名:`, acceptedExtensions)
+              
+              // 检查是否接受所有文件类型
+              if (acceptedExtensions.includes('*')) {
+                matchedResourceType = resType
+                MatchedResourceClass = ResourceClassToCheck
+                console.log(`[GenericResourceView] 匹配成功（接受所有类型）: ${resType}`)
+                break
+              }
+              
+              // 检查文件扩展名是否匹配
+              if (acceptedExtensions.some((ext: string) => ext.toLowerCase() === fileExt)) {
+                matchedResourceType = resType
+                MatchedResourceClass = ResourceClassToCheck
+                console.log(`[GenericResourceView] 匹配成功: ${resType}`)
+                break
+              }
+            }
+            
+            // 如果没有匹配的资源类型
+            if (!matchedResourceType || !MatchedResourceClass) {
+              console.warn(`[GenericResourceView] 文件 ${file.name} 不匹配页面的资源类型配置`)
+              typeMismatchCount++
+              continue
+            }
+            
+            // 创建匹配到的资源类型
             const resourceData: any = {
               name: extractNameFromPath(file.name),
-              category: '其它',
               description: '',
               tags: [],
               resourcePath: filePath,
@@ -424,8 +476,7 @@ export default defineComponent({
               lastPlayed: null,
               firstPlayed: null,
               addedDate: new Date().toISOString(),
-              fileExists: true,
-              resourceType: 'other'
+              fileExists: true
             }
             
             // 获取文件大小
@@ -447,9 +498,9 @@ export default defineComponent({
               }
             }
             
-            // 创建资源实例
-            const resource = ResourceClass.fromJSON(resourceData)
-            console.log('[GenericResourceView] 创建资源对象:', resource)
+            // 使用匹配到的资源类创建实例
+            const resource = MatchedResourceClass.fromJSON(resourceData)
+            console.log(`[GenericResourceView] 创建资源对象 (类型: ${matchedResourceType}):`, resource)
             
             // 添加到列表
             items.value.push(resource)
@@ -471,7 +522,13 @@ export default defineComponent({
           notify.toast(
             'success',
             '添加成功',
-            `成功添加 ${addedCount} 个资源${failedCount > 0 ? `，${failedCount} 个文件添加失败` : ''}`
+            `成功添加 ${addedCount} 个资源${failedCount > 0 ? `，${failedCount} 个失败` : ''}${typeMismatchCount > 0 ? `，${typeMismatchCount} 个类型不匹配` : ''}`
+          )
+        } else if (typeMismatchCount > 0) {
+          notify.toast(
+            'error',
+            '资源类型不匹配',
+            `${typeMismatchCount} 个文件的类型不匹配当前页面的配置`
           )
         } else if (failedCount > 0) {
           notify.toast(

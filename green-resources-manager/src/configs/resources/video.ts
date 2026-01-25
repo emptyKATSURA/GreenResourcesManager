@@ -15,6 +15,12 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class Video extends BaseResources {
 
+	// 接受的文件扩展名
+	static acceptedExtensions = [
+		'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm',  // 常见视频格式
+		'.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts', '.m2ts'  // 其他视频格式
+	]
+
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'movie'
