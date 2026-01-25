@@ -31,6 +31,7 @@ const fileUtils = require('./utils/file-utils')
 const pathUtils = require('./utils/path-utils')
 const windowsUtils = require('./utils/windows-utils')
 const constants = require('./utils/constants')
+const sqliteDemo = require('./utils/sqlite-demo')
 
 // 判断是否为开发环境
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -191,7 +192,12 @@ if (!gotTheLock) {
     
     // 启动 HTTP API 服务器
     apiServer.startHttpServer()
-    
+
+    // SQLite 流程演示（仅跑通，无业务）
+    sqliteDemo.runDemo().then((r) => {
+      if (!r.ok) console.error('[SQLite Demo]', r.message)
+    })
+
     // 在 macOS 上，当单击 dock 图标并且没有其他窗口打开时，
     // 通常在应用程序中重新创建窗口
     app.on('activate', () => {
