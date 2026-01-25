@@ -109,7 +109,6 @@
     
     <!-- 漫画/图片查看器（用于 Image/Manga 资源类型） -->
     <ComicViewer
-      v-if="showComicViewer || currentAlbum"
       :visible="showComicViewer"
       :album="currentAlbum"
       :pages="pages"
@@ -1043,9 +1042,15 @@ export default defineComponent({
     // 关闭漫画查看器
     const closeComicViewer = () => {
       showComicViewer.value = false
-      currentAlbum.value = null
       currentPageIndex.value = 0
-      pages.value = []
+      
+      // 只清空阅读器相关的状态，保留currentAlbum用于详情页显示
+      // 如果是从详情页打开的，保持详情页状态
+      // 如果是从卡片直接打开的，清空详情页状态
+      if (!showDetailModal.value) {
+        currentAlbum.value = null
+        pages.value = []
+      }
     }
 
     // 处理漫画查看器页面变化
