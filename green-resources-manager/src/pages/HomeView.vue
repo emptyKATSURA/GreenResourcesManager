@@ -353,7 +353,7 @@ export default {
         name: audio.name,
         category: audio.album || 'OST音乐',
         description: audio.notes,
-        thumbnail: audio.thumbnailPath,
+        thumbnail: audio.coverPath,
         lastAccessed: audio.lastPlayed,
         badge: fileSize > 0 ? this.formatSize(fileSize) : undefined,
         metadata: {

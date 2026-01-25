@@ -114,7 +114,7 @@ export default defineComponent({
       exampleAudio.tags.value = ['流行', '电子']
       exampleAudio.actors.value = ['歌手A']
       exampleAudio.resourcePath.value = 'C:\\example\\audio.mp3'
-      exampleAudio.thumbnailPath.value = ''
+      exampleAudio.coverPath.value = ''
       exampleAudio.rating.value = 4.2
       exampleAudio.addedDate.value = new Date().toISOString()
       exampleAudio.fileExists.value = false

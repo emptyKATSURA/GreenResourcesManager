@@ -22,48 +22,45 @@
       @page-change="handlePageChange">
       
     <!-- 主内容区域 -->
-    <fun-drop-zone 
+    <!-- 直接使用 div + useDragAndDrop，避免 FunDropZone 组件的性能问题 -->
+    <div 
       class="resource-content"
-      :accept="[]"
-      :clickable="false"
-      title="拖拽文件到这里添加资源"
-      hint="支持任意类型文件"
-      drag-text="松开鼠标添加资源"
-      @drop="handleFileDrop"
-      @error="handleDropError"
+      :class="{ 'drag-over': isDragOver }"
+      @drop="handleDragDrop"
+      @dragover="handleDragOver"
+      @dragenter="handleDragEnter"
+      @dragleave="handleDragLeave"
     >
-      <template #default="{ isDragging }">
-        <!-- 使用 FunGrid 组件进行布局 -->
-        <FunGrid
-          v-if="paginatedItems.length > 0"
-          mode="auto-fill"
+      <!-- 使用 FunGrid 组件进行布局 -->
+      <FunGrid
+        v-if="paginatedItems.length > 0"
+        mode="auto-fill"
+        :scale="scale"
+        :baseWidth="displayLayoutBaseWidth"
+        :minScaledWidth="displayLayoutMinWidth"
+        :maxScaledWidth="displayLayoutMaxWidth"
+        gap="20px"
+        padding="10px 20px"
+        :singleColumnOnMobile="true"
+        :customStyle="customLayoutStyle"
+        :class="{ 'is-dragging': isDragOver }"
+      >
+        <MediaCard
+          v-for="item in paginatedItems"
+          :key="item.id?.value || item.id"
+          :item="item"
+          :type="(resourceType || 'game').toLowerCase()"
+          :is-electron-environment="isElectronEnvironment"
+          :file-exists="getFileExists(item)"
           :scale="scale"
-          :baseWidth="displayLayoutBaseWidth"
-          :minScaledWidth="displayLayoutMinWidth"
-          :maxScaledWidth="displayLayoutMaxWidth"
-          gap="20px"
-          padding="10px 20px"
-          :singleColumnOnMobile="true"
-          :customStyle="customLayoutStyle"
-          :class="{ 'is-dragging': isDragging }"
-        >
-          <MediaCard
-            v-for="item in paginatedItems"
-            :key="item.id?.value || item.id"
-            :item="item"
-            :type="(resourceType || 'game').toLowerCase()"
-            :is-electron-environment="isElectronEnvironment"
-            :file-exists="getFileExists(item)"
-            :scale="scale"
-            :is-running="isResourceRunning(item)"
-            @click="() => (this as any).showDetail(item)"
-            @contextmenu.prevent="handleContextMenu($event, item)"
-            @action="handleResourceAction"
-          />
-        </FunGrid>
-        <div v-else class="empty-grid" :class="{ 'is-dragging': isDragging }"></div>
-      </template>
-    </fun-drop-zone>
+          :is-running="isResourceRunning(item)"
+          @click="() => (this as any).showDetail(item)"
+          @contextmenu.prevent="handleContextMenu($event, item)"
+          @action="handleResourceAction"
+        />
+      </FunGrid>
+      <div v-else class="empty-grid" :class="{ 'is-dragging': isDragOver }"></div>
+    </div>
     </BaseView>
     
     <!-- 详情面板 -->
@@ -242,8 +239,9 @@ import EbookReader from './epub-reader-v2/EbookReader.vue'
 import ContentView from './epub-reader-v2/ContentView.vue'
 import PathUpdateDialog from './PathUpdateDialog.vue'
 import { createResourcePage } from '../composables/createResourcePage'
-import { FunDropZone } from '../fun-ui'
+// // import { FunDropZone } from '../fun-ui'  // 临时移除，避免性能问题  // 临时移除，避免性能问题
 import FunGrid from '../fun-ui/layout/Grid/FunGrid.vue'
+import { useDragAndDrop } from '../composables/useDragAndDrop'
 // 资源类导入
 import { Game } from '@resources/game.ts'
 import { Software } from '@resources/soft.ts'
@@ -342,7 +340,7 @@ export default defineComponent({
     ContentView,
     ResourcesEditDialog,
     PathUpdateDialog,
-    FunDropZone,
+    // FunDropZone,  // 临时移除，避免性能问题
     FunGrid
   },
   emits: ['filter-data-updated'],
@@ -613,6 +611,13 @@ export default defineComponent({
                     '文件类型不支持'
       notify.toast('error', title, error.message)
     }
+    
+    // 使用拖拽 composable（直接使用，避免 FunDropZone 组件的性能问题）
+    const { isDragOver, handleDragOver, handleDragEnter, handleDragLeave, handleDrop: handleDragDrop } = useDragAndDrop({
+      acceptedExtensions: [],
+      enabled: true,
+      onDrop: handleFileDrop
+    })
     
     /**
      * 保存页面数据到文件
@@ -1185,15 +1190,16 @@ export default defineComponent({
     
 
     // 监听 items 变化，自动提取筛选器数据（完全按照 ImageView 的方式）
-    watch([items], () => {
-      if (filterComposable.extractAllFilters && items.value.length > 0) {
-        filterComposable.extractAllFilters()
-        // 延迟更新筛选器数据，确保数据已提取
-        setTimeout(() => {
-          // 注意：这里不能直接 emit，需要在 methods 中通过 updateFilterData 处理
-        }, 0)
-      }
-    }, { immediate: false, deep: true })
+    // 临时注释掉，测试性能问题
+    // watch([items], () => {
+    //   if (filterComposable.extractAllFilters && items.value.length > 0) {
+    //     filterComposable.extractAllFilters()
+    //     // 延迟更新筛选器数据，确保数据已提取
+    //     setTimeout(() => {
+    //       // 注意：这里不能直接 emit，需要在 methods 中通过 updateFilterData 处理
+    //     }, 0)
+    //   }
+    // }, { immediate: false, deep: true })
 
     // 创建右键菜单处理器（简化版）
     const contextMenuHandlers = {
@@ -2036,6 +2042,11 @@ export default defineComponent({
       // 拖拽相关
       handleFileDrop,
       handleDropError,
+      isDragOver,
+      handleDragOver,
+      handleDragEnter,
+      handleDragLeave,
+      handleDragDrop,
       // 路径更新对话框相关
       showPathUpdateDialog: resourcePage.showPathUpdateDialog,
       pathUpdateInfo: resourcePage.pathUpdateInfo,
@@ -2333,10 +2344,40 @@ export default defineComponent({
   }
   
   // 拖拽时才显示边框和背景
-  &.fun-drop-zone--dragging {
+  &.drag-over {
     background: rgba(59, 130, 246, 0.1) !important;
     border: 2px dashed var(--accent-color) !important;
     border-radius: var(--radius-xl);
+    position: relative;
+    
+    // 添加拖拽提示遮罩层
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius-xl);
+      z-index: 1;
+      pointer-events: none;
+    }
+    
+    // 添加拖拽提示文字
+    &::after {
+      content: '松开鼠标添加资源';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(59, 130, 246, 0.9);
+      color: white;
+      padding: 12px 24px;
+      border-radius: var(--radius-md);
+      font-size: 16px;
+      font-weight: 600;
+      z-index: 2;
+      pointer-events: none;
+      white-space: nowrap;
+    }
   }
 }
 

@@ -13,7 +13,7 @@ export interface Audio extends BaseResource {
   genre?: string
   duration?: number
   filePath?: string
-  thumbnailPath?: string
+  coverPath?: string
   actors?: string[]
   notes?: string
   playCount?: number
@@ -35,7 +35,7 @@ export interface AudioForm {
   genre?: string
   duration?: number
   filePath?: string
-  thumbnailPath?: string
+  coverPath?: string
   actors?: string[]
   tags?: string[]
   notes?: string

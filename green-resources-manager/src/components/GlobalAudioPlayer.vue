@@ -5,8 +5,8 @@
       <!-- 音频信息 -->
       <div class="audio-info">
         <div class="audio-thumbnail">
-          <img v-if="currentAudio && currentAudio.thumbnailPath" 
-               :src="getThumbnailUrl(currentAudio.thumbnailPath)" 
+          <img v-if="currentAudio && currentAudio.coverPath" 
+               :src="getThumbnailUrl(currentAudio.coverPath)" 
                :alt="currentAudio.name" 
                class="thumbnail-img">
           <div v-else class="thumbnail-icon">🎵</div>
@@ -89,8 +89,8 @@
              }"
              @click="playTrack(index)">
           <div class="item-thumbnail">
-            <img v-if="audio.thumbnailPath" 
-                 :src="getThumbnailUrl(audio.thumbnailPath)" 
+            <img v-if="audio.coverPath" 
+                 :src="getThumbnailUrl(audio.coverPath)" 
                  :alt="audio.name" 
                  class="item-thumbnail-img">
             <div v-else class="item-thumbnail-icon">🎵</div>

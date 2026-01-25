@@ -58,7 +58,7 @@ export class Audio extends BaseResources {
 		], true)
 	})
 	
-	thumbnailPath: ResourceField<string> = new ResourceField<string>({
+	coverPath: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		editType: new FormField_SelectFile('缩略图', [
 			{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] },
@@ -80,7 +80,7 @@ export class Audio extends BaseResources {
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
 			actors: Array.isArray(this.actors.value) ? [...this.actors.value] : [],
 			resourcePath: this.resourcePath.value || '',
-			thumbnailPath: this.thumbnailPath.value || '',
+			coverPath: this.coverPath.value || '',
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',
