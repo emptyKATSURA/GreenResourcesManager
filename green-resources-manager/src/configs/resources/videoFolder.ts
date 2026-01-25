@@ -119,6 +119,13 @@ export class VideoFolder extends BaseResources {
 		extra: 'description', // 额外信息：描述字段
 		tags: 'tags', // 标签字段
 		maxTags: 3, // 最多显示 3 个标签
+		badge: {
+			field: 'videoCount',
+			render: (value: any) => {
+				const count = value || 0
+				return `${count} 个视频`
+			}
+		},
 		specialItems: [
 			{
 				field: 'actors',

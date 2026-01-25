@@ -71,104 +71,97 @@ export class GamePage extends BasePage {
 	}
 
 	/**
-	 * 排序配置
-	 * 每个配置项定义了一个排序选项，包含字段访问器和排序方向
-	 * 用户可以根据需要自由定义排序方式
+	 * 获取排序配置（用于 SQL 排序）
+	 * 返回排序配置数组，包含 label、dbField、order
 	 */
-	private sortConfigs: Record<string, SortConfig<Game> & { label: string }> = {
-		'name-asc': {
-			label: '按名称排序',
-			fieldAccessor: (game: Game) => {
-				const name = getFieldValue<string>((game as any).name)
-				return name || null
+	getSortConfig(): Array<{ label: string, dbField: string, order: 'asc' | 'desc' }> {
+		return [
+			{
+				label: '按名称排序',
+				dbField: 'name',
+				order: 'asc'
 			},
-			order: 'asc'
-		},
-		'name-desc': {
-			label: '按名称排序（降序）',
-			fieldAccessor: (game: Game) => {
-				const name = getFieldValue<string>((game as any).name)
-				return name || null
+			{
+				label: '按名称排序（降序）',
+				dbField: 'name',
+				order: 'desc'
 			},
-			order: 'desc'
-		},
-		'lastPlayed-asc': {
-			label: '按最后游玩时间',
-			fieldAccessor: (game: Game) => {
-				const lastPlayed = getFieldValue<string>((game as any).lastPlayed) || (game as any).lastPlayed
-				return lastPlayed ? new Date(lastPlayed).getTime() : null
+			{
+				label: '按最后游玩时间',
+				dbField: 'lastPlayed',
+				order: 'asc'
 			},
-			order: 'asc'
-		},
-		'lastPlayed-desc': {
-			label: '按最后游玩时间（降序）',
-			fieldAccessor: (game: Game) => {
-				const lastPlayed = getFieldValue<string>((game as any).lastPlayed) || (game as any).lastPlayed
-				return lastPlayed ? new Date(lastPlayed).getTime() : null
+			{
+				label: '按最后游玩时间（降序）',
+				dbField: 'lastPlayed',
+				order: 'desc'
 			},
-			order: 'desc'
-		},
-		'playTime-asc': {
-			label: '按游戏时长（升序）',
-			fieldAccessor: (game: Game) => {
-				const playTime = getFieldValue<number>((game as any).playTime) ?? (game as any).playTime
-				return playTime != null ? playTime : null
+			{
+				label: '按游戏时长（升序）',
+				dbField: 'playTime',
+				order: 'asc'
 			},
-			order: 'asc'
-		},
-		'playTime-desc': {
-			label: '按游戏时长（降序）',
-			fieldAccessor: (game: Game) => {
-				const playTime = getFieldValue<number>((game as any).playTime) ?? (game as any).playTime
-				return playTime != null ? playTime : null
+			{
+				label: '按游戏时长（降序）',
+				dbField: 'playTime',
+				order: 'desc'
 			},
-			order: 'desc'
-		},
-		'added-asc': {
-			label: '按添加时间（升序）',
-			fieldAccessor: (game: Game) => {
-				const addedDate = getFieldValue<string>((game as any).addedDate) || (game as any).addedDate
-				return addedDate ? new Date(addedDate).getTime() : null
+			{
+				label: '按添加时间（升序）',
+				dbField: 'addedDate',
+				order: 'asc'
 			},
-			order: 'asc'
-		},
-		'added-desc': {
-			label: '按添加时间（降序）',
-			fieldAccessor: (game: Game) => {
-				const addedDate = getFieldValue<string>((game as any).addedDate) || (game as any).addedDate
-				return addedDate ? new Date(addedDate).getTime() : null
-			},
-			order: 'desc'
-		}
+			{
+				label: '按添加时间（降序）',
+				dbField: 'addedDate',
+				order: 'desc'
+			}
+		]
 	}
 
 	/**
 	 * 获取排序选项配置（用于工具栏显示）
-	 * 直接返回配置中定义的排序选项
+	 * 从排序配置生成排序选项，格式为 'dbField-order'
 	 */
 	getSortOptions(): SortOption[] {
-		return Object.entries(this.sortConfigs).map(([value, config]) => ({
-			value,
+		return this.getSortConfig().map(config => ({
+			value: `${config.dbField}-${config.order}`,
 			label: config.label
 		}))
 	}
 
 	/**
-	 * 根据排序值获取排序配置
+	 * 根据排序值获取排序配置（用于兼容前端排序，如果 SQL 排序失败时使用）
 	 * @param sortValue 排序值，如 'name-asc' 或 'name-desc'
 	 * @returns 排序配置，可直接用于 sortBy 工具函数
 	 */
-	getSortConfig(sortValue: string): SortConfig<Game> | null {
-		const config = this.sortConfigs[sortValue]
+	getSortConfigForFrontend(sortValue: string): SortConfig<Game> | null {
+		// 解析排序值，格式：'dbField-order'
+		const parts = sortValue.split('-')
+		if (parts.length !== 2) {
+			return null
+		}
+		
+		const [dbField, order] = parts
+		const config = this.getSortConfig().find(c => c.dbField === dbField && c.order === order)
 		if (!config) {
 			return null
 		}
 		
-		// 返回排序配置（不包含 label）
+		// 根据数据库字段名创建字段访问器
+		const fieldAccessor = (game: Game) => {
+			const value = getFieldValue<any>((game as any)[dbField])
+			// 如果是日期字段，转换为时间戳
+			if (dbField === 'lastPlayed' || dbField === 'addedDate') {
+				return value ? new Date(value).getTime() : null
+			}
+			return value != null ? value : null
+		}
+		
 		return {
-			fieldAccessor: config.fieldAccessor,
+			fieldAccessor,
 			order: config.order,
-			compareFn: config.compareFn
+			compareFn: undefined
 		}
 	}
 

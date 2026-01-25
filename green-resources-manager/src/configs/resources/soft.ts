@@ -65,11 +65,41 @@ export class Software extends BaseResources {
 		editType: new FormField_SelectGameCover('软件封面', false)
 	})
 
+	// 文件夹大小（字节）
+	folderSize: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
+	// 运行时长（分钟）
+	playTime: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
+	// 运行次数
+	playCount: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
+	// 最后运行时间（ISO 字符串）
+	lastPlayed: ResourceField<string | null> = new ResourceField<string | null>({
+		saveable: true,
+		defaultValue: null
+	})
+
+	// 首次运行时间（ISO 字符串）
+	firstPlayed: ResourceField<string | null> = new ResourceField<string | null>({
+		saveable: true,
+		defaultValue: null
+	})
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
 	 */
-	getSaveData(): any {
+		getSaveData(): any {
 		return {
 			id: this.id.value || this.id.defaultValue || '',
 			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'software',
@@ -79,6 +109,11 @@ export class Software extends BaseResources {
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
 			resourcePath: this.resourcePath.value || '',
 			coverPath: this.coverPath.value || '',
+			folderSize: this.folderSize.value ?? 0,
+			playTime: this.playTime.value ?? 0,
+			playCount: this.playCount.value ?? 0,
+			lastPlayed: this.lastPlayed.value ?? null,
+			firstPlayed: this.firstPlayed.value ?? null,
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',
@@ -132,6 +167,10 @@ export class Software extends BaseResources {
 		extra: 'description', // 额外信息：描述字段
 		tags: 'tags', // 标签字段
 		maxTags: 9, // 最多显示 9 个标签
+		badge: {
+			field: 'folderSize',
+			formatter: 'formatFolderSize'
+		},
 		stats: [
 			{
 				type: 'text' as const,

@@ -89,6 +89,14 @@ export abstract class BasePage {
 	abstract getSortOptions(): SortOption[]
 	
 	/**
+	 * 获取排序配置（用于 SQL 排序）
+	 * 子类必须实现此方法，返回该页面支持的排序配置数组
+	 * 每个配置包含：label（显示标签）、dbField（数据库字段名）、order（排序方向）
+	 * @returns 排序配置数组，格式：{ label: string, dbField: string, order: 'asc' | 'desc' }[]
+	 */
+	abstract getSortConfig(): Array<{ label: string, dbField: string, order: 'asc' | 'desc' }>
+	
+	/**
 	 * 获取空状态配置
 	 * 子类必须实现此方法，返回该页面的空状态配置
 	 * @returns 空状态配置对象

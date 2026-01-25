@@ -20,7 +20,7 @@ function getFieldValue<T>(field: any): T | undefined {
 
 export class ImagePage extends BasePage {
 	readonly id: string = 'images'
-	readonly name: string = '图片'
+	readonly name: string = '漫画'
 	readonly icon: string = '🖼️'
 	readonly description: string = '可以管理图片文件夹，暂不支持单一图片的管理'
 

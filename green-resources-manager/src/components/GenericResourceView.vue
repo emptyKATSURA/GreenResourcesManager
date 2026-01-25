@@ -1558,6 +1558,14 @@ export default defineComponent({
         items.value.forEach((item: any) => {
           setFileExists(item, true)
         })
+        // 更新筛选器数量
+        if (filterComposable.extractAllFilters) {
+          filterComposable.extractAllFilters()
+          setTimeout(() => {
+            const filterData = filterComposable.getFilterData()
+            emit('filter-data-updated', filterData)
+          }, 100)
+        }
         return
       }
       
@@ -1601,6 +1609,16 @@ export default defineComponent({
       // 如果有丢失的文件，显示提醒
       if (missingCount > 0) {
         notify.toast('warning', '文件检测完成', `检测到 ${missingCount} 个文件不存在`)
+      }
+      
+      // 更新筛选器数量（特别是"丢失的资源"筛选器）
+      if (filterComposable.extractAllFilters) {
+        filterComposable.extractAllFilters()
+        // 延迟更新筛选器数据，确保数据已提取
+        setTimeout(() => {
+          const filterData = filterComposable.getFilterData()
+          emit('filter-data-updated', filterData)
+        }, 100)
       }
     }
 

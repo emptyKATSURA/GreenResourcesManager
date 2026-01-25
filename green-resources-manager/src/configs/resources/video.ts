@@ -64,11 +64,17 @@ export class Video extends BaseResources {
 		editType: new FormField_SelectVideoThumbnail('缩略图', false)
 	})
 
+	// 视频时长（分钟）
+	duration: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
 	 */
-	getSaveData(): any {
+		getSaveData(): any {
 		return {
 			id: this.id.value || this.id.defaultValue || '',
 			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'video',
@@ -79,6 +85,7 @@ export class Video extends BaseResources {
 			actors: Array.isArray(this.actors.value) ? [...this.actors.value] : [],
 			resourcePath: this.resourcePath.value || '',
 			thumbnail: this.thumbnail.value || '',
+			duration: this.duration.value ?? 0,
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',
@@ -140,6 +147,10 @@ export class Video extends BaseResources {
 		extra: 'description', // 额外信息：描述字段
 		tags: 'tags', // 标签字段
 		maxTags: 3, // 最多显示 3 个标签
+		badge: {
+			field: 'duration',
+			formatter: 'formatDuration'
+		},
 		specialItems: [
 			{
 				field: 'actors',

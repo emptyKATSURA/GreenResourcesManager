@@ -153,6 +153,13 @@ export class Manga extends BaseResources {
 		extra: 'author', // 额外信息：描述字段
 		tags: 'tags', // 标签字段
 		maxTags: 3, // 最多显示 3 个标签
+		badge: {
+			field: 'pagesCount',
+			render: (value: any) => {
+				const count = value || 0
+				return `${count} 页`
+			}
+		},
 		stats: [
 			{
 				type: 'count' as const,

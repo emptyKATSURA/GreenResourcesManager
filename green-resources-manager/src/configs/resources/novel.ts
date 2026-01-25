@@ -147,6 +147,10 @@ export class Novel extends BaseResources {
 		extra: 'genre', // 额外信息：类型字段
 		tags: 'tags', // 标签字段
 		maxTags: 3, // 最多显示 3 个标签
+		badge: {
+			field: 'totalWords',
+			formatter: 'formatWordCount'
+		},
 		progress: {
 			field: 'readProgress', // 进度值字段
 			unit: '%' // 单位

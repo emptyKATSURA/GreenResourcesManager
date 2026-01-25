@@ -117,6 +117,13 @@ export class Website extends BaseResources {
 		subtitle: 'description', // 副标题：描述字段
 		tags: 'tags', // 标签字段
 		maxTags: 3, // 最多显示 3 个标签
+		badge: {
+			field: 'visitCount',
+			render: (value: any) => {
+				const count = value || 0
+				return count > 0 ? `${count} 次访问` : ''
+			}
+		},
 		stats: [
 			{
 				type: 'count' as const,

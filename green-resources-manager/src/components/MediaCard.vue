@@ -587,20 +587,7 @@ export default {
         return fieldValue != null ? String(fieldValue) : ''
       }
       
-      // 如果没有配置，使用旧的类型判断逻辑（向后兼容）
-      if (this.type === 'game') {
-        return this.formatFolderSize(getFieldValue(this.item.folderSize))
-      } else if (this.type === 'image') {
-        return `${getFieldValue(this.item.pagesCount) || 0} 页`
-      } else if (this.type === 'novel') {
-        return this.formatWordCount(getFieldValue(this.item.totalWords))
-      } else if (this.type === 'video') {
-        return this.formatDuration(getFieldValue(this.item.duration))
-      } else if (this.type === 'audio') {
-        return this.formatAudioDuration(getFieldValue(this.item.duration))
-      } else if (this.type === 'folder') {
-        return `${getFieldValue(this.item.videoCount) || 0} 个视频`
-      }
+      // 如果没有配置 badge，则不显示徽章
       return ''
     },
     showFileError() {

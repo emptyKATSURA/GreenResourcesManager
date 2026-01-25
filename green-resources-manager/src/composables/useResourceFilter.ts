@@ -9,7 +9,12 @@ import type { SortConfig } from '../utils/sortBy'
  * 页面配置接口，需要提供 getSortConfig 和 getFilterConfig 方法
  */
 export interface PageConfigWithFilter {
-  getSortConfig(sortValue: string): SortConfig<any> | null
+  // 新的方法：用于 SQL 排序，返回排序配置数组
+  getSortConfig(): Array<{ label: string, dbField: string, order: 'asc' | 'desc' }>
+  // 兼容方法：用于前端排序（如果 SQL 排序失败时使用）
+  getSortConfigForFrontend?(sortValue: string): SortConfig<any> | null
+  // 旧方法：保持向后兼容
+  getSortConfig?(sortValue: string): SortConfig<any> | null
   getFilterConfig<T = any>(): FilterConfig<T>[]
 }
 
@@ -253,8 +258,15 @@ export function useResourceFilter<T = any>(
       return true
     })
 
-    // 排序 - 使用 sortBy 工具函数
-    const sortConfig = pageConfig.getSortConfig(sortBy.value)
+    // 排序 - 使用 sortBy 工具函数（作为降级方案，如果 SQL 排序失败时使用）
+    // 优先使用 getSortConfigForFrontend，如果没有则使用旧的 getSortConfig
+    let sortConfig: SortConfig<any> | null = null
+    if (typeof pageConfig.getSortConfigForFrontend === 'function') {
+      sortConfig = pageConfig.getSortConfigForFrontend(sortBy.value)
+    } else if (typeof pageConfig.getSortConfig === 'function') {
+      sortConfig = pageConfig.getSortConfig(sortBy.value)
+    }
+    
     if (sortConfig) {
       return sortByUtil(filtered, sortConfig)
     }

@@ -157,9 +157,7 @@ export class Other extends BaseResources {
 		],
 		badge: {
 			field: 'folderSize',
-			formatter: 'formatFileSize',
-			position: 'top-right' as const,
-			color: '#3b82f6'
+			formatter: 'formatFolderSize'
 		}
 	}
 

@@ -127,6 +127,13 @@ export class SingleImage extends BaseResources {
 		extra: 'description', // 额外信息：描述字段
 		tags: 'tags', // 标签字段
 		maxTags: 3, // 最多显示 3 个标签
+		badge: {
+			field: 'viewCount',
+			render: (value: any) => {
+				const count = value || 0
+				return count > 0 ? `${count} 次浏览` : ''
+			}
+		},
 		stats: [
 			{
 				type: 'count' as const,

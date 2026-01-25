@@ -442,7 +442,70 @@ export const openNovelReaderHandler: ActionHandler = async (resource, context) =
   }
 }
 
+/**
+ * 打开网站的 Handler
+ * 适用于 Website 资源类型
+ */
+export const openWebsiteHandler: ActionHandler = async (resource, context) => {
+  try {
+    // 获取网站 URL（Website 类使用 resourcePath 字段存储 URL）
+    const url = BaseResources.extractPrimitiveValue(
+      resource.resourcePath?.value || resource.resourcePath
+    )
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
+    
+    if (!url) {
+      notify.toast('error', '打开失败', `网站 "${resourceName}" 没有配置 URL`)
+      return
+    }
+
+    // 增加访问次数（如果资源有 visitCount 字段）
+    const currentVisitCount = BaseResources.extractPrimitiveValue(
+      resource.visitCount?.value || resource.visitCount
+    ) || 0
+    
+    // 更新访问次数和最后访问时间
+    if (context.updateResource && resourceId) {
+      try {
+        await context.updateResource(resourceId, {
+          visitCount: currentVisitCount + 1,
+          lastVisited: new Date().toISOString()
+        })
+      } catch (error) {
+        console.warn('[ResourceActionHandlers] 更新访问次数失败:', error)
+        // 继续执行，不阻止打开网站
+      }
+    }
+
+    // 打开网站
+    if (context.isElectronEnvironment && window.electronAPI && window.electronAPI.openExternal) {
+      const result = await window.electronAPI.openExternal(url)
+      if (result.success) {
+        console.log('[ResourceActionHandlers] 网站访问成功:', resourceName)
+        notify.native('网站已打开', `正在访问: ${resourceName}`)
+      } else {
+        notify.toast('error', '访问失败', `无法打开网站: ${result.error || '未知错误'}`)
+      }
+    } else {
+      // 降级处理：在浏览器中打开
+      window.open(url, '_blank')
+      notify.native('网站已打开', `正在访问: ${resourceName}`)
+    }
+    
+    // 关闭详情页面
+    if (context.closeDetail) {
+      context.closeDetail()
+    }
+  } catch (error) {
+    console.error('[ResourceActionHandlers] 打开网站失败:', error)
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    notify.toast('error', '打开失败', `无法打开网站 "${resourceName}": ${error.message || '未知错误'}`)
+  }
+}
+
 // 注册默认的 handlers
 registerActionHandler('launchExecutable', launchExecutableHandler)
 registerActionHandler('openAlbum', openAlbumHandler)
 registerActionHandler('openNovelReader', openNovelReaderHandler)
+registerActionHandler('openWebsite', openWebsiteHandler)
