@@ -300,7 +300,7 @@ export default {
         database: {
           name: '本地存档',
           icon: '🗄️',
-          description: '展示 SQLite demo 表数据'
+          description: '展示存档的数据'
         },
         workshop: {
           name: '创意工坊',

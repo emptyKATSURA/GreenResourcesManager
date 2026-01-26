@@ -13,14 +13,19 @@
           >
             {{ converting ? '转换中...' : '转换旧存档为新存档' }}
           </button>
+          <label class="edit-mode-toggle">
+            <FunSwitch v-model="editMode" />
+            <span class="edit-mode-label">启用编辑模式</span>
+          </label>
         </div>
         <nav class="table-nav">
           <button
-            v-for="table in tables"
+            v-for="(table, index) in tables"
             :key="table.tableName"
             type="button"
             class="table-nav-item"
             :class="{ active: activeTable === table.tableName }"
+            :data-table-index="index"
             @click="activeTable = table.tableName"
           >
             {{ table.tableName }}
@@ -28,21 +33,31 @@
         </nav>
         <div v-if="currentTable" class="database-section">
           <h3>表: {{ currentTable.tableName }}</h3>
-          <div v-if="currentTable.rows && currentTable.rows.length && getColumns(currentTable.rows).length" class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th v-for="col in getColumns(currentTable.rows)" :key="col">{{ col }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in currentTable.rows" :key="row.id || idx">
-                  <td v-for="col in getColumns(currentTable.rows)" :key="col" class="data-cell">
-                    {{ formatCellValue(row[col]) }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-if="currentTable.rows && currentTable.rows.length && Object.keys(currentTable.rows[0] || {}).length > 0" class="table-wrap">
+            <!-- 编辑模式提示 -->
+            <div v-if="editMode" class="edit-mode-hint">
+              💡 双击单元格进行编辑，建议没事不要编辑！很容易坏档！！！编辑前记得备份存档！！
+            </div>
+            <!-- 分页组件 -->
+            <FunPagination
+              v-if="paginationConfig.totalPages > 1"
+              :currentPage="paginationConfig.currentPage"
+              :totalPages="paginationConfig.totalPages"
+              :pageSize="paginationConfig.pageSize"
+              :totalItems="paginationConfig.totalItems"
+              itemType="条记录"
+              @page-change="handlePageChange"
+            />
+            <FunDataTable
+              :data="paginatedRows"
+              :show-actions="true"
+              :show-delete="true"
+              :editable="editMode"
+              delete-title="删除此记录"
+              :default-formatter="formatCellValue"
+              @delete="handleDeleteRow"
+              @cell-edit="handleCellEdit"
+            />
           </div>
           <div v-else class="empty">暂无数据</div>
         </div>
@@ -52,35 +67,84 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import alertService from '../utils/AlertService.ts'
+import confirmService from '../utils/ConfirmService.ts'
+import { usePagination } from '../composables/usePagination'
+import FunPagination from '../fun-ui/navigation/Pagination/FunPagination.vue'
+import FunDataTable from '../fun-ui/basic/DataTable/FunDataTable.vue'
+import FunSwitch from '../fun-ui/basic/Switch/FunSwitch.vue'
 
 const loading = ref(true)
 const error = ref('')
 const tables = ref<Array<{ tableName: string, rows: Array<any> }>>([])
 const activeTable = ref<string>('')
 const converting = ref(false)
+const editMode = ref(false)
 
 // 当前选中的表数据
 const currentTable = computed(() =>
   tables.value.find(t => t.tableName === activeTable.value) ?? null
 )
 
-// 从数据中提取所有列名（动态生成表头）
-const getColumns = (rows: Array<any>) => {
-  if (!rows || rows.length === 0) return []
-  const firstRow = rows[0]
-  return Object.keys(firstRow)
+// 当前表的行数据（用于分页）
+const currentTableRows = computed(() => {
+  return currentTable.value?.rows || []
+})
+
+// 使用分页 composable
+const paginationComposable = usePagination(
+  currentTableRows,
+  50, // 默认每页显示50条记录
+  '条记录'
+)
+
+// 分页后的行数据
+const paginatedRows = computed(() => {
+  return paginationComposable.paginatedItems.value
+})
+
+// 分页配置
+const paginationConfig = computed(() => {
+  return paginationComposable.paginationConfig.value
+})
+
+// 处理分页变化
+const handlePageChange = (pageNum: number) => {
+  paginationComposable.handlePageChange(pageNum)
 }
+
+// 监听当前表变化，重置到第一页
+watch(activeTable, () => {
+  paginationComposable.resetToFirstPage()
+})
 
 // 格式化单元格值（完全展示原始数据，不做格式化）
 const formatCellValue = (value: any): string => {
   if (value === null || value === undefined) {
     return ''
   }
-  // 如果是数组或对象，转为 JSON 字符串
+  // 如果是数组或对象，转为格式化的 JSON 字符串
   if (typeof value === 'object') {
-    return JSON.stringify(value)
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch (e) {
+      return String(value)
+    }
+  }
+  // 如果是字符串，尝试检测是否为 JSON 并格式化
+  if (typeof value === 'string') {
+    // 尝试解析 JSON
+    try {
+      const parsed = JSON.parse(value)
+      // 如果解析成功且是对象或数组，格式化返回
+      if (typeof parsed === 'object' && parsed !== null) {
+        return JSON.stringify(parsed, null, 2)
+      }
+    } catch (e) {
+      // 不是有效的 JSON，返回原字符串
+    }
+    return value
   }
   // 其他类型直接转为字符串
   return String(value)
@@ -268,9 +332,52 @@ const handleConvertToNewArchive = async () => {
       }
     }
 
+    // 5. 自动迁移成就数据
+    if (api.sqliteMigrateAchievements) {
+      try {
+        const achievementsResult = await api.sqliteMigrateAchievements(saveDataPath)
+        if (achievementsResult?.ok) {
+          const count = achievementsResult.migratedCount || 0
+          console.log(`✅ 成功迁移成就数据: ${count} 个成就`)
+        } else {
+          console.warn(`⚠️ 迁移成就数据失败或已存在: ${achievementsResult?.message || '未知错误'}`)
+        }
+      } catch (error: any) {
+        console.warn('迁移成就数据时出错:', error)
+      }
+    }
+
+    // 6. 自动迁移设置数据
+    if (api.sqliteMigrateSettings) {
+      try {
+        const settingsResult = await api.sqliteMigrateSettings(saveDataPath)
+        if (settingsResult?.ok) {
+          console.log('✅ 成功迁移设置数据')
+        } else {
+          console.warn(`⚠️ 迁移设置数据失败或已存在: ${settingsResult?.message || '未知错误'}`)
+        }
+      } catch (error: any) {
+        console.warn('迁移设置数据时出错:', error)
+      }
+    }
+
+    // 7. 自动迁移用户数据
+    if (api.sqliteMigrateUser) {
+      try {
+        const userResult = await api.sqliteMigrateUser(saveDataPath)
+        if (userResult?.ok) {
+          console.log('✅ 成功迁移用户数据')
+        } else {
+          console.warn(`⚠️ 迁移用户数据失败或已存在: ${userResult?.message || '未知错误'}`)
+        }
+      } catch (error: any) {
+        console.warn('迁移用户数据时出错:', error)
+      }
+    }
+
     converting.value = false
 
-    // 4. 显示转换结果
+    // 8. 显示转换结果
     let message = `转换完成！\n\n成功转换: ${totalConverted} 条记录`
     if (totalFailed > 0) {
       message += `\n失败: ${totalFailed} 个文件`
@@ -278,6 +385,7 @@ const handleConvertToNewArchive = async () => {
         message += `\n\n失败的文件:\n${failedFiles.join('\n')}`
       }
     }
+    message += `\n\n已自动迁移成就、设置和用户数据（如果存在）`
 
     if (totalConverted > 0) {
       await alertService.success(message)
@@ -331,6 +439,148 @@ const loadData = async () => {
   }
 }
 
+// 处理单元格编辑
+const handleCellEdit = async (row: any, column: string, newValue: any, oldValue: any, index: number) => {
+  // 如果值没有变化，不提示保存
+  const formattedNewValue = formatCellValue(newValue)
+  const formattedOldValue = formatCellValue(oldValue)
+  if (formattedNewValue === formattedOldValue) {
+    return
+  }
+
+  const confirmed = await confirmService.confirm(
+    `确定要保存修改吗？\n\n字段: ${column}\n原值: ${formattedOldValue}\n新值: ${formattedNewValue}`,
+    '确认保存',
+    true
+  )
+
+  if (!confirmed) {
+    // 用户取消，刷新数据恢复原值
+    await loadData()
+    return
+  }
+
+  const api = (window as any).electronAPI
+  if (!api?.sqliteSaveResource) {
+    await alertService.error('当前环境无法访问 SQLite 保存功能（请使用 Electron 运行）')
+    // 刷新数据恢复原值
+    await loadData()
+    return
+  }
+
+  try {
+    // 尝试保持原始值的类型
+    let convertedValue: any = newValue
+    
+    // 如果原值是对象或数组，尝试解析 JSON
+    if (typeof oldValue === 'object' && oldValue !== null) {
+      try {
+        convertedValue = JSON.parse(newValue)
+      } catch (e) {
+        await alertService.error('格式错误', 'JSON 格式不正确，请检查输入')
+        await loadData()
+        return
+      }
+    } else if (typeof oldValue === 'number') {
+      convertedValue = Number(newValue)
+      if (isNaN(convertedValue)) {
+        await alertService.error('格式错误', '请输入有效的数字')
+        await loadData()
+        return
+      }
+    } else if (typeof oldValue === 'boolean') {
+      convertedValue = newValue === 'true' || newValue === true
+    } else if (oldValue === null) {
+      convertedValue = newValue === '' || newValue === 'null' ? null : newValue
+    }
+    
+    // 构建更新后的行对象
+    const updatedRow: Record<string, any> = {}
+    for (const key in row) {
+      const value = row[key]
+      if (value !== undefined && typeof value !== 'function' && typeof value !== 'symbol') {
+        updatedRow[key] = value
+      }
+    }
+    updatedRow[column] = convertedValue
+
+    // 通过 JSON 序列化/反序列化得到纯对象，避免 Vue 代理等导致 IPC "could not be cloned"
+    let plainRow: Record<string, any>
+    try {
+      plainRow = JSON.parse(JSON.stringify(updatedRow))
+    } catch (e) {
+      console.error('序列化行数据失败:', e)
+      await alertService.error('数据格式错误', '无法序列化数据，请检查是否包含非法内容')
+      await loadData()
+      return
+    }
+
+    const tableName = currentTable.value?.tableName
+    if (!tableName) {
+      await alertService.error('无法确定表名')
+      await loadData()
+      return
+    }
+
+    const result = await api.sqliteSaveResource(tableName, plainRow)
+    
+    if (result?.ok) {
+      await alertService.success('保存成功', `已成功更新字段 "${column}"`)
+      // 刷新数据
+      await loadData()
+    } else {
+      await alertService.error('保存失败', result?.message || '未知错误')
+      // 刷新数据恢复原值
+      await loadData()
+    }
+  } catch (error: any) {
+    console.error('保存单元格编辑失败:', error)
+    await alertService.error('保存失败', error?.message || '未知错误')
+    // 刷新数据恢复原值
+    await loadData()
+  }
+}
+
+// 删除记录
+const handleDeleteRow = async (row: any, index?: number) => {
+  if (!row.id) {
+    await alertService.error('无法删除：记录缺少 ID')
+    return
+  }
+
+  const rowName = row.name || row.id || '此记录'
+  const confirmed = await confirmService.confirm(
+    `确定要删除记录 "${rowName}" 吗？\n\n此操作不可恢复。`,
+    '确认删除',
+    true
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  const api = (window as any).electronAPI
+  if (!api?.sqliteDeleteResource) {
+    await alertService.error('当前环境无法访问 SQLite 删除功能（请使用 Electron 运行）')
+    return
+  }
+
+  try {
+    const result = await api.sqliteDeleteResource(currentTable.value?.tableName, row.id)
+    
+    if (result?.ok) {
+      await alertService.success('删除成功', `已成功删除记录 "${rowName}"`)
+      // 刷新数据
+      await loadData()
+    } else {
+      await alertService.error('删除失败', result?.message || '未知错误')
+    }
+  } catch (error: any) {
+    console.error('删除记录失败:', error)
+    await alertService.error('删除失败', error?.message || '未知错误')
+  }
+}
+
 onMounted(async () => {
   await loadData()
 })
@@ -356,12 +606,27 @@ onMounted(async () => {
 
 .action-bar {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
+  align-items: center;
   padding-bottom: var(--spacing-md);
   flex-shrink: 0;
 }
 
-.btn-convert {
+.edit-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.edit-mode-label {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.btn-convert,
+.btn-migrate {
   padding: var(--spacing-md) var(--spacing-xl);
   border: none;
   border-radius: var(--radius-md);
@@ -374,23 +639,26 @@ onMounted(async () => {
   transition: background 0.2s, transform 0.2s;
 }
 
-.btn-convert:hover:not(:disabled) {
+.btn-convert:hover:not(:disabled),
+.btn-migrate:hover:not(:disabled) {
   background: var(--accent-hover, #3a7bc8);
   transform: translateY(-1px);
 }
 
-.btn-convert:disabled {
+.btn-convert:disabled,
+.btn-migrate:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 .table-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   padding-bottom: var(--spacing-sm);
   border-bottom: 2px solid var(--border-color);
   flex-shrink: 0;
-  overflow-x: auto;
 }
 
 .table-nav-item {
@@ -458,38 +726,14 @@ onMounted(async () => {
   min-height: 0;
 }
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-}
-
-.data-table th,
-.data-table td {
+.edit-mode-hint {
   padding: var(--spacing-sm) var(--spacing-md);
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.data-table th {
-  background: var(--bg-tertiary);
+  margin-bottom: var(--spacing-md);
+  background: color-mix(in srgb, var(--accent-color, #4a90e2) 15%, var(--bg-secondary));
   color: var(--text-primary);
-  font-weight: 600;
-}
-
-.data-table td {
-  color: var(--text-primary);
-}
-
-.data-table tbody tr:hover {
-  background: var(--bg-tertiary);
-}
-
-.data-cell {
-  max-width: 300px;
-  word-break: break-word;
-  white-space: pre-wrap;
-  font-family: 'Courier New', monospace;
+  border-radius: var(--radius-md);
   font-size: 0.9rem;
+  border-left: 3px solid var(--accent-color, #4a90e2);
+  flex-shrink: 0;
 }
 </style>

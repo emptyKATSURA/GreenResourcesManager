@@ -399,6 +399,109 @@ async function getDemoData() {
       }))
     })
     
+    // ========== 创建 achievements 表（如果不存在）==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS achievements (
+        achievementId TEXT PRIMARY KEY,
+        unlocked INTEGER DEFAULT 0,
+        unlockTime TEXT
+      )
+    `)
+    
+    // 读取成就数据
+    const selectAllAchievementsStmt = db.prepare('SELECT * FROM achievements ORDER BY achievementId')
+    const achievementsRows = selectAllAchievementsStmt.all()
+    tables.push({
+      tableName: 'achievements',
+      rows: achievementsRows.map(row => ({
+        achievementId: row.achievementId,
+        unlocked: row.unlocked === 1,
+        unlockTime: row.unlockTime || null
+      }))
+    })
+    
+    // ========== 创建 settings 表（如果不存在）==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        settings_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    // 读取设置数据
+    const selectSettingsStmt = db.prepare('SELECT * FROM settings WHERE id = ?')
+    const settingsRow = selectSettingsStmt.get('main')
+    
+    if (settingsRow) {
+      // 解析 JSON 数据
+      let settingsData = null
+      try {
+        settingsData = settingsRow.settings_data ? JSON.parse(settingsRow.settings_data) : null
+      } catch (e) {
+        console.warn('[SQLite] 解析 settings_data JSON 失败:', e)
+        settingsData = null
+      }
+      
+      tables.push({
+        tableName: 'settings',
+        rows: [{
+          id: settingsRow.id,
+          settings_data: settingsData, // 解析后的对象，前端显示时会自动转为 JSON 字符串
+          timestamp: settingsRow.timestamp || null,
+          version: settingsRow.version || null
+        }]
+      })
+    } else {
+      // 如果没有数据，添加一个空行用于展示
+      tables.push({
+        tableName: 'settings',
+        rows: []
+      })
+    }
+    
+    // ========== 创建 user 表（如果不存在）==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        user_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    // 读取用户数据
+    const selectUserStmt = db.prepare('SELECT * FROM user WHERE id = ?')
+    const userRow = selectUserStmt.get('main')
+    
+    if (userRow) {
+      // 解析 JSON 数据
+      let userData = null
+      try {
+        userData = userRow.user_data ? JSON.parse(userRow.user_data) : null
+      } catch (e) {
+        console.warn('[SQLite] 解析 user_data JSON 失败:', e)
+        userData = null
+      }
+      
+      tables.push({
+        tableName: 'user',
+        rows: [{
+          id: userRow.id,
+          user_data: userData, // 解析后的对象，前端显示时会自动转为 JSON 字符串
+          timestamp: userRow.timestamp || null,
+          version: userRow.version || null
+        }]
+      })
+    } else {
+      // 如果没有数据，添加一个空行用于展示
+      tables.push({
+        tableName: 'user',
+        rows: []
+      })
+    }
+    
     // ========== 创建 pages 表（如果不存在）==========
     db.exec(`
       CREATE TABLE IF NOT EXISTS pages (
@@ -1050,4 +1153,440 @@ async function savePageResources(pageId, resources) {
   }
 }
 
-module.exports = { runDemo, getDemoData, getPageData, saveResourceToTable, addResourceToPage, savePageResources }
+/**
+ * 删除数据库中的资源记录
+ * @param {string} tableName - 表名
+ * @param {string} resourceId - 资源ID
+ * @returns {Promise<{ ok: boolean, message?: string }>}
+ */
+async function deleteResourceFromTable(tableName, resourceId) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 1. 从资源表中删除记录
+    const deleteStmt = db.prepare(`DELETE FROM "${tableName}" WHERE id = ?`)
+    const result = deleteStmt.run(resourceId)
+    
+    if (result.changes === 0) {
+      db.close()
+      return { ok: false, message: '未找到要删除的记录' }
+    }
+    
+    // 2. 从所有页面索引表中删除该资源的索引
+    // 获取所有页面表
+    const tablesStmt = db.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name LIKE '%_page'
+    `)
+    const pageTables = tablesStmt.all()
+    
+    // 从每个页面表中删除该资源的索引
+    for (const table of pageTables) {
+      const pageTableName = table.name
+      const deletePageIndexStmt = db.prepare(`DELETE FROM "${pageTableName}" WHERE resourceId = ?`)
+      deletePageIndexStmt.run(resourceId)
+    }
+    
+    db.close()
+    return { ok: true }
+  } catch (err) {
+    console.error(`[SQLite] 从 ${tableName} 表删除资源 ${resourceId} 失败:`, err.message)
+    return { ok: false, message: err.message }
+  }
+}
+
+/**
+ * 从 JSON 文件迁移成就数据到 SQLite
+ * @param {string} [customSaveDataPath] - 自定义存档文件夹路径（可选，用于从指定文件夹迁移）
+ * @returns {Promise<{ ok: boolean, message?: string, migratedCount?: number }>}
+ */
+async function migrateAchievementsFromJson(customSaveDataPath) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 achievements 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS achievements (
+        achievementId TEXT PRIMARY KEY,
+        unlocked INTEGER DEFAULT 0,
+        unlockTime TEXT
+      )
+    `)
+    
+    // 清空现有数据（覆盖模式）
+    db.exec('DELETE FROM achievements')
+    
+    // 读取 JSON 文件（优先使用自定义路径）
+    const saveDataDir = customSaveDataPath || getSaveDataDirectory()
+    const achievementsJsonPath = path.join(saveDataDir, 'Settings', 'achievements.json')
+    
+    if (!fs.existsSync(achievementsJsonPath)) {
+      db.close()
+      return { ok: false, message: '未找到成就 JSON 文件' }
+    }
+    
+    console.log('[SQLite] 开始从 JSON 迁移成就数据...')
+    const achievementsData = JSON.parse(fs.readFileSync(achievementsJsonPath, 'utf8'))
+    
+    if (!achievementsData || !achievementsData.achievements) {
+      db.close()
+      return { ok: false, message: 'JSON 文件格式不正确' }
+    }
+    
+    const unlockedAchievements = achievementsData.achievements.unlockedAchievements || {}
+    // 使用 lastCheckTime 作为已解锁成就的解锁时间参考（如果没有更精确的时间）
+    const lastCheckTime = achievementsData.achievements.lastCheckTime || achievementsData.timestamp || new Date().toISOString()
+    
+    // 插入成就数据
+    const insertAchievementStmt = db.prepare(`
+      INSERT OR REPLACE INTO achievements (achievementId, unlocked, unlockTime)
+      VALUES (?, ?, ?)
+    `)
+    
+    let migratedCount = 0
+    for (const [achievementId, unlocked] of Object.entries(unlockedAchievements)) {
+      // 跳过无效的键（如 "[object Object]"）
+      if (achievementId && achievementId !== '[object Object]') {
+        // 如果成就已解锁，使用 lastCheckTime 作为解锁时间；如果未解锁，unlockTime 为 null
+        const unlockTime = unlocked ? lastCheckTime : null
+        insertAchievementStmt.run(achievementId, unlocked ? 1 : 0, unlockTime)
+        migratedCount++
+      }
+    }
+    
+    db.close()
+    console.log(`[SQLite] 成就数据迁移完成，共迁移 ${migratedCount} 个成就`)
+    return { ok: true, migratedCount }
+  } catch (error) {
+    console.error('[SQLite] 迁移成就数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+/**
+ * 从 JSON 文件迁移设置数据到 SQLite
+ * @param {string} [customSaveDataPath] - 自定义存档文件夹路径（可选，用于从指定文件夹迁移）
+ * @returns {Promise<{ ok: boolean, message?: string }>}
+ */
+async function migrateSettingsFromJson(customSaveDataPath) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 settings 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        settings_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    // 读取 JSON 文件（优先使用自定义路径）
+    const saveDataDir = customSaveDataPath || getSaveDataDirectory()
+    const settingsJsonPath = path.join(saveDataDir, 'Settings', 'settings.json')
+    
+    if (!fs.existsSync(settingsJsonPath)) {
+      db.close()
+      return { ok: false, message: '未找到设置 JSON 文件' }
+    }
+    
+    console.log('[SQLite] 开始从 JSON 迁移设置数据...')
+    const settingsData = JSON.parse(fs.readFileSync(settingsJsonPath, 'utf8'))
+    
+    if (!settingsData || !settingsData.settings) {
+      db.close()
+      return { ok: false, message: 'JSON 文件格式不正确' }
+    }
+    
+    // 插入设置数据（覆盖模式，使用 INSERT OR REPLACE）
+    const insertSettingsStmt = db.prepare(`
+      INSERT OR REPLACE INTO settings (id, settings_data, timestamp, version)
+      VALUES (?, ?, ?, ?)
+    `)
+    
+    insertSettingsStmt.run(
+      'main',
+      JSON.stringify(settingsData.settings), // 只存储 settings 对象
+      settingsData.timestamp || new Date().toISOString(),
+      settingsData.version || '0.0.0'
+    )
+    
+    db.close()
+    console.log('[SQLite] 设置数据迁移完成')
+    return { ok: true }
+  } catch (error) {
+    console.error('[SQLite] 迁移设置数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+/**
+ * 从 SQLite 读取设置数据
+ * @returns {Promise<{ ok: boolean, settings?: any, timestamp?: string, version?: string, message?: string }>}
+ */
+async function getSettingsFromSqlite() {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 settings 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        settings_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    const selectStmt = db.prepare('SELECT * FROM settings WHERE id = ?')
+    const row = selectStmt.get('main')
+    
+    db.close()
+    
+    if (!row) {
+      return { ok: false, message: 'SQLite 中未找到设置数据' }
+    }
+    
+    // 解析 settings_data JSON
+    let settings = null
+    try {
+      settings = row.settings_data ? JSON.parse(row.settings_data) : null
+    } catch (e) {
+      console.warn('[SQLite] 解析 settings_data JSON 失败:', e)
+      return { ok: false, message: '解析设置数据失败' }
+    }
+    
+    return {
+      ok: true,
+      settings: settings,
+      timestamp: row.timestamp || null,
+      version: row.version || null
+    }
+  } catch (error) {
+    console.error('[SQLite] 读取设置数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+/**
+ * 保存设置数据到 SQLite
+ * @param {any} settings - 设置对象
+ * @returns {Promise<{ ok: boolean, message?: string }>}
+ */
+async function saveSettingsToSqlite(settings) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 settings 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        settings_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    // 获取应用版本号（从 package.json 或使用默认值）
+    let version = '0.6.8'
+    try {
+      const packageJson = require('../../package.json')
+      version = packageJson.version || version
+    } catch (e) {
+      console.warn('[SQLite] 无法读取版本号，使用默认值')
+    }
+    
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO settings (id, settings_data, timestamp, version)
+      VALUES (?, ?, ?, ?)
+    `)
+    
+    insertStmt.run(
+      'main',
+      JSON.stringify(settings),
+      new Date().toISOString(),
+      version
+    )
+    
+    db.close()
+    console.log('[SQLite] 设置数据保存成功')
+    return { ok: true }
+  } catch (error) {
+    console.error('[SQLite] 保存设置数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+/**
+ * 从 JSON 文件迁移用户数据到 SQLite
+ * @param {string} [customSaveDataPath] - 自定义存档文件夹路径（可选，用于从指定文件夹迁移）
+ * @returns {Promise<{ ok: boolean, message?: string }>}
+ */
+async function migrateUserFromJson(customSaveDataPath) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 user 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        user_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    // 读取 JSON 文件（优先使用自定义路径）
+    const saveDataDir = customSaveDataPath || getSaveDataDirectory()
+    const userJsonPath = path.join(saveDataDir, 'Settings', 'user.json')
+    
+    if (!fs.existsSync(userJsonPath)) {
+      db.close()
+      return { ok: false, message: '未找到用户 JSON 文件' }
+    }
+    
+    console.log('[SQLite] 开始从 JSON 迁移用户数据...')
+    const userData = JSON.parse(fs.readFileSync(userJsonPath, 'utf8'))
+    
+    if (!userData || !userData.user) {
+      db.close()
+      return { ok: false, message: 'JSON 文件格式不正确' }
+    }
+    
+    // 插入用户数据（覆盖模式，使用 INSERT OR REPLACE）
+    const insertUserStmt = db.prepare(`
+      INSERT OR REPLACE INTO user (id, user_data, timestamp, version)
+      VALUES (?, ?, ?, ?)
+    `)
+    
+    insertUserStmt.run(
+      'main',
+      JSON.stringify(userData.user), // 只存储 user 对象
+      userData.timestamp || new Date().toISOString(),
+      userData.version || '0.0.0'
+    )
+    
+    db.close()
+    console.log('[SQLite] 用户数据迁移完成')
+    return { ok: true }
+  } catch (error) {
+    console.error('[SQLite] 迁移用户数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+/**
+ * 从 SQLite 读取用户数据
+ * @returns {Promise<{ ok: boolean, user?: any, timestamp?: string, version?: string, message?: string }>}
+ */
+async function getUserFromSqlite() {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 user 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        user_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    const selectStmt = db.prepare('SELECT * FROM user WHERE id = ?')
+    const row = selectStmt.get('main')
+    
+    db.close()
+    
+    if (!row) {
+      return { ok: false, message: 'SQLite 中未找到用户数据' }
+    }
+    
+    // 解析 user_data JSON
+    let user = null
+    try {
+      user = row.user_data ? JSON.parse(row.user_data) : null
+    } catch (e) {
+      console.warn('[SQLite] 解析 user_data JSON 失败:', e)
+      return { ok: false, message: '解析用户数据失败' }
+    }
+    
+    return {
+      ok: true,
+      user: user,
+      timestamp: row.timestamp || null,
+      version: row.version || null
+    }
+  } catch (error) {
+    console.error('[SQLite] 读取用户数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+/**
+ * 保存用户数据到 SQLite
+ * @param {any} user - 用户对象
+ * @returns {Promise<{ ok: boolean, message?: string }>}
+ */
+async function saveUserToSqlite(user) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    
+    // 确保 user 表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        user_data TEXT,
+        timestamp TEXT,
+        version TEXT
+      )
+    `)
+    
+    // 获取应用版本号（从 package.json 或使用默认值）
+    let version = '0.6.8'
+    try {
+      const packageJson = require('../../package.json')
+      version = packageJson.version || version
+    } catch (e) {
+      console.warn('[SQLite] 无法读取版本号，使用默认值')
+    }
+    
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO user (id, user_data, timestamp, version)
+      VALUES (?, ?, ?, ?)
+    `)
+    
+    insertStmt.run(
+      'main',
+      JSON.stringify(user),
+      new Date().toISOString(),
+      version
+    )
+    
+    db.close()
+    console.log('[SQLite] 用户数据保存成功')
+    return { ok: true }
+  } catch (error) {
+    console.error('[SQLite] 保存用户数据失败:', error)
+    return { ok: false, message: error.message }
+  }
+}
+
+module.exports = { runDemo, getDemoData, getPageData, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }

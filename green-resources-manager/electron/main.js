@@ -186,6 +186,30 @@ if (!gotTheLock) {
     // 保存页面资源（批量）
     ipcMain.handle('sqlite-save-page-resources', (event, pageId, resources) => sqliteDemo.savePageResources(pageId, resources))
     
+    // 从数据库删除资源
+    ipcMain.handle('sqlite-delete-resource', (event, tableName, resourceId) => sqliteDemo.deleteResourceFromTable(tableName, resourceId))
+    
+    // 从 JSON 迁移成就数据到 SQLite
+    ipcMain.handle('sqlite-migrate-achievements', (event, customSaveDataPath) => sqliteDemo.migrateAchievementsFromJson(customSaveDataPath))
+    
+    // 从 JSON 迁移设置数据到 SQLite
+    ipcMain.handle('sqlite-migrate-settings', (event, customSaveDataPath) => sqliteDemo.migrateSettingsFromJson(customSaveDataPath))
+    
+    // 从 SQLite 读取设置数据
+    ipcMain.handle('sqlite-get-settings', () => sqliteDemo.getSettingsFromSqlite())
+    
+    // 保存设置数据到 SQLite
+    ipcMain.handle('sqlite-save-settings', (event, settings) => sqliteDemo.saveSettingsToSqlite(settings))
+    
+    // 从 JSON 迁移用户数据到 SQLite
+    ipcMain.handle('sqlite-migrate-user', (event, customSaveDataPath) => sqliteDemo.migrateUserFromJson(customSaveDataPath))
+    
+    // 从 SQLite 读取用户数据
+    ipcMain.handle('sqlite-get-user', () => sqliteDemo.getUserFromSqlite())
+    
+    // 保存用户数据到 SQLite
+    ipcMain.handle('sqlite-save-user', (event, user) => sqliteDemo.saveUserToSqlite(user))
+    
     // 注册快捷键相关的 IPC 处理器
     shortcuts.registerIpcHandlers(
       ipcMain,

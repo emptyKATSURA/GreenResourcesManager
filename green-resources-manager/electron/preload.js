@@ -87,6 +87,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sqliteAddResourceToPage: (pageId, resourceType, resourceId) => ipcRenderer.invoke('sqlite-add-resource-to-page', pageId, resourceType, resourceId),
   // 保存页面资源（批量）
   sqliteSavePageResources: (pageId, resources) => ipcRenderer.invoke('sqlite-save-page-resources', pageId, resources),
+  // 从数据库删除资源
+  sqliteDeleteResource: (tableName, resourceId) => ipcRenderer.invoke('sqlite-delete-resource', tableName, resourceId),
+  // 从 JSON 迁移成就数据到 SQLite
+  sqliteMigrateAchievements: (customSaveDataPath) => ipcRenderer.invoke('sqlite-migrate-achievements', customSaveDataPath),
+  // 从 JSON 迁移设置数据到 SQLite
+  sqliteMigrateSettings: (customSaveDataPath) => ipcRenderer.invoke('sqlite-migrate-settings', customSaveDataPath),
+  // 从 SQLite 读取设置数据
+  sqliteGetSettings: () => ipcRenderer.invoke('sqlite-get-settings'),
+  // 保存设置数据到 SQLite
+  sqliteSaveSettings: (settings) => ipcRenderer.invoke('sqlite-save-settings', settings),
+  // 从 JSON 迁移用户数据到 SQLite
+  sqliteMigrateUser: (customSaveDataPath) => ipcRenderer.invoke('sqlite-migrate-user', customSaveDataPath),
+  // 从 SQLite 读取用户数据
+  sqliteGetUser: () => ipcRenderer.invoke('sqlite-get-user'),
+  // 保存用户数据到 SQLite
+  sqliteSaveUser: (user) => ipcRenderer.invoke('sqlite-save-user', user),
   
   // 获取文件图标
   getFileIcon: (filePath, size) => ipcRenderer.invoke('get-file-icon', filePath, size),

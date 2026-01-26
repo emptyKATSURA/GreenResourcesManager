@@ -1618,43 +1618,21 @@ class SaveManager {
       this.settingsCache = JSON.parse(JSON.stringify(settings))
       this.settingsCacheDirty = true
       
-      await this.ensureDataTypeDirectory('settings')
-      
-      const data = {
-        settings: settings,
-        timestamp: new Date().toISOString(),
-        version: this.version
+      // 只保存到 SQLite
+      if (!window.electronAPI || !window.electronAPI.sqliteSaveSettings) {
+        console.error('当前环境无法访问 SQLite 保存功能（请使用 Electron 运行）')
+        return false
       }
       
-      const success = await this.writeJsonFile(this.filePaths.settings, data)
-      if (success) {
-        console.log('设置数据保存成功')
+      const sqliteResult = await window.electronAPI.sqliteSaveSettings(settings)
+      if (sqliteResult?.ok) {
+        console.log('设置数据已保存到 SQLite')
         this.settingsCacheDirty = false
-        
-        // 同时更新根目录的设置文件（保持同步）
-        try {
-          const rootSettingsPath = 'SaveData/Settings/settings.json'
-          const rootSuccess = await this.writeJsonFile(rootSettingsPath, data)
-          if (rootSuccess) {
-            console.log('根目录设置文件已同步')
-          } else {
-            console.warn('同步根目录设置文件失败')
-          }
-        } catch (rootError) {
-          console.warn('同步根目录设置文件出错:', rootError)
-          // 不影响主流程，继续执行
-        }
-        
-        // 自动同步到 localStorage 以保持向后兼容性
-        try {
-          localStorage.setItem('butter-manager-settings', JSON.stringify(settings))
-          console.log('设置已同步到 localStorage')
-        } catch (localStorageError) {
-          console.warn('同步到 localStorage 失败:', localStorageError)
-          // 不影响主流程，继续执行
-        }
+        return true
+      } else {
+        console.error('保存设置到 SQLite 失败:', sqliteResult?.message)
+        return false
       }
-      return success
     } catch (error) {
       console.error('保存设置数据失败:', error)
       return false
@@ -1662,59 +1640,40 @@ class SaveManager {
   }
 
   /**
-   * 从本地 JSON 文件加载设置数据
+   * 从 SQLite 加载设置数据
    * @returns {Promise<Object>} 设置数据对象
    */
   async loadSettings() {
-    // 优先使用缓存，减少磁盘读取
+    // 优先使用缓存，减少数据库读取
     if (this.settingsCache) {
       console.log('从缓存加载设置数据')
       return JSON.parse(JSON.stringify(this.settingsCache))
     }
 
-    try {
-      const data = await this.readJsonFile(this.filePaths.settings)
-      if (data && data.settings) {
-        console.log('从文件加载设置数据成功')
-        const result = { ...this.defaultData.settings, ...data.settings }
-        this.settingsCache = result  // 缓存结果
-        return JSON.parse(JSON.stringify(result))
-      }
-      
-      // 如果文件不存在或为空，尝试从 localStorage 加载
-      console.log('文件设置不存在，尝试从 localStorage 加载')
-      const localStorageSettings = localStorage.getItem('butter-manager-settings')
-      if (localStorageSettings) {
-        try {
-          const parsedSettings = JSON.parse(localStorageSettings)
-          console.log('从 localStorage 加载设置成功')
-          const result = { ...this.defaultData.settings, ...parsedSettings }
-          this.settingsCache = result
-          return JSON.parse(JSON.stringify(result))
-        } catch (parseError) {
-          console.warn('解析 localStorage 设置失败:', parseError)
-        }
-      }
-      
+    // 只从 SQLite 读取
+    if (!window.electronAPI || !window.electronAPI.sqliteGetSettings) {
+      console.error('当前环境无法访问 SQLite（请使用 Electron 运行），返回默认设置')
       this.settingsCache = this.defaultData.settings
       return JSON.parse(JSON.stringify(this.defaultData.settings))
-    } catch (error) {
-      console.error('加载设置数据失败:', error)
-      
-      // 降级到 localStorage
-      try {
-        const localStorageSettings = localStorage.getItem('butter-manager-settings')
-        if (localStorageSettings) {
-          const parsedSettings = JSON.parse(localStorageSettings)
-          console.log('降级到 localStorage 加载设置成功')
-          const result = { ...this.defaultData.settings, ...parsedSettings }
-          this.settingsCache = result
-          return JSON.parse(JSON.stringify(result))
-        }
-      } catch (localStorageError) {
-        console.warn('从 localStorage 加载设置也失败:', localStorageError)
+    }
+
+    try {
+      const result = await window.electronAPI.sqliteGetSettings()
+      if (result?.ok && result.settings) {
+        console.log('从 SQLite 加载设置数据成功')
+        const sqliteSettings = result.settings
+        const resultSettings = { ...this.defaultData.settings, ...sqliteSettings }
+        this.settingsCache = resultSettings
+        return JSON.parse(JSON.stringify(resultSettings))
+      } else {
+        // SQLite 中未找到设置数据，返回默认设置
+        console.log('SQLite 中未找到设置数据，使用默认设置')
+        this.settingsCache = this.defaultData.settings
+        return JSON.parse(JSON.stringify(this.defaultData.settings))
       }
-      
+    } catch (error) {
+      console.error('从 SQLite 加载设置失败:', error)
+      // 出错时返回默认设置
       this.settingsCache = this.defaultData.settings
       return JSON.parse(JSON.stringify(this.defaultData.settings))
     }
@@ -2115,25 +2074,26 @@ class SaveManager {
   }
 
   /**
-   * 保存用户资料数据到本地 JSON 文件
+   * 保存用户资料数据到 SQLite
    * @param {Object} userProfile - 用户资料数据对象
    * @returns {Promise<boolean>} 保存是否成功
    */
   async saveUserProfile(userProfile) {
     try {
-      await this.ensureDataTypeDirectory('settings')
-      
-      const data = {
-        user: userProfile,
-        timestamp: new Date().toISOString(),
-        version: this.version
+      // 只保存到 SQLite
+      if (!window.electronAPI || !window.electronAPI.sqliteSaveUser) {
+        console.error('当前环境无法访问 SQLite 保存功能（请使用 Electron 运行）')
+        return false
       }
       
-      const success = await this.writeJsonFile(this.filePaths.user, data)
-      if (success) {
-        console.log('用户资料保存成功')
+      const sqliteResult = await window.electronAPI.sqliteSaveUser(userProfile)
+      if (sqliteResult?.ok) {
+        console.log('用户资料已保存到 SQLite')
+        return true
+      } else {
+        console.error('保存用户资料到 SQLite 失败:', sqliteResult?.message)
+        return false
       }
-      return success
     } catch (error) {
       console.error('保存用户资料失败:', error)
       return false
@@ -2141,19 +2101,13 @@ class SaveManager {
   }
 
   /**
-   * 从本地 JSON 文件加载用户资料数据
+   * 从 SQLite 加载用户资料数据
    * @returns {Promise<Object>} 用户资料数据对象
    */
   async loadUserProfile() {
-    try {
-      const data = await this.readJsonFile(this.filePaths.user)
-      if (data && data.user) {
-        console.log('用户资料加载成功')
-        return data.user
-      }
-      
-      // 如果文件不存在，返回默认用户资料
-      console.log('用户资料文件不存在，返回默认资料')
+    // 只从 SQLite 读取
+    if (!window.electronAPI || !window.electronAPI.sqliteGetUser) {
+      console.error('当前环境无法访问 SQLite（请使用 Electron 运行），返回默认用户资料')
       return {
         name: '',
         joinDate: new Date().toISOString(),
@@ -2161,8 +2115,35 @@ class SaveManager {
         checkInDays: [],
         totalUsageTime: 0 // 总使用时长（秒）
       }
+    }
+
+    try {
+      const result = await window.electronAPI.sqliteGetUser()
+      if (result?.ok && result.user) {
+        console.log('从 SQLite 加载用户资料成功')
+        // 确保所有必需字段存在
+        const userProfile = {
+          name: result.user.name || '',
+          joinDate: result.user.joinDate || new Date().toISOString(),
+          loginHistory: result.user.loginHistory || [],
+          checkInDays: result.user.checkInDays || [],
+          totalUsageTime: result.user.totalUsageTime || 0
+        }
+        return userProfile
+      } else {
+        // SQLite 中未找到用户数据，返回默认用户资料
+        console.log('SQLite 中未找到用户数据，使用默认用户资料')
+        return {
+          name: '',
+          joinDate: new Date().toISOString(),
+          loginHistory: [], // 登录时间队列，最多2个元素：[本次登录时间, 上一次登录时间]
+          checkInDays: [],
+          totalUsageTime: 0 // 总使用时长（秒）
+        }
+      }
     } catch (error) {
-      console.error('加载用户资料失败:', error)
+      console.error('从 SQLite 加载用户资料失败:', error)
+      // 出错时返回默认用户资料
       return {
         name: '',
         joinDate: new Date().toISOString(),
