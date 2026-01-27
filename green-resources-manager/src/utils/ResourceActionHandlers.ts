@@ -504,8 +504,104 @@ export const openWebsiteHandler: ActionHandler = async (resource, context) => {
   }
 }
 
+/**
+ * 播放音频的 Handler
+ * 适用于 Audio 资源类型
+ * 完全参考 AudioView.vue 中的 playAudio 实现
+ */
+export const playAudioHandler: ActionHandler = async (resource, context) => {
+  try {
+    // 提取资源属性值（支持 ResourceField 和普通属性）
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
+    const resourcePath = BaseResources.extractPrimitiveValue(
+      resource.resourcePath?.value || resource.resourcePath
+    )
+    const filePath = resourcePath // Audio 类使用 resourcePath，但 GlobalAudioPlayer 期望 filePath
+    
+    console.log('[ResourceActionHandlers] 开始播放音频:', resourceName)
+    
+    // 检查音频文件路径是否存在
+    if (!filePath) {
+      notify.toast('error', '播放失败', `音频 "${resourceName}" 没有配置文件路径`)
+      return
+    }
+    
+    // 更新播放统计（参考 AudioManager.incrementPlayCount 的实现）
+    const lastPlayedValue = BaseResources.extractPrimitiveValue(resource.lastPlayed?.value || resource.lastPlayed)
+    const playCountValue = BaseResources.extractPrimitiveValue(resource.playCount?.value || resource.playCount) || 0
+    const firstPlayedValue = BaseResources.extractPrimitiveValue(resource.firstPlayed?.value || resource.firstPlayed)
+    
+    const updates: any = {
+      lastPlayed: new Date().toISOString(),
+      playCount: playCountValue + 1
+    }
+    
+    // 如果是第一次播放，记录第一次播放时间
+    if (!firstPlayedValue) {
+      updates.firstPlayed = new Date().toISOString()
+      console.log(`音频 ${resourceName} 第一次播放，记录时间:`, updates.firstPlayed)
+    }
+    
+    // 更新资源数据（参考 useAudioPlayback 的实现）
+    if (context.updateResource && resourceId) {
+      try {
+        await context.updateResource(resourceId, updates)
+        console.log('[ResourceActionHandlers] 播放统计已更新:', {
+          playCount: updates.playCount,
+          lastPlayed: updates.lastPlayed
+        })
+      } catch (error) {
+        console.warn('[ResourceActionHandlers] 更新播放统计失败:', error)
+        // 继续执行，不阻止播放
+      }
+    }
+    
+    // 构建传递给 GlobalAudioPlayer 的音频对象
+    // GlobalAudioPlayer 期望普通对象格式，需要将 ResourceField 转换为普通值
+    // 并且需要 filePath 字段（而不是 resourcePath）
+    const audioForPlayer: any = {
+      id: resourceId,
+      name: resourceName,
+      filePath: filePath, // GlobalAudioPlayer 使用 filePath
+      resourcePath: filePath, // 也保留 resourcePath 以防万一
+      artist: BaseResources.extractPrimitiveValue(resource.artist?.value || resource.artist) || '',
+      duration: BaseResources.extractPrimitiveValue(resource.duration?.value || resource.duration) || 0,
+      playCount: updates.playCount,
+      lastPlayed: updates.lastPlayed,
+      firstPlayed: updates.firstPlayed || firstPlayedValue,
+      coverPath: BaseResources.extractPrimitiveValue(resource.coverPath?.value || resource.coverPath) || '',
+      tags: Array.isArray(resource.tags?.value) ? resource.tags.value : (Array.isArray(resource.tags) ? resource.tags : []),
+      actors: Array.isArray(resource.actors?.value) ? resource.actors.value : (Array.isArray(resource.actors) ? resource.actors : []),
+      description: BaseResources.extractPrimitiveValue(resource.description?.value || resource.description) || '',
+      addedDate: BaseResources.extractPrimitiveValue(resource.addedDate?.value || resource.addedDate) || '',
+      rating: BaseResources.extractPrimitiveValue(resource.rating?.value || resource.rating) || 0,
+      comment: BaseResources.extractPrimitiveValue(resource.comment?.value || resource.comment) || '',
+      isFavorite: BaseResources.extractPrimitiveValue(resource.isFavorite?.value ?? resource.isFavorite) || false
+    }
+    
+    // 触发全局播放事件（GlobalAudioPlayer 会监听此事件）
+    // 参考 useAudioPlayback.playAudio 的实现
+    console.log('🎵 通过全局播放器播放音频:', resourceName)
+    window.dispatchEvent(new CustomEvent('global-play-audio', { detail: audioForPlayer }))
+    
+    // 显示播放通知（参考 useAudioPlayback.playAudio 的实现）
+    notify.native('开始播放', `正在播放: ${resourceName}`)
+    
+    // 关闭详情页面
+    if (context.closeDetail) {
+      context.closeDetail()
+    }
+  } catch (error) {
+    console.error('[ResourceActionHandlers] 播放音频失败:', error)
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    notify.toast('error', '播放失败', `播放音频失败: ${error.message || '未知错误'}`)
+  }
+}
+
 // 注册默认的 handlers
 registerActionHandler('launchExecutable', launchExecutableHandler)
 registerActionHandler('openAlbum', openAlbumHandler)
 registerActionHandler('openNovelReader', openNovelReaderHandler)
 registerActionHandler('openWebsite', openWebsiteHandler)
+registerActionHandler('playAudio', playAudioHandler)
