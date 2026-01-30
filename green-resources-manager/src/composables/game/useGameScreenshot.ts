@@ -286,16 +286,27 @@ export function useGameScreenshot(
   }
 
   /**
+   * 从资源对象中取原始值（兼容 ResourceField 与普通值）
+   */
+  function getPrimitive(value: any): string | undefined {
+    if (value == null) return undefined
+    if (typeof value === 'object' && value !== null && 'value' in value) return value.value
+    return String(value)
+  }
+
+  /**
    * 打开游戏截图文件夹
    */
-  async function openGameScreenshotFolder(game: { id?: string; name: string; executablePath?: string }) {
+  async function openGameScreenshotFolder(game: { id?: string | { value?: string }; name: string | { value?: string }; executablePath?: string }) {
     try {
-      if (!game.id) {
+      const gameId = getPrimitive(game.id)
+      const gameName = getPrimitive(game.name) ?? (typeof game.name === 'string' ? game.name : '')
+      if (!gameId) {
         throw new Error('游戏ID不存在，无法打开截图文件夹')
       }
 
       // 使用公共函数获取截图文件夹路径
-      const gameScreenshotPath = await getGameScreenshotFolderPath(game.id, game.name, isElectronEnvironment.value)
+      const gameScreenshotPath = await getGameScreenshotFolderPath(gameId, gameName, isElectronEnvironment.value)
 
       console.log('尝试打开游戏截图文件夹:', gameScreenshotPath)
 
@@ -315,13 +326,13 @@ export function useGameScreenshot(
         const result = await window.electronAPI.openFolder(gameScreenshotPath)
         if (result.success) {
           console.log('游戏截图文件夹已打开:', gameScreenshotPath)
-          notify.native('文件夹已打开', `已打开 ${game.name} 的截图文件夹`)
+          notify.native('文件夹已打开', `已打开 ${gameName} 的截图文件夹`)
         } else {
           console.error('打开游戏截图文件夹失败:', result.error)
           alert(`打开截图文件夹失败: ${result.error}`)
         }
       } else {
-        alert(`${game.name} 的截图文件夹路径:\n${gameScreenshotPath}\n\n在浏览器环境中无法直接打开文件夹，请手动导航到该路径`)
+        alert(`${gameName} 的截图文件夹路径:\n${gameScreenshotPath}\n\n在浏览器环境中无法直接打开文件夹，请手动导航到该路径`)
       }
     } catch (error: any) {
       console.error('打开游戏截图文件夹失败:', error)

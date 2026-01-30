@@ -271,6 +271,7 @@ import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import notify from '../utils/NotificationService.ts'
 import saveManager from '../utils/SaveManager.ts'
 import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
+import { getGameScreenshotFolderPath } from '../composables/game/useGameScreenshot'
 import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
 import { useImageCache } from '../composables/image/useImageCache'
@@ -1208,8 +1209,8 @@ export default defineComponent({
     //   }
     // }, { immediate: false, deep: true })
 
-    // 创建右键菜单处理器（简化版）
-    const contextMenuHandlers = {
+    // 创建右键菜单处理器（简化版；launch/folder/terminate/edit/remove 在 handleDetailActionImpl 定义后统一绑定）
+    const contextMenuHandlers: Record<string, (item: any) => void | Promise<void>> = {
       detail: (item: any) => {
         // 调用 showDetail 方法（从 resourcePage 获取）
         if ((resourcePage as any).showDetail) {
@@ -1557,6 +1558,110 @@ export default defineComponent({
       }
       return null
     }
+
+    /**
+     * 详情面板 / 右键菜单 共用操作：根据 actionKey 执行对应逻辑，便于复用。
+     */
+    const handleDetailActionImpl = (actionKey: string, item: any) => {
+      switch (actionKey) {
+        case 'launch':
+          handleResourceAction(item)
+          break
+        case 'terminate':
+          showTerminateConfirmDialog.value = true
+          resourceToTerminate.value = item
+          break
+        case 'folder': {
+          const filePath = getResourceFilePath(item)
+          const folderPath = BaseResources.extractPrimitiveValue(item.folderPath?.value ?? item.folderPath)
+          const path = filePath || folderPath
+          if (!path || !path.trim()) {
+            notify.toast('error', '打开失败', '未找到资源路径')
+            break
+          }
+          if (!isElectronEnvironment.value || !window.electronAPI) {
+            notify.toast('error', '打开失败', '当前环境不支持')
+            break
+          }
+          if (filePath && window.electronAPI.openFileFolder) {
+            window.electronAPI.openFileFolder(filePath).then((result: { success?: boolean; error?: string }) => {
+              if (result.success) {
+                notify.toast('success', '已打开', '已打开文件所在文件夹')
+              } else {
+                notify.toast('error', '打开失败', result.error || '未知错误')
+              }
+            }).catch((err: Error) => {
+              notify.toast('error', '打开失败', err.message || '未知错误')
+            })
+          } else if (folderPath && window.electronAPI.openFolder) {
+            window.electronAPI.openFolder(folderPath).then((result: { success?: boolean; error?: string }) => {
+              if (result.success) {
+                notify.toast('success', '已打开', '已打开文件夹')
+              } else {
+                notify.toast('error', '打开失败', result.error || '未知错误')
+              }
+            }).catch((err: Error) => {
+              notify.toast('error', '打开失败', err.message || '未知错误')
+            })
+          } else {
+            notify.toast('error', '打开失败', 'API 不可用')
+          }
+          break
+        }
+        case 'edit':
+          if ((resourcePage as any).showEdit) {
+            (resourcePage as any).showEdit(item)
+          }
+          break
+        case 'remove':
+          if ((resourcePage as any).deleteItem) {
+            (resourcePage as any).deleteItem(item)
+          }
+          break
+        case 'screenshot-folder': {
+          const gameId = BaseResources.extractPrimitiveValue(item.id?.value ?? item.id)
+          const gameName = BaseResources.extractPrimitiveValue(item.name?.value ?? item.name) ?? ''
+          if (!gameId) {
+            notify.toast('error', '打开失败', '游戏ID不存在，无法打开截图文件夹')
+            break
+          }
+          if (!isElectronEnvironment.value || !window.electronAPI?.openFolder) {
+            notify.toast('error', '打开失败', '当前环境不支持')
+            break
+          }
+          getGameScreenshotFolderPath(gameId, gameName, isElectronEnvironment.value)
+            .then(async (gameScreenshotPath) => {
+              try {
+                if (window.electronAPI?.ensureDirectory) {
+                  await window.electronAPI.ensureDirectory(gameScreenshotPath)
+                }
+                const result = await window.electronAPI!.openFolder(gameScreenshotPath)
+                if (result.success) {
+                  notify.toast('success', '已打开', `已打开 ${gameName} 的截图文件夹`)
+                } else {
+                  notify.toast('error', '打开失败', result.error || '未知错误')
+                }
+              } catch (err: any) {
+                notify.toast('error', '打开失败', err.message || '未知错误')
+              }
+            })
+            .catch((err: any) => {
+              notify.toast('error', '打开失败', err.message || '未知错误')
+            })
+          break
+        }
+        default:
+          break
+      }
+    }
+
+    // 右键菜单与详情面板复用同一套逻辑：按 key 派发到 handleDetailActionImpl
+    contextMenuHandlers.launch = (item: any) => handleDetailActionImpl('launch', item)
+    contextMenuHandlers.folder = (item: any) => handleDetailActionImpl('folder', item)
+    contextMenuHandlers['screenshot-folder'] = (item: any) => handleDetailActionImpl('screenshot-folder', item)
+    contextMenuHandlers.terminate = (item: any) => handleDetailActionImpl('terminate', item)
+    contextMenuHandlers.edit = (item: any) => handleDetailActionImpl('edit', item)
+    contextMenuHandlers.remove = (item: any) => handleDetailActionImpl('remove', item)
 
     // 通用的文件存在性检查函数
     const checkFileExistence = async (): Promise<void> => {
@@ -2092,38 +2197,8 @@ export default defineComponent({
       terminateResourceName,
       closeTerminateConfirmDialog,
       confirmTerminateGame,
-      // 详情面板操作处理
-      handleDetailAction: (actionKey: string, item: any) => {
-        // 根据 actionKey 处理不同的操作
-        switch (actionKey) {
-          case 'launch':
-            handleResourceAction(item)
-            break
-          case 'terminate':
-            // 显示终止确认对话框
-            showTerminateConfirmDialog.value = true
-            resourceToTerminate.value = item
-            break
-          case 'folder':
-            // 打开文件夹（需要根据资源类型实现）
-            console.log('打开文件夹:', item)
-            break
-          case 'edit':
-            // 编辑资源（调用 resourcePage 的 showEdit 方法）
-            if ((resourcePage as any).showEdit) {
-              (resourcePage as any).showEdit(item)
-            }
-            break
-          case 'remove':
-            // 删除资源（使用 resourcePage 的 deleteItem）
-            if ((resourcePage as any).deleteItem) {
-              (resourcePage as any).deleteItem(item)
-            }
-            break
-          default:
-            // 未知操作
-        }
-      },
+      // 详情面板操作处理（与右键菜单共用 handleDetailActionImpl）
+      handleDetailAction: handleDetailActionImpl,
       ...resourcePage, // 展开所有方法和属性，使模板可以直接访问
       // 明确声明方法，确保 TypeScript 能正确识别
       updateScale: resourcePage.updateScale,

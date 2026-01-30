@@ -299,7 +299,7 @@ export class Game extends BaseResources {
 				// 条件显示：根据资源状态决定是否显示
 				showCondition: {
 					// 如果资源是压缩包，不显示启动按钮
-					notArchive: true, // 只在非压缩包时显示
+					notArchive: false, // 只在非压缩包时显示
 					// 如果资源正在运行，显示不同的按钮
 					runningAlternative: {
 						key: 'terminate',
