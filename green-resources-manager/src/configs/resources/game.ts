@@ -327,7 +327,9 @@ export class Game extends BaseResources {
 				label: '删除游戏',
 				class: 'btn-remove'
 			}
-		]
+		],
+		// 详情 extra 区域：使用该游戏的截图文件夹内图片作为预览
+		previewArea: 'useScreenshotFolder'
 	}
 
 }

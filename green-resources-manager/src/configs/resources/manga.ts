@@ -236,7 +236,7 @@ export class Manga extends BaseResources {
 				class: 'btn-remove'
 			}
 		],
-		// 预览配置：是否启用图片预览
-		enablePreview: true
+		// 预览区域指令：使用资源自身文件夹内的图片作为详情预览
+		previewArea: 'useSelfFolder'
 	}
 }

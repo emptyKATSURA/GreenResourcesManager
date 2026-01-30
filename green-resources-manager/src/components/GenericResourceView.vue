@@ -1941,14 +1941,14 @@ export default defineComponent({
       return 'game'
     })
     
-    // 计算是否应该显示预览（完全从配置中读取）
+    // 计算是否应该显示预览（从配置的 previewArea 读取：useSelfFolder = 资源自身文件夹，useScreenshotFolder = 游戏截图文件夹）
     const shouldShowPreview = computed(() => {
       if (!resourcePage.selectedItem.value) return false
       const selectedItem = resourcePage.selectedItem.value
       const ResourceClass = selectedItem.constructor
       const config = ResourceClass?.detailPanelConfig
-      // 完全从配置中读取，如果配置中启用了预览，就显示预览
-      return config?.enablePreview === true
+      const area = config?.previewArea
+      return area === 'useSelfFolder' || area === 'useScreenshotFolder'
     })
     
     // 监听详情面板显示，同步 showDetailModal（完全复刻 ImageView.vue）
@@ -1964,20 +1964,16 @@ export default defineComponent({
       () => [resourcePage.showDetailDialog.value, resourcePage.selectedItem.value],
       async ([showDetail, selectedItem]) => {
         if (showDetail && selectedItem) {
-          // 检查是否应该加载预览（完全从配置中读取）
           const ResourceClass = selectedItem.constructor
           const config = ResourceClass?.detailPanelConfig
-          // 只根据配置的 enablePreview 判断，不依赖 detailPanelType
-          const shouldLoad = config?.enablePreview === true
+          const previewArea = config?.previewArea
+          const shouldLoad = previewArea === 'useSelfFolder' || previewArea === 'useScreenshotFolder'
           
           if (shouldLoad) {
             try {
               detailPages.value = []
               imagePagesComposable.resetPagination()
               
-              // 确保pageSize已从设置中加载（完全复刻 ImageView.vue）
-              // 注意：在 watch 中无法直接访问 this，需要通过闭包访问
-              // 这里先调用，如果方法不存在会在运行时处理
               try {
                 if (imagePagesComposable.loadImageSettings && typeof imagePagesComposable.loadImageSettings === 'function') {
                   await imagePagesComposable.loadImageSettings()
@@ -1986,23 +1982,29 @@ export default defineComponent({
                 console.warn('[GenericResourceView] 加载图片设置失败:', error)
               }
               
-              let files = []
-              if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
-                const resourcePath = BaseResources.extractPrimitiveValue(
-                  selectedItem.resourcePath?.value || selectedItem.resourcePath
-                )
-                if (resourcePath) {
-                  const resp = await window.electronAPI.listImageFiles(resourcePath)
-                  if (resp.success) {
-                    files = resp.files || []
+              let files: string[] = []
+              if (isElectronEnvironment.value && window.electronAPI?.listImageFiles) {
+                if (previewArea === 'useSelfFolder') {
+                  const resourcePath = BaseResources.extractPrimitiveValue(
+                    selectedItem.resourcePath?.value || selectedItem.resourcePath
+                  )
+                  if (resourcePath) {
+                    const resp = await window.electronAPI.listImageFiles(resourcePath)
+                    if (resp.success) files = resp.files || []
+                  }
+                } else if (previewArea === 'useScreenshotFolder') {
+                  const gameId = BaseResources.extractPrimitiveValue(selectedItem.id?.value ?? selectedItem.id)
+                  const gameName = BaseResources.extractPrimitiveValue(selectedItem.name?.value ?? selectedItem.name) ?? ''
+                  if (gameId) {
+                    const screenshotFolderPath = await getGameScreenshotFolderPath(gameId, gameName, isElectronEnvironment.value)
+                    const resp = await window.electronAPI.listImageFiles(screenshotFolderPath)
+                    if (resp.success) files = resp.files || []
                   }
                 }
               }
               detailPages.value = files
-              // 更新总页数（使用 composable 的方法）
               imagePagesComposable.updateTotalPages()
               
-              // 更新资源的页数信息（如果资源有 pagesCount 字段）
               if (selectedItem.pagesCount && typeof selectedItem.pagesCount === 'object' && 'value' in selectedItem.pagesCount) {
                 selectedItem.pagesCount.value = files.length
               } else if (selectedItem.pagesCount !== undefined) {
