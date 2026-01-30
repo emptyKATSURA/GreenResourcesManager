@@ -59,10 +59,8 @@
               >
                 <span class="result-icon">{{ getResourceIcon(type) }}</span>
                 <div class="result-content">
-                  <div class="result-name">{{ result.name }}</div>
-                  <div class="result-description" v-if="result.description">
-                    {{ result.description }}
-                  </div>
+                  <div class="result-name" v-html="highlightKeyword(result.name, searchQueryTrimmed)"></div>
+                  <div class="result-description" v-if="result.description" v-html="highlightKeyword(result.description, searchQueryTrimmed)"></div>
                 </div>
               </div>
             </div>
@@ -99,6 +97,9 @@ export default {
     }
   },
   computed: {
+    searchQueryTrimmed(): string {
+      return (this.searchQuery || '').trim()
+    },
     totalResults() {
       return this.searchResults.length
     },
@@ -135,19 +136,40 @@ export default {
       const results: SearchResult[] = []
       
       try {
-        // 并行搜索所有资源类型
-        const [games, images, videos, novels, websites, audios] = await Promise.all([
-          saveManager.loadGames().catch(() => []),
-          saveManager.loadImages().catch(() => []),
-          saveManager.loadVideos().catch(() => []),
-          saveManager.loadNovels().catch(() => []),
-          saveManager.loadWebsites().catch(() => []),
-          saveManager.loadAudios().catch(() => [])
-        ])
+        // 优先使用 SQLite 读取（Electron 环境）；否则回退到旧存档方式
+        const useSql = typeof window !== 'undefined' && window.electronAPI?.sqliteGetPageData
+        let games: any[] = []
+        let images: any[] = []
+        let videos: any[] = []
+        let novels: any[] = []
+        let websites: any[] = []
+        let audios: any[] = []
+
+        if (useSql) {
+          const pageIds = ['games', 'images', 'videos', 'novels', 'websites', 'audio'] as const
+          const sqlResults = await Promise.all(
+            pageIds.map((id) => window.electronAPI!.sqliteGetPageData(id))
+          )
+          games = sqlResults[0]?.ok ? (sqlResults[0].data ?? []) : []
+          images = sqlResults[1]?.ok ? (sqlResults[1].data ?? []) : []
+          videos = sqlResults[2]?.ok ? (sqlResults[2].data ?? []) : []
+          novels = sqlResults[3]?.ok ? (sqlResults[3].data ?? []) : []
+          websites = sqlResults[4]?.ok ? (sqlResults[4].data ?? []) : []
+          audios = sqlResults[5]?.ok ? (sqlResults[5].data ?? []) : []
+        } else {
+          [games, images, videos, novels, websites, audios] = await Promise.all([
+            saveManager.loadGames().catch(() => []),
+            saveManager.loadImages().catch(() => []),
+            saveManager.loadVideos().catch(() => []),
+            saveManager.loadNovels().catch(() => []),
+            saveManager.loadWebsites().catch(() => []),
+            saveManager.loadAudios().catch(() => [])
+          ])
+        }
         
-        // 搜索游戏
+        // 搜索游戏（developer 为旧 JSON 字段，developers 为 SQL 表字段）
         games.forEach((game: any) => {
-          if (this.matchesQuery(game, query, ['name', 'description', 'developer', 'publisher'])) {
+          if (this.matchesQuery(game, query, ['name', 'description', 'developer', 'developers', 'publisher'])) {
             results.push({
               id: game.id,
               name: game.name,
@@ -237,6 +259,22 @@ export default {
         }
         return value && String(value).toLowerCase().includes(query)
       })
+    },
+    /** 将文本中的搜索关键词高亮，返回安全转义后的 HTML（用于 v-html） */
+    highlightKeyword(text: string | undefined | null, query: string): string {
+      if (text == null || text === '') return ''
+      const escapeHtml = (s: string) =>
+        String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+      const escaped = escapeHtml(text)
+      if (!query || !query.trim()) return escaped
+      const q = query.trim()
+      const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(escapeRegExp(escapeHtml(q)), 'gi')
+      return escaped.replace(regex, (match) => `<mark class="search-highlight">${match}</mark>`)
     },
     clearSearch() {
       this.searchQuery = ''
@@ -492,6 +530,14 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.search-highlight {
+  background: var(--accent-color, #667eea);
+  color: #fff;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
 }
 
 .search-placeholder {
