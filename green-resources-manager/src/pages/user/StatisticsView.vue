@@ -675,26 +675,23 @@ export default {
         this.isLoading = true
         console.log('开始加载媒体统计数据...')
         
-        // 并行加载所有媒体数据
-        const [games, images, videos, novels, websites, audios] = await Promise.all([
-          saveManager.loadGames(),
-          saveManager.loadImages(),
-          saveManager.loadVideos(),
-          saveManager.loadNovels(),
-          saveManager.loadWebsites(),
-          saveManager.loadAudios()
-        ])
+        const api = (window as any).electronAPI
+        if (!api?.sqliteGetPageData) {
+          this.isLoading = false
+          return
+        }
+        const pageIds = ['games', 'images', 'videos', 'anime-series', 'novels', 'websites', 'audio'] as const
+        const results = await Promise.all(pageIds.map((id) => api.sqliteGetPageData(id)))
+        const [games, images, videos, animeFolders, novels, websites, audios] = results.map((r: any) => (r?.ok ? (r.data ?? []) : []))
         
-        // 更新统计数据
         this.updateMediaCount('games', games.length)
         this.updateMediaCount('images', images.length)
-        this.updateMediaCount('videos', videos.length)
+        this.updateMediaCount('videos', videos.length + animeFolders.length)
         this.updateMediaCount('novels', novels.length)
         this.updateMediaCount('websites', websites.length)
         this.updateMediaCount('audios', audios.length)
         
-        // 计算各媒体类型的详细统计
-        this.calculateDetailedStats(games, images, videos, novels, websites, audios)
+        this.calculateDetailedStats(games, images, [...videos, ...animeFolders], novels, websites, audios)
         
         console.log('媒体统计数据加载完成:', {
           游戏: games.length,

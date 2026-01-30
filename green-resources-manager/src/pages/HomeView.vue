@@ -85,40 +85,27 @@ export default {
       })
     },
     async refreshRecommendations() {
-      // 刷新推荐内容
+      // 刷新推荐内容（统一从 SQLite 加载）
       try {
         this.isLoading = true
+        const api = (window as any).electronAPI
+        if (!api?.sqliteGetPageData) {
+          this.isLoading = false
+          return
+        }
+        const pageIds = ['games', 'images', 'videos', 'anime-series', 'novels', 'websites', 'audio'] as const
+        const results = await Promise.all(pageIds.map((id) => api.sqliteGetPageData(id)))
+        const [games, images, videos, animeFolders, novels, websites, audios] = results.map((r: any) => (r?.ok ? (r.data ?? []) : []))
         
-        // 并行加载所有资源类型
-        const [games, images, videos, novels, websites, audios] = await Promise.all([
-          saveManager.loadGames(),
-          saveManager.loadImages(),
-          saveManager.loadVideos(),
-          saveManager.loadNovels(),
-          saveManager.loadWebsites(),
-          saveManager.loadAudios()
-        ])
-
-        // 检查是否有番剧页面配置
-        await customPageManager.init()
-        const pages = customPageManager.getPages()
-        const animePage = pages.find(p => p.type === 'Anime' && !p.isHidden)
-        
-        // 转换为统一格式
         const allResources: UnifiedResource[] = [
           ...games.map((g: any) => this.normalizeGame(g)),
           ...images.map((img: any) => this.normalizeImage(img)),
           ...videos.map((v: any) => this.normalizeVideo(v)),
+          ...animeFolders.map((a: any) => this.normalizeAnime(a)),
           ...novels.map((n: any) => this.normalizeNovel(n)),
           ...websites.map((w: any) => this.normalizeWebsite(w)),
           ...audios.map((a: any) => this.normalizeAudio(a))
         ]
-        
-        // 如果有番剧页面，将视频数据也作为番剧数据添加（使用相同的数据源）
-        if (animePage) {
-          const animeResources = videos.map((v: any) => this.normalizeAnime(v))
-          allResources.push(...animeResources)
-        }
 
         // 生成新的随机推荐（只显示6个）
         this.recommendedResources = this.generateRandomRecommendations(allResources, 6)
@@ -136,37 +123,24 @@ export default {
     async loadAllResources() {
       try {
         this.isLoading = true
-        
-        // 并行加载所有资源类型
-        const [games, images, videos, novels, websites, audios] = await Promise.all([
-          saveManager.loadGames(),
-          saveManager.loadImages(),
-          saveManager.loadVideos(),
-          saveManager.loadNovels(),
-          saveManager.loadWebsites(),
-          saveManager.loadAudios()
-        ])
+        const api = (window as any).electronAPI
+        if (!api?.sqliteGetPageData) {
+          this.isLoading = false
+          return
+        }
+        const pageIds = ['games', 'images', 'videos', 'anime-series', 'novels', 'websites', 'audio'] as const
+        const results = await Promise.all(pageIds.map((id) => api.sqliteGetPageData(id)))
+        const [games, images, videos, animeFolders, novels, websites, audios] = results.map((r: any) => (r?.ok ? (r.data ?? []) : []))
 
-        // 检查是否有番剧页面配置
-        await customPageManager.init()
-        const pages = customPageManager.getPages()
-        const animePage = pages.find(p => p.type === 'Anime' && !p.isHidden)
-
-        // 转换为统一格式
         const allResources: UnifiedResource[] = [
           ...games.map((g: any) => this.normalizeGame(g)),
           ...images.map((img: any) => this.normalizeImage(img)),
           ...videos.map((v: any) => this.normalizeVideo(v)),
+          ...animeFolders.map((a: any) => this.normalizeAnime(a)),
           ...novels.map((n: any) => this.normalizeNovel(n)),
           ...websites.map((w: any) => this.normalizeWebsite(w)),
           ...audios.map((a: any) => this.normalizeAudio(a))
         ]
-        
-        // 如果有番剧页面，将视频数据也作为番剧数据添加（使用相同的数据源）
-        if (animePage) {
-          const animeResources = videos.map((v: any) => this.normalizeAnime(v))
-          allResources.push(...animeResources)
-        }
 
         // 生成随机推荐（只显示6个）
         this.recommendedResources = this.generateRandomRecommendations(allResources, 6)

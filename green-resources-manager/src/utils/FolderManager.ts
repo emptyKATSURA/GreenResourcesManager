@@ -1,49 +1,76 @@
 /**
  * FolderManager - 视频文件夹管理器
  * 负责管理视频文件夹的增删改查操作
+ * 统一使用 SQLite 存储，不再使用 JSON
  */
 class FolderManager {
   folders: any[]
-  saveManager: any
   pageId: string | null
 
   constructor(pageId?: string) {
     this.folders = []
-    this.saveManager = null
     this.pageId = pageId || null
   }
 
   /**
-   * 初始化文件夹管理器
-   * @param {Object} saveManager - SaveManager实例
+   * 初始化文件夹管理器（从 SQLite 加载）
    */
-  async init(saveManager) {
-    this.saveManager = saveManager
+  async init(_saveManager?: any) {
     await this.loadFolders()
   }
 
   /**
-   * 加载文件夹数据
+   * 从 SQLite 加载文件夹数据
    */
   async loadFolders() {
-    if (this.saveManager) {
-      this.folders = await this.saveManager.loadVideoFolders(this.pageId || undefined)
-      console.log(`文件夹管理器初始化完成（页面: ${this.pageId || '全局'}），加载了`, this.folders.length, '个文件夹')
+    const pageId = this.pageId || 'anime-series'
+    if (typeof window === 'undefined' || !(window as any).electronAPI?.sqliteGetPageData) {
+      console.warn('Electron API 不可用，无法从 SQLite 加载文件夹')
+      this.folders = []
+      return
+    }
+    try {
+      const result = await (window as any).electronAPI.sqliteGetPageData(pageId)
+      if (result?.ok && Array.isArray(result.data)) {
+        this.folders = result.data.map((f: any) => ({
+          ...f,
+          folderPath: f.folderPath || f.resourcePath
+        }))
+        console.log(`[FolderManager] 从 SQLite 加载完成（页面: ${pageId}），共 ${this.folders.length} 个文件夹`)
+      } else {
+        this.folders = []
+      }
+    } catch (error) {
+      console.error('[FolderManager] 从 SQLite 加载失败:', error)
+      this.folders = []
     }
   }
 
   /**
-   * 保存文件夹数据
+   * 保存文件夹数据到 SQLite
    */
   async saveFolders() {
-    if (this.saveManager) {
-      const success = await this.saveManager.saveVideoFolders(this.folders, this.pageId || undefined)
-      if (success) {
-        console.log(`文件夹数据保存成功（页面: ${this.pageId || '全局'}）`)
-      }
-      return success
+    const pageId = this.pageId || 'anime-series'
+    if (typeof window === 'undefined' || !(window as any).electronAPI?.sqliteSavePageResources) {
+      console.warn('Electron API 不可用，无法保存到 SQLite')
+      return false
     }
-    return false
+    try {
+      const resources = this.folders.map((f: any) => ({
+        ...f,
+        resourcePath: f.resourcePath || f.folderPath,
+        resourceType: 'videoFolder'
+      }))
+      const result = await (window as any).electronAPI.sqliteSavePageResources(pageId, resources)
+      if (result?.ok) {
+        console.log(`[FolderManager] 保存到 SQLite 成功（页面: ${pageId}），共 ${this.folders.length} 个文件夹`)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('[FolderManager] 保存到 SQLite 失败:', error)
+      return false
+    }
   }
 
   /**

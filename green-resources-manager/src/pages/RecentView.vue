@@ -68,22 +68,20 @@ export default {
     async loadRecentResources() {
       try {
         this.isLoading = true
-        
-        // 并行加载所有资源类型
-        const [games, images, videos, novels, websites, audios] = await Promise.all([
-          saveManager.loadGames(),
-          saveManager.loadImages(),
-          saveManager.loadVideos(),
-          saveManager.loadNovels(),
-          saveManager.loadWebsites(),
-          saveManager.loadAudios()
-        ])
+        const api = (window as any).electronAPI
+        if (!api?.sqliteGetPageData) {
+          this.isLoading = false
+          return
+        }
+        const pageIds = ['games', 'images', 'videos', 'anime-series', 'novels', 'websites', 'audio'] as const
+        const results = await Promise.all(pageIds.map((id) => api.sqliteGetPageData(id)))
+        const [games, images, videos, animeFolders, novels, websites, audios] = results.map((r: any) => (r?.ok ? (r.data ?? []) : []))
 
-        // 转换为统一格式
         const allResources: UnifiedResource[] = [
           ...games.map((g: any) => this.normalizeGame(g)),
           ...images.map((img: any) => this.normalizeImage(img)),
           ...videos.map((v: any) => this.normalizeVideo(v)),
+          ...animeFolders.map((a: any) => this.normalizeAnime(a)),
           ...novels.map((n: any) => this.normalizeNovel(n)),
           ...websites.map((w: any) => this.normalizeWebsite(w)),
           ...audios.map((a: any) => this.normalizeAudio(a))
@@ -176,6 +174,24 @@ export default {
           tags: video.tags,
           actors: video.actors,
           fileSize: video.fileSize
+        }
+      }
+    },
+    normalizeAnime(anime: any): UnifiedResource {
+      return {
+        id: anime.id,
+        type: 'anime',
+        name: anime.name,
+        category: anime.series || '番剧',
+        description: anime.description,
+        thumbnail: anime.thumbnail,
+        lastAccessed: anime.lastWatched,
+        badge: anime.videoCount ? `${anime.videoCount}集` : undefined,
+        metadata: {
+          series: anime.series,
+          tags: anime.tags,
+          actors: anime.actors,
+          voiceActors: anime.voiceActors
         }
       }
     },

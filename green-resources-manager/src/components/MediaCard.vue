@@ -285,7 +285,7 @@ export default {
     type: {
       type: String,
       required: true,
-      validator: value => ['game', 'image', 'novel', 'video', 'audio', 'folder'].includes(value)
+      validator: value => ['game', 'image', 'novel', 'video', 'audio', 'folder', 'anime'].includes(value)
     },
     isRunning: {
       type: Boolean,
@@ -561,14 +561,6 @@ export default {
           fieldValue = getNestedFieldValue(this.item, config.badge.field)
         }
         
-        console.log('[MediaCard] badgeText - 字段值:', {
-          field: config.badge.field,
-          fieldValue,
-          rawValue: rawField,
-          isResourceField: rawField instanceof ResourceField,
-          itemId: getFieldValue(this.item.id)
-        })
-        
         if (config.badge.render) {
           // 使用自定义渲染函数
           const result = config.badge.render(fieldValue, this.item)
@@ -577,9 +569,7 @@ export default {
           // 使用格式化函数
           const formatter = this[config.badge.formatter]
           if (typeof formatter === 'function') {
-            const result = formatter(fieldValue)
-            console.log('[MediaCard] badgeText - 格式化结果:', result)
-            return result
+            return formatter(fieldValue)
           }
         }
         
@@ -595,7 +585,7 @@ export default {
       // 这样可以避免 prop 默认值导致的误判
       const itemFileExists = getFieldValue(this.item?.fileExists)
       const fileExistsValue = itemFileExists !== undefined ? itemFileExists : this.fileExists
-      const shouldShow = ['game', 'audio', 'image', 'novel', 'video', 'folder'].includes(this.type) && fileExistsValue === false
+      const shouldShow = ['game', 'audio', 'image', 'novel', 'video', 'folder', 'anime'].includes(this.type) && fileExistsValue === false
       return shouldShow
     },
     isArchive() {

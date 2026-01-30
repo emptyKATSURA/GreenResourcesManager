@@ -136,36 +136,21 @@ export default {
       const results: SearchResult[] = []
       
       try {
-        // 优先使用 SQLite 读取（Electron 环境）；否则回退到旧存档方式
-        const useSql = typeof window !== 'undefined' && window.electronAPI?.sqliteGetPageData
-        let games: any[] = []
-        let images: any[] = []
-        let videos: any[] = []
-        let novels: any[] = []
-        let websites: any[] = []
-        let audios: any[] = []
-
-        if (useSql) {
-          const pageIds = ['games', 'images', 'videos', 'novels', 'websites', 'audio'] as const
-          const sqlResults = await Promise.all(
-            pageIds.map((id) => window.electronAPI!.sqliteGetPageData(id))
-          )
-          games = sqlResults[0]?.ok ? (sqlResults[0].data ?? []) : []
-          images = sqlResults[1]?.ok ? (sqlResults[1].data ?? []) : []
-          videos = sqlResults[2]?.ok ? (sqlResults[2].data ?? []) : []
-          novels = sqlResults[3]?.ok ? (sqlResults[3].data ?? []) : []
-          websites = sqlResults[4]?.ok ? (sqlResults[4].data ?? []) : []
-          audios = sqlResults[5]?.ok ? (sqlResults[5].data ?? []) : []
-        } else {
-          [games, images, videos, novels, websites, audios] = await Promise.all([
-            saveManager.loadGames().catch(() => []),
-            saveManager.loadImages().catch(() => []),
-            saveManager.loadVideos().catch(() => []),
-            saveManager.loadNovels().catch(() => []),
-            saveManager.loadWebsites().catch(() => []),
-            saveManager.loadAudios().catch(() => [])
-          ])
+        // 统一从 SQLite 读取
+        const api = (window as any).electronAPI
+        if (!api?.sqliteGetPageData) {
+          this.hasSearched = true
+          return
         }
+        const pageIds = ['games', 'images', 'videos', 'anime-series', 'novels', 'websites', 'audio'] as const
+        const sqlResults = await Promise.all(pageIds.map((id) => api.sqliteGetPageData(id)))
+        const games = sqlResults[0]?.ok ? (sqlResults[0].data ?? []) : []
+        const images = sqlResults[1]?.ok ? (sqlResults[1].data ?? []) : []
+        const videos = sqlResults[2]?.ok ? (sqlResults[2].data ?? []) : []
+        const animeFolders = sqlResults[3]?.ok ? (sqlResults[3].data ?? []) : []
+        const novels = sqlResults[4]?.ok ? (sqlResults[4].data ?? []) : []
+        const websites = sqlResults[5]?.ok ? (sqlResults[5].data ?? []) : []
+        const audios = sqlResults[6]?.ok ? (sqlResults[6].data ?? []) : []
         
         // 搜索游戏（developer 为旧 JSON 字段，developers 为 SQL 表字段）
         games.forEach((game: any) => {
@@ -202,6 +187,19 @@ export default {
               description: video.description,
               type: 'video',
               ...video
+            })
+          }
+        })
+        
+        // 搜索番剧
+        animeFolders.forEach((anime: any) => {
+          if (this.matchesQuery(anime, query, ['name', 'description', 'series', 'actors', 'voiceActors'])) {
+            results.push({
+              id: anime.id,
+              name: anime.name,
+              description: anime.description,
+              type: 'anime',
+              ...anime
             })
           }
         })
@@ -289,6 +287,7 @@ export default {
         'game': '游戏',
         'image': '图片',
         'video': '视频',
+        'anime': '番剧',
         'novel': '小说',
         'website': '网站',
         'audio': '音频'
@@ -300,6 +299,7 @@ export default {
         'game': '🎮',
         'image': '🖼️',
         'video': '🎬',
+        'anime': '📺',
         'novel': '📚',
         'website': '🌐',
         'audio': '🎵'
@@ -312,6 +312,7 @@ export default {
         'game': 'games',
         'image': 'images',
         'video': 'videos',
+        'anime': 'anime-series',
         'novel': 'novels',
         'website': 'websites',
         'audio': 'audio'

@@ -20,6 +20,7 @@ function getFieldValue<T>(field: any): T | undefined {
 
 /**
  * 番剧/电视剧页面配置
+ * 可替换视频页使用，支持在详情页展示文件夹内的视频列表
  */
 export class AnimePage extends BasePage {
   readonly id = 'anime-series'
@@ -28,6 +29,9 @@ export class AnimePage extends BasePage {
   readonly description = '可以管理番剧和电视剧'
   
   resourceTypes = ['Anime']
+
+  /** 是否在详情页展示文件夹内的视频列表（用于替换视频页时显示集数列表） */
+  readonly showFolderVideosInDetail = true
   
   displayLayoutConfig = {
     minWidth: 150,

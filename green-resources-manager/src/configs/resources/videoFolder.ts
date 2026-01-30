@@ -15,6 +15,13 @@ import { ResourceField } from './base/ResourceField.ts'
  */
 export class VideoFolder extends BaseResources {
 
+
+	static acceptedExtensions = [
+
+	'<folder>'  // 文件夹标记（无扩展名）
+		
+	]
+
 	resourceType: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
 		defaultValue: 'animation'
@@ -140,7 +147,7 @@ export class VideoFolder extends BaseResources {
 				type: 'text' as const,
 				field: 'videoCount',
 				label: '',
-				formatter: 'formatVideoCount'
+				render: (value: any) => (value ? `${value} 个视频` : '')
 			},
 			{
 				type: 'date' as const,
@@ -153,6 +160,7 @@ export class VideoFolder extends BaseResources {
 
 	// 静态配置：详情页显示配置
 	static detailPanelConfig = {
+		type: 'folder' as const,
 		title: {
 			field: 'name',
 			formatter: undefined

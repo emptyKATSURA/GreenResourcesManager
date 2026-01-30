@@ -40,9 +40,7 @@ class SaveManager {
       images: `${this.dataDirectories.images}/images.json`,
       singleImage: `${this.dataDirectories.singleImage}/singleImage.json`,
       videos: `${this.dataDirectories.videos}/videos.json`,
-      videoFolders: `${this.dataDirectories.videos}/folders.json`, // 视频文件夹
       animeSeries: `${this.dataDirectories.animeSeries}/animeSeries.json`,
-      animeSeriesFolders: `${this.dataDirectories.animeSeries}/folders.json`, // 番剧文件夹
       audios: `${this.dataDirectories.audios}/audios.json`,
       websites: `${this.dataDirectories.websites}/websites.json`,
       novels: `${this.dataDirectories.novels}/novels.json`,
@@ -66,8 +64,6 @@ class SaveManager {
     this.defaultData = {
       games: [],
       images: [],
-      videoFolders: [], // 视频文件夹默认数据
-      animeSeriesFolders: [], // 番剧文件夹默认数据
       settings: {
         theme: 'auto',
         sidebarWidth: 280,
@@ -243,9 +239,7 @@ class SaveManager {
         images: `${this.dataDirectories.images}/images.json`,
         singleImage: `${this.dataDirectories.singleImage}/singleImage.json`,
         videos: `${this.dataDirectories.videos}/videos.json`,
-        videoFolders: `${this.dataDirectories.videos}/videofolders.json`, // 视频文件夹
         animeSeries: `${this.dataDirectories.animeSeries}/animeSeries.json`,
-        animeSeriesFolders: `${this.dataDirectories.animeSeries}/folders.json`, // 番剧文件夹
         audios: `${this.dataDirectories.audios}/audios.json`,
         websites: `${this.dataDirectories.websites}/websites.json`,
         novels: `${this.dataDirectories.novels}/novels.json`,
@@ -1044,180 +1038,6 @@ class SaveManager {
       return []
     } catch (error) {
       console.error('加载番剧数据失败:', error)
-      return []
-    }
-  }
-
-  /**
-   * 保存番剧文件夹数据到本地 JSON 文件
-   * @param {Array} folders - 文件夹数据数组
-   * @returns {Promise<boolean>} 保存是否成功
-   */
-  async saveAnimeSeriesFolders(folders) {
-    try {
-      await this.ensureDataTypeDirectory('animeSeries')
-
-      const data = {
-        folders: folders,
-        timestamp: new Date().toISOString(),
-        version: this.version
-      }
-
-      console.log('准备保存番剧文件夹数据:')
-      console.log('文件夹数量:', folders.length)
-      console.log('文件路径:', this.filePaths.animeSeriesFolders)
-      console.log('数据内容:', data)
-
-      const success = await this.writeJsonFile(this.filePaths.animeSeriesFolders, data)
-      if (success) {
-        console.log('番剧文件夹数据保存成功:', folders.length, '个文件夹')
-      }
-      return success
-    } catch (error) {
-      console.error('保存番剧文件夹数据失败:', error)
-      return false
-    }
-  }
-
-  /**
-   * 从本地 JSON 文件加载番剧文件夹数据
-   * @returns {Promise<Array>} 番剧文件夹数据数组
-   */
-  async loadAnimeSeriesFolders() {
-    try {
-      const data = await this.readJsonFile(this.filePaths.animeSeriesFolders)
-      if (data && Array.isArray(data.folders)) {
-        console.log('加载番剧文件夹数据:', data.folders.length, '个文件夹')
-        return data.folders
-      }
-      return []
-    } catch (error) {
-      console.error('加载番剧文件夹数据失败:', error)
-      return []
-    }
-  }
-
-  /**
-   * 保存视频文件夹数据到本地 JSON 文件
-   * @param {Array} folders - 文件夹数据数组
-   * @returns {Promise<boolean>} 保存是否成功
-   */
-  async saveVideoFolders(folders, pageId?: string) {
-    try {
-      // 如果提供了 pageId，保存到页面特定的数据文件
-      if (pageId) {
-        // 番剧页面使用根目录的文件夹数据
-        if (pageId === 'anime-series') {
-          return await this.saveAnimeSeriesFolders(folders)
-        }
-        
-        // 检查是否是系统默认页面（不应该在 CustomPages 中）
-        const isSystemPage = ['games', 'software', 'images', 'single-image', 'videos', 'anime-series', 'novels', 'websites', 'audios', 'other'].includes(pageId)
-        
-        if (isSystemPage) {
-          // 系统默认页面不应该在 CustomPages 中，这些页面可能不需要文件夹功能
-          console.warn(`系统默认页面 ${pageId} 不支持文件夹功能，保存操作被忽略`)
-          return false
-        }
-        
-        // 自定义页面保存到 CustomPages 目录
-        await this.ensureDataTypeDirectory('videos')
-        const customPath = `${this.dataDirectory}/CustomPages/${pageId}/folders.json`
-        
-        const data = {
-          folders: folders,
-          timestamp: new Date().toISOString(),
-          version: this.version
-        }
-
-        console.log(`准备保存页面 ${pageId} 的文件夹数据:`)
-        console.log('文件夹数量:', folders.length)
-        console.log('文件路径:', customPath)
-
-        const success = await this.writeJsonFile(customPath, data)
-        if (success) {
-          console.log(`页面 ${pageId} 的文件夹数据保存成功:`, folders.length, '个文件夹')
-        }
-        return success
-      }
-
-      // 默认保存到全局文件夹数据文件（向后兼容）
-      await this.ensureDataTypeDirectory('videos')
-
-      const data = {
-        folders: folders,
-        timestamp: new Date().toISOString(),
-        version: this.version
-      }
-
-      console.log('准备保存视频文件夹数据:')
-      console.log('文件夹数量:', folders.length)
-      console.log('文件路径:', this.filePaths.videoFolders)
-      console.log('数据内容:', data)
-
-      const success = await this.writeJsonFile(this.filePaths.videoFolders, data)
-      if (success) {
-        console.log('视频文件夹数据保存成功:', folders.length, '个文件夹')
-      }
-      return success
-    } catch (error) {
-      console.error('保存视频文件夹数据失败:', error)
-      return false
-    }
-  }
-
-  /**
-   * 从本地 JSON 文件加载视频文件夹数据
-   * @param {string} pageId - 页面ID，如果提供则加载该页面的文件夹数据，否则加载全局数据
-   * @returns {Promise<Array>} 文件夹数据数组
-   */
-  async loadVideoFolders(pageId?: string) {
-    try {
-      // 如果提供了 pageId，使用页面特定的数据文件
-      if (pageId) {
-        // 番剧页面使用根目录的文件夹数据
-        if (pageId === 'anime-series') {
-          return await this.loadAnimeSeriesFolders()
-        }
-        
-        // 其他页面尝试从页面特定的文件夹文件加载
-        // 首先检查是否是系统默认页面（不应该在 CustomPages 中）
-        const isSystemPage = ['games', 'software', 'images', 'single-image', 'videos', 'anime-series', 'novels', 'websites', 'audios', 'other'].includes(pageId)
-        
-        if (isSystemPage) {
-          // 系统默认页面不应该在 CustomPages 中，返回空数组（这些页面可能不需要文件夹功能）
-          console.log(`系统默认页面 ${pageId} 不支持文件夹功能，返回空数组`)
-          return []
-        }
-        
-        // 自定义页面从 CustomPages 目录加载
-        const customPath = `${this.dataDirectory}/CustomPages/${pageId}/folders.json`
-        try {
-          const data = await this.readJsonFile(customPath)
-          if (data && Array.isArray(data.folders)) {
-            console.log(`加载页面 ${pageId} 的文件夹数据:`, data.folders.length, '个文件夹')
-            return data.folders
-          }
-          if (Array.isArray(data)) {
-            console.log(`加载页面 ${pageId} 的文件夹数据:`, data.length, '个文件夹')
-            return data
-          }
-        } catch (e) {
-          // 文件不存在，返回空数组
-          console.log(`页面 ${pageId} 的文件夹数据文件不存在，返回空数组`)
-        }
-        return []
-      }
-      
-      // 默认加载全局文件夹数据（向后兼容）
-      const data = await this.readJsonFile(this.filePaths.videoFolders)
-      if (data && Array.isArray(data.folders)) {
-        console.log('加载视频文件夹数据:', data.folders.length, '个文件夹')
-        return data.folders
-      }
-      return []
-    } catch (error) {
-      console.error('加载视频文件夹数据失败:', error)
       return []
     }
   }

@@ -431,13 +431,20 @@ export default {
         this.isLoading = true
         console.log('开始加载成就数据...')
         
-        // 并行加载所有媒体数据和成就状态
-        const [images, games, videos, achievementStates] = await Promise.all([
-          saveManager.loadImages(),
-          saveManager.loadGames(),
-          saveManager.loadVideos(),
+        const api = (window as any).electronAPI
+        const [imgRes, gamesRes, vidRes, animeRes, achievementStates] = await Promise.all([
+          api?.sqliteGetPageData?.('images') ?? Promise.resolve({ ok: false }),
+          api?.sqliteGetPageData?.('games') ?? Promise.resolve({ ok: false }),
+          api?.sqliteGetPageData?.('videos') ?? Promise.resolve({ ok: false }),
+          api?.sqliteGetPageData?.('anime-series') ?? Promise.resolve({ ok: false }),
           saveManager.loadAchievementStates()
         ])
+        const images = (imgRes as any)?.ok ? ((imgRes as any).data ?? []) : []
+        const games = (gamesRes as any)?.ok ? ((gamesRes as any).data ?? []) : []
+        const videos = [
+          ...((vidRes as any)?.ok ? ((vidRes as any).data ?? []) : []),
+          ...((animeRes as any)?.ok ? ((animeRes as any).data ?? []) : [])
+        ]
         
         // 加载已保存的成就状态
         this.savedAchievementStates = achievementStates.unlockedAchievements || new Map()

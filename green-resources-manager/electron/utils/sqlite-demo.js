@@ -626,84 +626,81 @@ async function getPageData(pageId) {
       return { ok: true, data: [] }
     }
     
-    // 按资源类型分组
+    // 按资源类型分组（兼容 SQLite 列名小写：resourcetype, resourceid）
     const resourcesByType = {}
     for (const resource of pageResources) {
-      const { resourceType, resourceId } = resource
-      console.log(`[SQLite] 页面索引: resourceType=${resourceType}, resourceId=${resourceId}`)
-      if (!resourcesByType[resourceType]) {
-        resourcesByType[resourceType] = []
+      const resourceType = resource.resourceType ?? resource.resourcetype
+      const resourceId = resource.resourceId ?? resource.resourceid
+      if (!resourceType || !resourceId) continue
+      const tableName = mapResourceTypeToTableName(resourceType)  // 映射到实际表名，如 'animation' -> 'videoFolder'
+      if (!resourcesByType[tableName]) {
+        resourcesByType[tableName] = []
       }
-      resourcesByType[resourceType].push(resourceId)
+      resourcesByType[tableName].push(resourceId)
     }
-    
-    console.log(`[SQLite] 按资源类型分组:`, Object.keys(resourcesByType).map(type => `${type}: ${resourcesByType[type].length}`).join(', '))
     
     // 从各个资源表中查询数据
     const allResources = []
-    for (const [resourceType, resourceIds] of Object.entries(resourcesByType)) {
+    for (const [tableName, resourceIds] of Object.entries(resourcesByType)) {
       if (resourceIds.length === 0) continue
-      
-      console.log(`[SQLite] 从 ${resourceType} 表查询 ${resourceIds.length} 个资源`)
       
       // 检查资源表是否存在
       const tableExistsStmt = db.prepare(`
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name=?
       `)
-      const tableExists = tableExistsStmt.get(resourceType)
+      const tableExists = tableExistsStmt.get(tableName)
       
       if (!tableExists) {
-        console.warn(`[SQLite] 资源表 ${resourceType} 不存在，跳过查询`)
+        console.warn(`[SQLite] 资源表 ${tableName} 不存在，跳过查询`)
         continue
       }
       
       // 构建查询语句（使用 IN 子句）
       const placeholders = resourceIds.map(() => '?').join(',')
       const selectResourceStmt = db.prepare(`
-        SELECT * FROM "${resourceType}" 
+        SELECT * FROM "${tableName}" 
         WHERE id IN (${placeholders})
       `)
       
       const resources = selectResourceStmt.all(...resourceIds)
-      console.log(`[SQLite] 从 ${resourceType} 表查询到 ${resources.length} 条记录，期望 ${resourceIds.length} 条`)
       
       // 解析 JSON 字段和布尔字段
       for (const resource of resources) {
         const parsedResource = { ...resource }
         
         // 解析 JSON 字段（根据资源类型不同，字段也不同）
-        if (resourceType === 'games') {
+        if (tableName === 'games') {
           parsedResource.developers = parseJsonField(resource.developers)
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'manga') {
+        } else if (tableName === 'manga') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'audio') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.actors = parseJsonField(resource.actors)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'novel') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'video') {
+        } else if (tableName === 'audio') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.actors = parseJsonField(resource.actors)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'software') {
+        } else if (tableName === 'novel') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'website') {
+        } else if (tableName === 'video') {
+          parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.actors = parseJsonField(resource.actors)
+          parsedResource.isFavorite = resource.isFavorite === 1
+        } else if (tableName === 'software') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'singleImage') {
+        } else if (tableName === 'website') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'other') {
+        } else if (tableName === 'singleImage') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (resourceType === 'videoFolder') {
+        } else if (tableName === 'other') {
+          parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.isFavorite = resource.isFavorite === 1
+        } else if (tableName === 'videoFolder') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.actors = parseJsonField(resource.actors)
           parsedResource.voiceActors = parseJsonField(resource.voiceActors)
@@ -721,6 +718,7 @@ async function getPageData(pageId) {
       .map(pr => resourceMap.get(pr.resourceId))
       .filter(Boolean)
     
+    console.log(`[SQLite] getPageData 完成: pageId=${pageId}, 返回 ${orderedResources.length} 条`)
     db.close()
     
     return {
@@ -728,7 +726,7 @@ async function getPageData(pageId) {
       data: orderedResources
     }
   } catch (err) {
-    console.error(`[SQLite] 获取页面 ${pageId} 数据失败:`, err.message)
+    console.error(`[SQLite] 获取页面 ${pageId} 数据失败:`, err.message, err.stack)
     return { ok: false, message: err.message }
   }
 }
@@ -1001,6 +999,7 @@ function mapResourceTypeToTableName(resourceType) {
     'other': 'other',
     'videoFolder': 'videoFolder',
     'video-folder': 'videoFolder',
+    'animation': 'videoFolder',  // VideoFolder 类的 defaultValue
     'anime': 'videoFolder',
     'anime-series': 'videoFolder'
   }

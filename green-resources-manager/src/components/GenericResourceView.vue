@@ -73,9 +73,10 @@
       @close="closeDetail"
       @action="handleDetailAction"
     >
-      <!-- 图片/漫画预览 -->
+      <!-- 图片/漫画预览（Image/Manga 类型） -->
       <template #extra>
         <AlbumPagesGrid
+          v-if="shouldShowPreview"
           :pages="detailPages"
           :currentPage="detailCurrentPage"
           :pageSize="detailPageSize"
@@ -84,6 +85,15 @@
           :handleImageError="handleImageError"
           @page-click="handleDetailPageClick"
           @page-change="handleDetailPageChange"
+        />
+        <!-- 番剧/文件夹视频列表（Anime 类型，用于替换视频页） -->
+        <FolderVideosGrid
+          v-else-if="isAnimeWithFolderVideos"
+          :videos="selectedItem?.folderVideos || []"
+          :get-thumbnail-url="getThumbnailUrlForFolderVideo"
+          :handle-thumbnail-error="handleFolderVideoThumbnailError"
+          @play-video="playFolderVideo"
+          @generate-thumbnail="generateFolderVideoThumbnail"
         />
       </template>
     </DetailPanel>
@@ -276,6 +286,10 @@ import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
 import { useImageCache } from '../composables/image/useImageCache'
 import { useVideoDuration } from '../composables/video/useVideoDuration'
+import { useVideoFolder } from '../composables/video/useVideoFolder'
+import { useVideoPlayback } from '../composables/video/useVideoPlayback'
+import { useVideoThumbnail } from '../composables/video/useVideoThumbnail'
+import FolderVideosGrid from './video/FolderVideosGrid.vue'
 import ResourcesEditDialog from './ResourcesEditDialog.vue'
 import type { FilterItem } from '../types/filter'
 
@@ -342,6 +356,7 @@ export default defineComponent({
     ContentView,
     ResourcesEditDialog,
     PathUpdateDialog,
+    FolderVideosGrid,
     // FunDropZone,  // 临时移除，避免性能问题
     FunGrid
   },
@@ -408,6 +423,11 @@ export default defineComponent({
     const isLoadingData = ref(false)
 
     const { getVideoDuration } = useVideoDuration()
+
+    // 番剧页面：文件夹视频列表、播放、缩略图（用于替换视频页时展示集数列表）
+    const videoFolderComposable = useVideoFolder(props.pageConfig?.id)
+    const videoPlaybackComposable = useVideoPlayback()
+    const videoThumbnailComposable = useVideoThumbnail()
     
     /**
      * 从文件路径提取资源名称
@@ -541,6 +561,8 @@ export default defineComponent({
             
             // 创建匹配到的资源类型
             const resourceData: any = {
+              id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              resourceType: matchedResourceType === 'Anime' ? 'videoFolder' : (matchedResourceType === 'Video' ? 'video' : matchedResourceType.toLowerCase()),
               name: extractNameFromPath(file.name),
               description: '',
               tags: [],
@@ -1870,17 +1892,48 @@ export default defineComponent({
         if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.sqliteGetPageData) {
           throw new Error('[GenericResourceView] 不在 Electron 环境或数据库 API 不可用')
         }
-        console.log(`[GenericResourceView] 从数据库加载页面 ${pageId} 数据`)
+        console.log(`[GenericResourceView] ====== 加载数据 ====== pageId="${pageId}", resourceType="${resourceType.value}", ResourceClass=${ResourceClass?.name}`)
         const result = await window.electronAPI.sqliteGetPageData(pageId)
+        console.log(`[GenericResourceView] sqliteGetPageData 返回:`, { ok: result?.ok, dataLength: result?.data?.length, message: result?.message })
+        // 番剧页调试：用现有 sqliteDemoGetData 查看 anime_series_page 与 videoFolder 实际数据
+        if (pageId === 'anime-series' && window.electronAPI.sqliteDemoGetData) {
+          const demoRes = await window.electronAPI.sqliteDemoGetData()
+          if (demoRes?.ok && demoRes?.tables) {
+            const animePage = demoRes.tables.find((t: any) => t.tableName === 'anime_series_page')
+            const videoFolder = demoRes.tables.find((t: any) => t.tableName === 'videoFolder')
+            console.log('[GenericResourceView] anime_series_page 表:', animePage ? { rowCount: animePage.rows?.length, rows: animePage.rows } : '未找到')
+            console.log('[GenericResourceView] videoFolder 表:', videoFolder ? { rowCount: videoFolder.rows?.length, rows: videoFolder.rows?.slice(0, 20) } : '未找到')
+            // 调试：对比 resourceType/resourceId 与 videoFolder.id 是否匹配
+            if (animePage?.rows?.length && videoFolder?.rows?.length) {
+              const firstRow = animePage.rows[0] as any
+              const pageResourceType = firstRow.resourceType ?? firstRow.resourcetype
+              const pageResourceId = firstRow.resourceId ?? firstRow.resourceid
+              const vfIds = videoFolder.rows.map((r: any) => r.id ?? r.Id)
+              console.log('[GenericResourceView] 番剧页调试 - anime_series_page 第一行:', { resourceType: pageResourceType, resourceId: pageResourceId, 所有字段: firstRow })
+              console.log('[GenericResourceView] 番剧页调试 - videoFolder 所有 id:', vfIds)
+              console.log('[GenericResourceView] 番剧页调试 - resourceId 是否在 videoFolder 中:', vfIds.includes(pageResourceId))
+            }
+          }
+        }
         if (!result || !result.ok) {
           throw new Error(result?.message || '[GenericResourceView] 获取页面数据失败')
         }
         const loadedData = result.data
-        console.log(`[GenericResourceView] 从数据库加载成功，共 ${loadedData.length} 条记录`)
+        console.log(`[GenericResourceView] loadedData 条数: ${loadedData?.length ?? 0}`, loadedData?.length > 0 ? `首条 keys: ${Object.keys(loadedData[0] || {}).join(',')}` : '')
         if (ResourceClass && ResourceClass.fromJSON) {
-          items.value = loadedData.map((data: any) => ResourceClass.fromJSON(data))
+          const converted: any[] = []
+          for (let i = 0; i < (loadedData?.length || 0); i++) {
+            try {
+              converted.push(ResourceClass.fromJSON(loadedData[i]))
+            } catch (e) {
+              console.error(`[GenericResourceView] fromJSON 第 ${i} 条失败:`, loadedData[i], e)
+              throw e
+            }
+          }
+          items.value = converted
+          console.log(`[GenericResourceView] fromJSON 转换完成，items.length=${items.value.length}`)
         } else {
-          items.value = loadedData
+          items.value = loadedData || []
         }
         if (filterComposable.extractAllFilters) {
           filterComposable.extractAllFilters()
@@ -1891,6 +1944,7 @@ export default defineComponent({
         }
       } catch (error) {
         console.error(`[GenericResourceView] 页面 ${pageId} 数据加载失败:`, error)
+        console.error(`[GenericResourceView] 错误堆栈:`, (error as Error)?.stack)
         throw error
       } finally {
         isLoadingData.value = false
@@ -1991,6 +2045,89 @@ export default defineComponent({
       const area = config?.previewArea
       return area === 'useSelfFolder' || area === 'useScreenshotFolder'
     })
+
+    // 番剧详情页是否显示视频列表（用于替换视频页时展示集数，包含空列表时显示“未找到视频”）
+    const isAnimeWithFolderVideos = computed(() => {
+      if (resourceType.value !== 'Anime') return false
+      const item = resourcePage.selectedItem.value
+      return !!item && Array.isArray(item.folderVideos)
+    })
+
+    // 播放番剧文件夹中的视频
+    const playFolderVideo = async (video: { name: string; path: string }) => {
+      try {
+        if (window.electronAPI?.checkFileExists) {
+          const result = await window.electronAPI.checkFileExists(video.path)
+          if (!result?.exists) {
+            notify.toast('error', '播放失败', `番剧文件不存在: ${video.name}`)
+            return
+          }
+        }
+        const saveManagerModule = await import('../utils/SaveManager.ts')
+        const settings = await saveManagerModule.default.loadSettings()
+        const playMode = settings?.videoPlayMode === 'internal' ? 'internal' : 'external'
+        if (playMode === 'internal') {
+          await videoPlaybackComposable.playVideoInternal({ name: video.name, filePath: video.path })
+        } else {
+          await videoPlaybackComposable.playVideoExternal({ name: video.name, filePath: video.path })
+        }
+        notify.toast('success', '播放成功', `正在播放: ${video.name}`)
+      } catch (error: any) {
+        console.error('[GenericResourceView] 播放番剧视频失败:', error)
+        notify.toast('error', '播放失败', `播放失败: ${error?.message || '未知错误'}`)
+      }
+    }
+
+    // 番剧视频缩略图 URL（FolderVideosGrid 使用）
+    const getThumbnailUrlForFolderVideo = (thumbnail: string) => {
+      return videoThumbnailComposable.getThumbnailUrl(thumbnail)
+    }
+
+    const handleFolderVideoThumbnailError = (event: Event) => {
+      videoThumbnailComposable.handleThumbnailError(event)
+    }
+
+    // 为番剧文件夹中的视频生成缩略图
+    const generateFolderVideoThumbnail = async (video: { name: string; path: string; thumbnail?: string; isGeneratingThumbnail?: boolean }, index: number) => {
+      const selectedItem = resourcePage.selectedItem.value
+      if (!selectedItem) return
+      try {
+        video.isGeneratingThumbnail = true
+        const folderName = BaseResources.extractPrimitiveValue(selectedItem.name?.value || selectedItem.name) || '未知'
+        const cleanFolderName = folderName.replace(/[^\w\u4e00-\u9fa5\-_]/g, '_')
+        const videoFileName = video.path.split(/[\\/]/).pop() || ''
+        const nameWithoutExt = videoFileName.replace(/\.[^/.]+$/, '')
+        const cleanVideoName = nameWithoutExt.replace(/[^\w\u4e00-\u9fa5\-_]/g, '_')
+        const maxNumber = await videoThumbnailComposable.getMaxFolderVideoThumbnailNumber(cleanFolderName, cleanVideoName)
+        const thumbnailFilename = `${cleanFolderName}/${cleanVideoName}_cover_${maxNumber + 1}.jpg`
+        if (video.thumbnail?.trim()) {
+          await videoThumbnailComposable.deleteOldThumbnail(video.thumbnail)
+        }
+        const thumbnailPath = await videoThumbnailComposable.generateThumbnailForFolderVideo(video.path, thumbnailFilename)
+        if (thumbnailPath) {
+          video.thumbnail = thumbnailPath
+          const videoInList = selectedItem.folderVideos?.[index]
+          if (videoInList) videoInList.thumbnail = thumbnailPath
+          const originalItem = items.value.find((i: any) => (i.id?.value || i.id) === (selectedItem.id?.value || selectedItem.id))
+          if (originalItem?.folderVideos?.[index]) {
+            originalItem.folderVideos[index].thumbnail = thumbnailPath
+          }
+          try {
+            await saveData()
+          } catch (e) {
+            console.warn('[GenericResourceView] 保存番剧缩略图失败:', e)
+          }
+          notify.toast('success', '生成成功', `缩略图已生成: ${video.name}`)
+        } else {
+          notify.toast('error', '生成失败', '无法生成缩略图，请检查视频文件是否有效')
+        }
+      } catch (error: any) {
+        console.error('[GenericResourceView] 生成番剧视频缩略图失败:', error)
+        notify.toast('error', '生成失败', `生成缩略图失败: ${error?.message || '未知错误'}`)
+      } finally {
+        video.isGeneratingThumbnail = false
+      }
+    }
     
     // 监听详情面板显示，同步 showDetailModal（完全复刻 ImageView.vue）
     watch(
@@ -2000,7 +2137,7 @@ export default defineComponent({
       }
     )
     
-    // 监听详情面板显示，如果是 Image/Manga 类型且配置启用了预览，加载图片列表（完全复刻 ImageView.vue 的 showAlbumDetail 方法）
+    // 监听详情面板显示，加载预览内容（图片列表 或 番剧视频列表）
     watch(
       () => [resourcePage.showDetailDialog.value, resourcePage.selectedItem.value],
       async ([showDetail, selectedItem]) => {
@@ -2008,8 +2145,33 @@ export default defineComponent({
           const ResourceClass = selectedItem.constructor
           const config = ResourceClass?.detailPanelConfig
           const previewArea = config?.previewArea
+
+          // 番剧类型：加载文件夹内的视频列表（用于替换视频页时展示集数）
+          const isAnimeFolder = resourceType.value === 'Anime'
+          if (isAnimeFolder) {
+            const folderPath = BaseResources.extractPrimitiveValue(
+              selectedItem.resourcePath?.value || selectedItem.resourcePath
+            )
+            if (folderPath && !selectedItem.folderVideos) {
+              try {
+                const folder = { ...selectedItem, folderPath: folderPath || selectedItem.folderPath }
+                const folderVideos = await videoFolderComposable.getFolderVideos(folder)
+                selectedItem.folderVideos = folderVideos
+                selectedItem.videoCount = folderVideos.length
+                const originalItem = items.value.find((i: any) => (i.id?.value || i.id) === (selectedItem.id?.value || selectedItem.id))
+                if (originalItem) {
+                  originalItem.folderVideos = folderVideos
+                  originalItem.videoCount = folderVideos.length
+                }
+              } catch (error) {
+                console.error('[GenericResourceView] 加载番剧视频列表失败:', error)
+                selectedItem.folderVideos = []
+              }
+            }
+          }
+
+          // Image/Manga 类型：加载图片列表
           const shouldLoad = previewArea === 'useSelfFolder' || previewArea === 'useScreenshotFolder'
-          
           if (shouldLoad) {
             try {
               detailPages.value = []
@@ -2193,6 +2355,13 @@ export default defineComponent({
       updateResource: resourcePage.updateResource,
       // 详情面板类型映射（计算属性）
       detailPanelType,
+      shouldShowPreview,
+      // 番剧详情页视频列表（用于替换视频页）
+      isAnimeWithFolderVideos,
+      playFolderVideo,
+      getThumbnailUrlForFolderVideo,
+      handleFolderVideoThumbnailError,
+      generateFolderVideoThumbnail,
       // 详情页图片预览相关（完全复刻 ImageView.vue）
       // 图片缓存相关
       ...imageCacheComposable,
