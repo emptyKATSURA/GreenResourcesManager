@@ -243,6 +243,7 @@ async function getDemoData() {
         actors TEXT,
         resourcePath TEXT,
         thumbnail TEXT,
+        duration INTEGER DEFAULT 0,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -594,7 +595,8 @@ async function getPageData(pageId) {
     const Database = require('better-sqlite3')
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
-    
+    ensureVideoDurationColumn(db)
+
     // 将页面ID转换为表名
     const tableName = `${pageId.replace(/-/g, '_')}_page`
     const quotedTableName = `"${tableName}"`
@@ -938,13 +940,30 @@ async function addResourceToPage(pageId, resourceType, resourceId) {
  * 资源表仅由 getDemoData 创建，用户未打开「数据库」页时不存在，导致拖拽保存失败
  * @param {object} db - better-sqlite3 Database 实例
  */
+/**
+ * 确保 video 表存在 duration 列（兼容旧数据库迁移）
+ * @param {object} db - better-sqlite3 Database 实例
+ */
+function ensureVideoDurationColumn(db) {
+  try {
+    const tableInfo = db.prepare('PRAGMA table_info(video)').all()
+    const hasDuration = tableInfo.some(col => col.name === 'duration')
+    if (!hasDuration) {
+      db.exec('ALTER TABLE video ADD COLUMN duration INTEGER DEFAULT 0')
+      console.log('[SQLite] video 表已添加 duration 列')
+    }
+  } catch (e) {
+    console.warn('[SQLite] ensureVideoDurationColumn:', e.message)
+  }
+}
+
 function ensureResourceTablesExist(db) {
   const ddl = [
     `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, developers TEXT, publisher TEXT, tags TEXT, engine TEXT, coverPath TEXT, resourcePath TEXT, folderSize INTEGER DEFAULT 0, playTime INTEGER DEFAULT 0, playCount INTEGER DEFAULT 0, lastPlayed TEXT, firstPlayed TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS manga (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, pagesCount INTEGER DEFAULT 0, lastViewed TEXT, viewCount INTEGER DEFAULT 0, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS audio (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, artist TEXT, tags TEXT, actors TEXT, resourcePath TEXT, coverPath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS novel (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, genre TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, publishYear TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS video (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, resourcePath TEXT, thumbnail TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS video (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, resourcePath TEXT, thumbnail TEXT, duration INTEGER DEFAULT 0, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS software (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, developer TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS website (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, resourcePath TEXT, tags TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS singleImage (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
@@ -952,6 +971,7 @@ function ensureResourceTablesExist(db) {
     `CREATE TABLE IF NOT EXISTS videoFolder (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, voiceActors TEXT, productionTeam TEXT, resourcePath TEXT, thumbnail TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`
   ]
   for (const sql of ddl) db.exec(sql)
+  ensureVideoDurationColumn(db)
 }
 
 /**

@@ -275,6 +275,7 @@ import { getGameScreenshotFolderPath } from '../composables/game/useGameScreensh
 import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
 import { useImageCache } from '../composables/image/useImageCache'
+import { useVideoDuration } from '../composables/video/useVideoDuration'
 import ResourcesEditDialog from './ResourcesEditDialog.vue'
 import type { FilterItem } from '../types/filter'
 
@@ -405,6 +406,8 @@ export default defineComponent({
     
     // 数据加载状态
     const isLoadingData = ref(false)
+
+    const { getVideoDuration } = useVideoDuration()
     
     /**
      * 从文件路径提取资源名称
@@ -1773,6 +1776,40 @@ export default defineComponent({
       }
     }
 
+    /**
+     * 刷新未知时长的视频（仅对 duration 为 0 或未设置的项更新，已有时长的不刷新）
+     */
+    const refreshUnknownVideoDurations = async () => {
+      const toUpdate = items.value.filter((item: any) => {
+        const duration = BaseResources.extractPrimitiveValue(item.duration?.value ?? item.duration)
+        return (duration === undefined || duration === null || duration === 0) && item.resourcePath != null
+      })
+      if (toUpdate.length === 0) return
+      console.log(`[GenericResourceView] 开始刷新 ${toUpdate.length} 个未知时长的视频...`)
+      let updatedCount = 0
+      for (const item of toUpdate) {
+        const path = BaseResources.extractPrimitiveValue(item.resourcePath?.value || item.resourcePath)
+        if (!path || typeof path !== 'string' || !path.trim()) continue
+        try {
+          const duration = await getVideoDuration(path)
+          if (duration > 0) {
+            if (item.duration && typeof item.duration === 'object' && 'value' in item.duration) {
+              item.duration.value = duration
+            } else {
+              item.duration = duration
+            }
+            updatedCount++
+          }
+        } catch (e) {
+          console.warn('[GenericResourceView] 获取视频时长失败:', path, e)
+        }
+      }
+      if (updatedCount > 0) {
+        await saveData()
+        console.log(`[GenericResourceView] 已刷新 ${updatedCount} 个视频时长并保存`)
+      }
+    }
+
     // 监听请求更新游戏时长事件（实时更新总时长）
     const handleRequestUpdatePlaytime = (event: CustomEvent) => {
       const { gameId } = event.detail
@@ -1893,6 +1930,10 @@ export default defineComponent({
         await checkFileExistence()
         // 自动计算资源大小
         await calculateResourceSizes()
+        // 视频页：首次进入时刷新所有未知时长的视频（已有时长的不刷新）
+        if (resourceType.value === 'Video') {
+          refreshUnknownVideoDurations()
+        }
       }
     })
     
