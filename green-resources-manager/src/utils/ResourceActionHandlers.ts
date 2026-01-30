@@ -692,8 +692,36 @@ export const playVideoHandler: ActionHandler = async (resource, context) => {
   }
 }
 
+/**
+ * 用系统默认应用打开资源
+ * 适用于 Other 等任意文件类型，调用 shell.openPath / openExternal 用系统默认程序打开
+ */
+export const launchDefaultHandler: ActionHandler = async (resource, context) => {
+  try {
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    const filePath = BaseResources.extractPrimitiveValue(
+      resource.resourcePath?.value || resource.resourcePath || resource.filePath?.value || resource.filePath
+    )
+    if (!filePath || !filePath.trim()) {
+      notify.toast('error', '打开失败', `资源 "${resourceName}" 没有配置文件路径`)
+      return
+    }
+    if (context.isElectronEnvironment && window.electronAPI?.openExternal) {
+      await window.electronAPI.openExternal(filePath)
+      if (context.closeDetail) context.closeDetail()
+    } else {
+      notify.toast('warning', '打开失败', '当前环境无法用系统默认应用打开文件')
+    }
+  } catch (error: any) {
+    console.error('[ResourceActionHandlers] 用默认应用打开失败:', error)
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    notify.toast('error', '打开失败', `${resourceName}: ${error?.message || '未知错误'}`)
+  }
+}
+
 // 注册默认的 handlers
 registerActionHandler('launchExecutable', launchExecutableHandler)
+registerActionHandler('launchDefault', launchDefaultHandler)
 registerActionHandler('openAlbum', openAlbumHandler)
 registerActionHandler('openNovelReader', openNovelReaderHandler)
 registerActionHandler('openWebsite', openWebsiteHandler)

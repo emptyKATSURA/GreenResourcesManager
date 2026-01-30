@@ -101,12 +101,12 @@ export class Other extends BaseResources {
 		enableExport: true
 	}
 
-	// 静态配置：启动方式配置
+	// 静态配置：启动方式配置（用系统默认应用打开）
 	static actionConfig = {
 		key: 'launch',
 		icon: '▶️',
 		label: '打开资源',
-		handlerName: 'launchExecutable' // 使用通用的可执行文件启动 handler
+		handlerName: 'launchDefault' // 用系统默认应用打开文件
 	}
 
 	// 静态方法：获取显示文本配置（支持多态）
