@@ -40,7 +40,7 @@ export class WebsitePage extends BasePage {
       title: '你的网站库是空的',
       description: '点击"添加网站"按钮来添加你的第一个网站',
       buttonText: '添加第一个网站',
-      buttonAction: 'showAddGameDialog'
+      buttonAction: 'showAddDialog'
     }
   }
   

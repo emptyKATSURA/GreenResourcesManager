@@ -92,15 +92,6 @@ export class Other extends BaseResources {
 		{ key: 'remove', icon: '🗑️', label: '删除资源' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '📄',
-		title: '暂无其它资源',
-		description: '点击"添加"按钮或拖拽文件到此处添加资源',
-		buttonText: '添加资源',
-		buttonAction: 'showAddDialog'
-	}
-
 	// 静态配置：工具栏配置
 	static toolbarConfig = {
 		title: '其它资源',

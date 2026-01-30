@@ -215,6 +215,7 @@ import { ref, computed, PropType, toRefs } from 'vue'
 import { PageConfig } from '../../types/page'
 import { EpubParser } from '../../utils/EpubParser'
 import { useDisplayLayout } from '../../composables/useDisplayLayout'
+import { createEmptyStateConfig } from '../../composables/useResourcePage'
 
 import notify from '../../utils/NotificationService.ts'
 import alertService from '../../utils/AlertService.ts'
@@ -315,7 +316,12 @@ export default {
       ...displayLayoutComposable,
       // 路径更新对话框
       showPathUpdateDialog,
-      pathUpdateInfo
+      pathUpdateInfo,
+      // 空状态配置（来自页面配置）
+      novelEmptyStateConfig: (() => {
+        const esc = novelPage.getEmptyStateConfig()
+        return createEmptyStateConfig(novelPage.name, esc.icon, esc.title, esc.description, esc.buttonText, esc.buttonAction)
+      })()
     }
   },
   data() {
@@ -346,16 +352,6 @@ export default {
         novelTextColor: '#333333',
         novelWordsPerPage: 1000,
         novelShowProgress: true
-      },
-      // 空状态配置
-      novelEmptyStateConfig: {
-        ...Novel.emptyStateConfig,
-        noResultsIcon: '🔍',
-        noResultsTitle: '没有找到匹配的小说',
-        noResultsDescription: '尝试使用不同的搜索词',
-        noPageDataIcon: '📄',
-        noPageDataTitle: '当前页没有小说',
-        noPageDataDescription: '请切换到其他页面查看小说'
       },
       // 工具栏配置
       novelToolbarConfig: {

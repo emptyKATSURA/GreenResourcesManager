@@ -40,7 +40,7 @@ export class VideoPage extends BasePage {
       title: '你的电影库是空的',
       description: '点击"添加电影"按钮来添加你的第一部电影',
       buttonText: '添加第一部电影',
-      buttonAction: 'showAddGameDialog'
+      buttonAction: 'showAddVideoDialog'
     }
   }
   

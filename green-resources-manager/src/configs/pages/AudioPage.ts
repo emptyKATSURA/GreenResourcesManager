@@ -40,7 +40,7 @@ export class AudioPage extends BasePage {
       title: '你的音频库是空的',
       description: '点击"添加音频"按钮来添加你的第一个音频文件',
       buttonText: '添加第一个音频',
-      buttonAction: 'showAddGameDialog'
+      buttonAction: 'showAddDialog'
     }
   }
   

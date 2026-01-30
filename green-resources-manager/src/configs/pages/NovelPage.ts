@@ -42,7 +42,7 @@ export class NovelPage extends BasePage {
 			title: '你的小说库是空的',
 			description: '点击"添加小说"按钮来添加你的第一本小说',
 			buttonText: '添加第一本小说',
-			buttonAction: 'showAddGameDialog'
+			buttonAction: 'showAddNovelDialog'
 		}
 	}
 	

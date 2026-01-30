@@ -108,15 +108,6 @@ export class Video extends BaseResources {
 		{ key: 'remove', icon: '🗑️', label: '删除视频' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '🎬',
-		title: '你的视频库是空的',
-		description: '点击"添加视频"或"添加文件夹"按钮来添加内容，或直接拖拽视频文件/文件夹到此处（支持多选）',
-		buttonText: '添加第一个视频',
-		buttonAction: 'showAddVideoDialog'
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'play',

@@ -148,6 +148,8 @@ import VideoSelector from '../video/VideoSelector.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Video } from '@resources/video.ts'
 import { VideoFolder } from '@resources/videoFolder.ts'
+import { VideoPage } from '../../configs/pages/VideoPage'
+import { createEmptyStateConfig } from '../../composables/useResourcePage'
 import FolderVideosGrid from '../../components/video/FolderVideosGrid.vue'
 
 import saveManager from '../../utils/SaveManager.ts'
@@ -396,16 +398,7 @@ export default {
       videoContextMenuItems: Video.contextMenuItems,
       // 标签、演员、系列筛选相关已移至 useVideoFilter composable
       // 视频列表分页相关已移至 usePagination composable
-      // 空状态配置
-      videoEmptyStateConfig: {
-        ...Video.emptyStateConfig,
-        noResultsIcon: '🔍',
-        noResultsTitle: '没有找到匹配的内容',
-        noResultsDescription: '尝试使用不同的搜索词',
-        noPageDataIcon: '📄',
-        noPageDataTitle: '当前页没有内容',
-        noPageDataDescription: '请尝试切换到其他页面'
-      },
+      videoPage: new VideoPage(),
       // 工具栏配置
       videoToolbarConfig: {
         ...Video.toolbarConfig,
@@ -414,6 +407,12 @@ export default {
     }
   },
   computed: {
+    videoEmptyStateConfig(): any {
+      const p = this.videoPage
+      if (!p || !p.getEmptyStateConfig) return {}
+      const esc = p.getEmptyStateConfig()
+      return createEmptyStateConfig(p.name, esc.icon, esc.title, esc.description, esc.buttonText, esc.buttonAction)
+    },
     // 合并视频和文件夹，用于空状态判断
     // allItems 从 useVideoFilter composable 中获取（通过 setup 暴露），已经合并了 videos 和 folders
     // 这样 BaseView 在判断空状态时会同时考虑视频和文件夹

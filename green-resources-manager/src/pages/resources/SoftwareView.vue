@@ -144,6 +144,7 @@ import { useGameRunningStore } from '../../stores/game-running'
 import { useDisplayLayout } from '../../composables/useDisplayLayout'
 import { executeActionHandler, type ActionHandlerContext } from '../../utils/ResourceActionHandlers'
 import { SoftwarePage } from '../../configs/pages/SoftwarePage'
+import { createEmptyStateConfig } from '../../composables/useResourcePage'
 
 export default {
   name: 'SoftwareView',
@@ -278,6 +279,11 @@ export default {
       ...playTimeComposable,
       // 暴露 gameRunningStore 供组件使用
       gameRunningStore,
+      // 空状态配置（来自页面配置）
+      gameEmptyStateConfig: (() => {
+        const esc = softwarePage.getEmptyStateConfig()
+        return createEmptyStateConfig(softwarePage.name, esc.icon, esc.title, esc.description, esc.buttonText, esc.buttonAction)
+      })(),
       // 分页相关
       ...toRefs(paginationComposable),
       ...paginationComposable,
@@ -383,16 +389,6 @@ export default {
       // Software 类用于 ResourcesEditDialog
       Software: Software,
       // 分页相关已移至 useGamePagination composable
-      // 空状态配置
-      gameEmptyStateConfig: {
-        ...Software.emptyStateConfig,
-        noResultsIcon: '🔍',
-        noResultsTitle: '没有找到匹配的软件',
-        noResultsDescription: '尝试使用不同的搜索词',
-        noPageDataIcon: '📄',
-        noPageDataTitle: '当前页没有软件',
-        noPageDataDescription: '请切换到其他页面查看软件'
-      },
       // 工具栏配置
       gameToolbarConfig: {
         ...Software.toolbarConfig,

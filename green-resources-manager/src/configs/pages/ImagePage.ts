@@ -42,7 +42,7 @@ export class ImagePage extends BasePage {
 			title: '你的图片库是空的',
 			description: '点击"添加图片"按钮来添加你的第一个图片文件夹',
 			buttonText: '添加第一个图片',
-			buttonAction: 'showAddGameDialog'
+			buttonAction: 'showAddAlbumDialog'
 		}
 	}
 	

@@ -79,15 +79,6 @@ export class Website extends BaseResources {
 		{ key: 'delete', icon: '🗑️', label: '删除网站' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '🌐',
-		title: '你的网站收藏是空的',
-		description: '点击"添加网站"按钮来添加你的第一个网站收藏',
-		buttonText: '添加第一个网站',
-		buttonAction: 'showAddDialog'
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'visit',

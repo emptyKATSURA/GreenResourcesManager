@@ -40,7 +40,7 @@ export class SingleImagePage extends BasePage {
       title: '你的单图库是空的',
       description: '点击"添加单图"按钮来添加你的第一张图片',
       buttonText: '添加第一张图片',
-      buttonAction: 'showAddGameDialog'
+      buttonAction: 'showAddDialog'
     }
   }
   

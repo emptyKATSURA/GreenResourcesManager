@@ -169,6 +169,7 @@ import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Manga } from '@resources/manga.ts'
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import { ImagePage } from '../../configs/pages/ImagePage'
+import { createEmptyStateConfig } from '../../composables/useResourcePage'
 import AlbumPagesGrid from '../../components/image/AlbumPagesGrid.vue'
 import FunGrid from '../../fun-ui/layout/Grid/FunGrid.vue'
 
@@ -415,6 +416,10 @@ export default {
       updateAlbumResource,
       // 页面配置
       imagePage,
+      albumEmptyStateConfig: (() => {
+        const esc = imagePage.getEmptyStateConfig()
+        return createEmptyStateConfig(imagePage.name, esc.icon, esc.title, esc.description, esc.buttonText, esc.buttonAction)
+      })(),
       sortOptions,
       // 工具函数
       BaseResources
@@ -465,16 +470,6 @@ export default {
       currentPageIndex: 0,
       // 分页相关（详情页内图片分页）已移至 useImagePages composable
       // 漫画列表分页相关已移至 usePagination composable
-      // 空状态配置
-      albumEmptyStateConfig: {
-        ...Manga.emptyStateConfig,
-        noResultsIcon: '🔍',
-        noResultsTitle: '没有找到匹配的漫画',
-        noResultsDescription: '尝试使用不同的搜索词',
-        noPageDataIcon: '📄',
-        noPageDataTitle: '当前页没有漫画',
-        noPageDataDescription: '请尝试切换到其他页面'
-      },
       // 工具栏配置（将在 computed 中定义，使用 setup 返回的 sortOptions）
     }
   },

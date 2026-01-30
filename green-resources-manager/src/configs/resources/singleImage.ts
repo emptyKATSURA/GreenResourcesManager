@@ -88,15 +88,6 @@ export class SingleImage extends BaseResources {
 		{ key: 'remove', icon: '🗑️', label: '删除图片' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '🖼️',
-		title: '还没有添加图片',
-		description: '点击"添加图片"按钮选择图片文件，或直接拖拽图片文件到此处（支持多选，支持 .jpg、.jpeg、.png、.gif、.bmp、.webp、.svg 等格式）',
-		buttonText: '添加第一个图片',
-		buttonAction: 'showAddAlbumDialog'
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'open',

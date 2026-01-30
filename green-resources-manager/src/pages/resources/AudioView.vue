@@ -121,6 +121,7 @@ import DetailPanel from '../../components/DetailPanel.vue'
 import PathUpdateDialog from '../../components/PathUpdateDialog.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Audio } from '@resources/audio.ts'
+import { AudioPage } from '../../configs/pages/AudioPage'
 
 import saveManager from '../../utils/SaveManager.ts'
 import notify from '../../utils/NotificationService.ts'
@@ -153,6 +154,7 @@ export default {
 
     // 使用显示布局 composable
     const displayLayoutComposable = useDisplayLayout(80, 280)
+    const audioPage = new AudioPage()
     
     // 初始化音频管理 composable
     const audioManagement = useAudioManagement()
@@ -240,7 +242,7 @@ export default {
         edit: (audio: any) => resourcePage.showEdit(audio),
         delete: (audio: any) => resourcePage.deleteItem(audio)
       },
-      emptyState: Audio.emptyStateConfig,
+      emptyState: audioPage.getEmptyStateConfig(),
       toolbar: Audio.toolbarConfig,
       displayLayout: {
         minWidth: 80,

@@ -939,7 +939,7 @@ export default defineComponent({
           }
         },
         loadAlbumPages: async () => {
-          // 加载专辑的图片文件列表
+          // 加载专辑的图片文件列表（也支持单图：路径为单个图片文件时直接作为一页）
           if (!currentAlbum.value) {
             console.warn('[GenericResourceView] 当前专辑为空，无法加载页面')
             return
@@ -951,6 +951,13 @@ export default defineComponent({
           
           if (!resourcePath) {
             console.warn('[GenericResourceView] 专辑路径为空，无法加载页面')
+            return
+          }
+          
+          // 单图：路径为单个图片文件时，直接作为一页（复用漫画阅读器）
+          const singleImageExt = /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff|tif|heic|heif)$/i
+          if (singleImageExt.test(resourcePath.trim())) {
+            pages.value = [resourcePath]
             return
           }
           

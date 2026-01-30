@@ -167,15 +167,6 @@ export class Game extends BaseResources {
     { key: 'remove', icon: '🗑️', label: '删除游戏' }
   ]
 
-  // 静态配置：空状态配置
-  static emptyStateConfig = {
-    icon: '🎮',
-    title: '你的游戏库是空的',
-    description: '点击"添加游戏"按钮来添加你的第一个游戏，或直接拖拽游戏文件（.exe、.swf、.bat）或压缩包（.zip、.rar、.7z 等）到此处',
-    buttonText: '添加第一个游戏',
-    buttonAction: 'showAddGameDialog'
-  }
-
   // 静态配置：启动方式配置
   static actionConfig = {
     key: 'launch',

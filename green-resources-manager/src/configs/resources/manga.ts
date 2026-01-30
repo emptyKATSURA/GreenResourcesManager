@@ -113,16 +113,6 @@ export class Manga extends BaseResources {
 		{ key: 'remove', icon: '🗑️', label: '删除漫画' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '🖼️',
-		title: '还没有添加漫画',
-		description: '点击"添加漫画"按钮选择文件夹或压缩包，或直接拖拽文件夹/压缩包到此处（支持多选，支持 .zip、.rar、.7z、.cbr、.cbz、.pdf 等格式，不支持单个图片文件）',
-		buttonText: '添加第一个漫画',
-		buttonAction: 'showAddAlbumDialog'
-	}
-
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'open',

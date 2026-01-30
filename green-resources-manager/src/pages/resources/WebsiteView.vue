@@ -102,6 +102,8 @@ import BaseView from '../../components/BaseView.vue'
 import FormField from '../../components/FormField.vue'
 import ResourcesEditDialog from '../../components/ResourcesEditDialog.vue'
 import { Website } from '@resources/website.ts'
+import { WebsitePage } from '../../configs/pages/WebsitePage'
+import { createEmptyStateConfig } from '../../composables/useResourcePage'
 import MediaCard from '../../components/MediaCard.vue'
 import DetailPanel from '../../components/DetailPanel.vue'
 
@@ -203,20 +205,11 @@ export default {
       isElectronEnvironment: false,
       // Website 类用于 ResourcesEditDialog
       Website: Website,
+      websitePage: new WebsitePage(),
       // 拖拽相关
       isDragOver: false,
       isImporting: false,
       importProgress: '',
-      // 空状态配置
-      websiteEmptyStateConfig: {
-        ...Website.emptyStateConfig,
-        noResultsIcon: '🔍',
-        noResultsTitle: '没有找到匹配的网站',
-        noResultsDescription: '尝试使用不同的搜索词',
-        noPageDataIcon: '📄',
-        noPageDataTitle: '当前页没有网站',
-        noPageDataDescription: '请切换到其他页面查看网站'
-      },
       // 工具栏配置
       websiteToolbarConfig: {
         ...Website.toolbarConfig,
@@ -227,6 +220,12 @@ export default {
     }
   },
   computed: {
+    websiteEmptyStateConfig(): any {
+      const p = this.websitePage
+      if (!p || !p.getEmptyStateConfig) return {}
+      const esc = p.getEmptyStateConfig()
+      return createEmptyStateConfig(p.name, esc.icon, esc.title, esc.description, esc.buttonText, esc.buttonAction)
+    },
     // filteredWebsites 现在通过 filterComposable.filteredWebsites 访问
     // paginatedWebsites 现在通过 paginationComposable.paginatedItems 访问
     // websitePaginationConfig 现在通过 paginationComposable.paginationConfig 访问

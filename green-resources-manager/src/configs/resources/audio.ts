@@ -104,15 +104,6 @@ export class Audio extends BaseResources {
 		{ key: 'delete', icon: '🗑️', label: '删除音频' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '🎵',
-		title: '你的音频库是空的',
-		description: '点击"添加音频"按钮来添加你的第一个音频',
-		buttonText: '添加第一个音频',
-		buttonAction: 'showAddDialog'
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'play',

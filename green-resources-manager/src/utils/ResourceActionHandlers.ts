@@ -6,6 +6,7 @@
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import { isArchiveFile } from '../composables/useArchive'
 import notify from './NotificationService.ts'
+import saveManager from './SaveManager.ts'
 
 /**
  * Action Handler 函数类型
@@ -337,6 +338,14 @@ export const openAlbumHandler: ActionHandler = async (resource, context) => {
 }
 
 /**
+ * 打开单图的 Handler
+ * 复用漫画阅读器逻辑：将单图视为「仅一页的专辑」，走 setCurrentAlbum -> loadAlbumPages -> showComicViewer
+ */
+export const openImageHandler: ActionHandler = async (resource, context) => {
+  await openAlbumHandler(resource, context)
+}
+
+/**
  * 打开小说阅读器的通用 Handler
  * 适用于小说资源类型
  */
@@ -599,9 +608,95 @@ export const playAudioHandler: ActionHandler = async (resource, context) => {
   }
 }
 
+/**
+ * 播放视频的 Handler
+ * 适用于 Video 资源类型，逻辑与 VideoView / useVideoPlayback 一致
+ */
+export const playVideoHandler: ActionHandler = async (resource, context) => {
+  try {
+    const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    const filePath = BaseResources.extractPrimitiveValue(
+      resource.resourcePath?.value || resource.resourcePath
+    )
+    const fileExists = BaseResources.extractPrimitiveValue(resource.fileExists?.value ?? resource.fileExists)
+    const watchCountValue = BaseResources.extractPrimitiveValue(resource.watchCount?.value || resource.watchCount) || 0
+    const lastWatchedValue = BaseResources.extractPrimitiveValue(resource.lastWatched?.value || resource.lastWatched)
+
+    if (!filePath) {
+      notify.toast('error', '播放失败', `视频 "${resourceName}" 没有配置视频路径`)
+      return
+    }
+
+    if (fileExists === false) {
+      notify.toast('error', '播放失败', `视频文件不存在: ${resourceName}`)
+      return
+    }
+
+    const settings = await saveManager.loadSettings()
+    const playMode = settings?.videoPlayMode === 'internal' ? 'internal' : 'external'
+
+    if (playMode === 'internal') {
+      if (window.electronAPI?.getFileUrl) {
+        const accessResult = await window.electronAPI.getFileUrl(filePath)
+        if (!accessResult?.success) {
+          notify.toast('error', '播放失败', `视频文件不可访问: ${accessResult?.error || '未知错误'}`)
+          return
+        }
+      }
+      if (window.electronAPI?.openVideoWindow) {
+        const result = await window.electronAPI.openVideoWindow(filePath, {
+          title: resourceName,
+          width: 1200,
+          height: 800,
+          resizable: true,
+          minimizable: true,
+          maximizable: true
+        })
+        if (!result?.success) {
+          notify.toast('error', '播放失败', result?.error || '打开视频窗口失败')
+          return
+        }
+      } else {
+        notify.toast('error', '播放失败', '内部播放器不可用')
+        return
+      }
+    } else {
+      if (window.electronAPI?.openExternal) {
+        await window.electronAPI.openExternal(filePath)
+      } else {
+        notify.toast('error', '播放失败', '无法打开外部播放器')
+        return
+      }
+    }
+
+    const updates: any = {
+      lastWatched: new Date().toISOString(),
+      watchCount: watchCountValue + 1
+    }
+    if (context.updateResource && resourceId) {
+      try {
+        await context.updateResource(resourceId, updates)
+      } catch (e) {
+        console.warn('[ResourceActionHandlers] 更新观看统计失败:', e)
+      }
+    }
+
+    if (context.closeDetail) {
+      context.closeDetail()
+    }
+  } catch (error: any) {
+    console.error('[ResourceActionHandlers] 播放视频失败:', error)
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    notify.toast('error', '播放失败', `播放视频失败: ${error?.message || '未知错误'}`)
+  }
+}
+
 // 注册默认的 handlers
 registerActionHandler('launchExecutable', launchExecutableHandler)
 registerActionHandler('openAlbum', openAlbumHandler)
 registerActionHandler('openNovelReader', openNovelReaderHandler)
 registerActionHandler('openWebsite', openWebsiteHandler)
 registerActionHandler('playAudio', playAudioHandler)
+registerActionHandler('playVideo', playVideoHandler)
+registerActionHandler('openImage', openImageHandler)

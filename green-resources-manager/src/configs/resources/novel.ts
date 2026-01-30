@@ -108,15 +108,6 @@ export class Novel extends BaseResources {
 		{ key: 'remove', icon: '🗑️', label: '删除小说' }
 	]
 
-	// 静态配置：空状态配置
-	static emptyStateConfig = {
-		icon: '📚',
-		title: '你的小说库是空的',
-		description: '点击"添加小说"按钮来添加你的第一本小说',
-		buttonText: '添加第一本小说',
-		buttonAction: 'showAddNovelDialog'
-	}
-
 	// 静态配置：启动方式配置
 	static actionConfig = {
 		key: 'read',

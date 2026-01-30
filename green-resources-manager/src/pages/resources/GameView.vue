@@ -357,7 +357,7 @@ export default {
       },
       contextMenuItems: Game.contextMenuItems,
       contextMenuHandlers: contextMenuHandlers,
-      emptyState: Game.emptyStateConfig,
+      emptyState: gamePage.getEmptyStateConfig(),
       toolbar: {
         ...Game.toolbarConfig,
         // 从页面配置获取排序选项（只提取 value 和 label，用于工具栏显示）

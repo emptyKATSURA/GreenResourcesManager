@@ -42,7 +42,7 @@ export class SoftwarePage extends BasePage {
 			title: '你的软件库是空的',
 			description: '点击"添加软件"按钮来添加你的第一个软件，或直接拖拽软件文件（.exe、.swf、.bat）或压缩包（.zip、.rar、.7z 等）到此处',
 			buttonText: '添加第一个软件',
-			buttonAction: 'showAddGameDialog'
+			buttonAction: 'showAddDialog'
 		}
 	}
 	
