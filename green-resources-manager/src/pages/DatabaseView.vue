@@ -152,38 +152,15 @@ const formatCellValue = (value: any): string => {
 
 // 字段映射配置：将旧存档的字段名映射到新存档的字段名
 const fieldMapping: Record<string, Record<string, string>> = {
-  'games': {
-    'executablePath': 'resourcePath'
-  },
-  'software': {
-    'executablePath': 'resourcePath'
-  },
-  'images': {
-    'folderPath': 'resourcePath',
-    'cover': 'coverPath'
-  },
-  'single-image': {
-    'folderPath': 'resourcePath',
-    'cover': 'coverPath'
-  },
-  'videos': {
-    'filePath': 'resourcePath'
-    // video 表的 thumbnail 字段保持不变，不需要映射
-  },
-  'anime-series': {
-    'folderPath': 'resourcePath'
-    // videoFolder 表的 thumbnail 字段保持不变，不需要映射
-  },
-  'audio': {
-    'filePath': 'resourcePath',
-    'thumbnail': 'coverPath'  // audio 表使用 coverPath
-  },
-  'websites': {
-    'url': 'resourcePath'
-  },
-  'novels': {
-    'filePath': 'resourcePath'
-  }
+  'games': { 'executablePath': 'resourcePath' },
+  'software': { 'executablePath': 'resourcePath' },
+  'images': { 'folderPath': 'resourcePath', 'cover': 'coverPath' },
+  'single-image': { 'folderPath': 'resourcePath', 'cover': 'coverPath' },
+  'videos': { 'filePath': 'resourcePath' },
+  'anime-series': { 'folderPath': 'resourcePath' },
+  'audio': { 'filePath': 'resourcePath', 'thumbnail': 'coverPath' },
+  'websites': { 'url': 'resourcePath' },
+  'novels': { 'filePath': 'resourcePath' }
 }
 
 // 旧存档文件映射配置
@@ -193,34 +170,28 @@ const archiveFileMapping = [
   { folder: 'Image', fileName: 'images.json', pageId: 'images' },
   { folder: 'SingleImage', fileName: 'singleImage.json', pageId: 'single-image' },
   { folder: 'Video', fileName: 'videos.json', pageId: 'videos' },
-  { folder: 'AnimeSeries', fileName: 'folders.json', pageId: 'anime-series' }, // AnimeSeries 使用 folders.json
+  { folder: 'AnimeSeries', fileName: 'folders.json', pageId: 'anime-series' },
   { folder: 'Audio', fileName: 'audios.json', pageId: 'audio' },
   { folder: 'Website', fileName: 'websites.json', pageId: 'websites' },
   { folder: 'Novel', fileName: 'novels.json', pageId: 'novels' }
 ]
 
-// 转换资源字段名（手动转存档时，将旧格式转为新格式）
+// 转换资源字段名（将旧格式转为新格式）
 const convertResourceFields = (resource: any, pageId: string): any => {
   const mapping = fieldMapping[pageId]
   const converted = { ...resource }
 
-  // 应用字段映射
   if (mapping) {
     for (const [oldField, newField] of Object.entries(mapping)) {
       if (oldField in converted && converted[oldField] !== undefined && converted[oldField] !== null) {
         if (!(newField in converted) || !converted[newField]) {
           converted[newField] = converted[oldField]
         }
-        if (newField in converted && converted[newField] !== converted[oldField]) {
-          delete converted[oldField]
-        } else if (newField in converted) {
-          delete converted[oldField]
-        }
+        delete converted[oldField]
       }
     }
   }
 
-  // games：旧格式 lastPlayed/firstPlayed 转为 visitedSessions
   if (pageId === 'games') {
     const hasVisitedSessions = Array.isArray(converted.visitedSessions) && converted.visitedSessions.length > 0
     if (!hasVisitedSessions && (converted.lastPlayed || converted.firstPlayed)) {
@@ -233,7 +204,6 @@ const convertResourceFields = (resource: any, pageId: string): any => {
     }
   }
 
-  // 旧格式访问记录转为 visitedSessions（通用）
   const hasVisitedSessions = Array.isArray(converted.visitedSessions) && converted.visitedSessions.length > 0
   if (!hasVisitedSessions) {
     const arr: string[] = []
@@ -257,31 +227,27 @@ const convertResourceFields = (resource: any, pageId: string): any => {
   return converted
 }
 
-// 转换为新存档
+// 转换旧存档为新存档（JSON 文件 → SQLite）
 const handleConvertToNewArchive = async () => {
   const api = (window as any).electronAPI
   if (!api) {
     await alertService.error('当前环境无法访问 Electron API（请使用 Electron 运行）')
     return
   }
-
   if (!api.selectFolder) {
     await alertService.error('当前环境不支持文件夹选择功能')
     return
   }
-
   if (!api.readJsonFile) {
     await alertService.error('当前环境不支持文件读取功能')
     return
   }
-
   if (!api.sqliteSavePageResources) {
     await alertService.error('当前环境不支持 SQLite 保存功能')
     return
   }
 
   try {
-    // 1. 选择文件夹
     const folderResult = await api.selectFolder()
     if (!folderResult || !folderResult.success || !folderResult.path) {
       if (folderResult && !folderResult.success) {
@@ -297,27 +263,19 @@ const handleConvertToNewArchive = async () => {
     let totalFailed = 0
     const failedFiles: string[] = []
 
-    // 2. 遍历所有需要转换的文件
     for (const mapping of archiveFileMapping) {
       const filePath = `${saveDataPath}/${mapping.folder}/${mapping.fileName}`
-      
+
       try {
-        // 读取JSON文件
         const readResult = await api.readJsonFile(filePath)
         if (!readResult || !readResult.success) {
-          console.warn(`文件不存在或读取失败: ${filePath}`)
           continue
         }
 
         let resources = readResult.data
 
-        // 处理不同的数据格式
-        // 有些文件可能是 { games: [...] } 格式，有些直接是数组
-        // AnimeSeries 使用 { folders: [...] } 格式
         if (resources && typeof resources === 'object' && !Array.isArray(resources)) {
-          // 尝试从对象中提取数组
-          const keys = Object.keys(resources)
-          for (const key of keys) {
+          for (const key of Object.keys(resources)) {
             if (Array.isArray(resources[key])) {
               resources = resources[key]
               break
@@ -325,88 +283,50 @@ const handleConvertToNewArchive = async () => {
           }
         }
 
-        // 确保是数组格式
-        if (!Array.isArray(resources)) {
-          console.warn(`文件格式不正确，期望数组: ${filePath}`)
-          failedFiles.push(`${mapping.folder}/${mapping.fileName} (格式错误)`)
-          totalFailed++
+        if (!Array.isArray(resources) || resources.length === 0) {
+          if (!Array.isArray(resources)) {
+            failedFiles.push(`${mapping.folder}/${mapping.fileName} (格式错误)`)
+            totalFailed++
+          }
           continue
         }
 
-        if (resources.length === 0) {
-          console.log(`文件为空，跳过: ${filePath}`)
-          continue
-        }
-
-        // 3. 转换字段名（将旧存档字段映射到新存档字段）
-        const convertedResources = resources.map((resource: any) => 
+        const convertedResources = resources.map((resource: any) =>
           convertResourceFields(resource, mapping.pageId)
         )
 
-        // 4. 保存到SQLite（会自动处理资源表和页面索引表）
         const saveResult = await api.sqliteSavePageResources(mapping.pageId, convertedResources)
-        
-        if (saveResult && saveResult.ok) {
-          console.log(`✅ 成功转换 ${mapping.folder}/${mapping.fileName}: ${convertedResources.length} 条记录`)
+
+        if (saveResult?.ok) {
           totalConverted += convertedResources.length
         } else {
-          console.error(`❌ 转换失败 ${mapping.folder}/${mapping.fileName}:`, saveResult?.message)
           failedFiles.push(`${mapping.folder}/${mapping.fileName} (${saveResult?.message || '未知错误'})`)
           totalFailed++
         }
       } catch (error: any) {
-        console.error(`转换 ${mapping.folder}/${mapping.fileName} 时出错:`, error)
         failedFiles.push(`${mapping.folder}/${mapping.fileName} (${error.message || '未知错误'})`)
         totalFailed++
       }
     }
 
-    // 5. 自动迁移成就数据
     if (api.sqliteMigrateAchievements) {
       try {
-        const achievementsResult = await api.sqliteMigrateAchievements(saveDataPath)
-        if (achievementsResult?.ok) {
-          const count = achievementsResult.migratedCount || 0
-          console.log(`✅ 成功迁移成就数据: ${count} 个成就`)
-        } else {
-          console.warn(`⚠️ 迁移成就数据失败或已存在: ${achievementsResult?.message || '未知错误'}`)
-        }
-      } catch (error: any) {
-        console.warn('迁移成就数据时出错:', error)
-      }
+        await api.sqliteMigrateAchievements(saveDataPath)
+      } catch { /* ignore */ }
     }
-
-    // 6. 自动迁移设置数据
     if (api.sqliteMigrateSettings) {
       try {
-        const settingsResult = await api.sqliteMigrateSettings(saveDataPath)
-        if (settingsResult?.ok) {
-          console.log('✅ 成功迁移设置数据')
-        } else {
-          console.warn(`⚠️ 迁移设置数据失败或已存在: ${settingsResult?.message || '未知错误'}`)
-        }
-      } catch (error: any) {
-        console.warn('迁移设置数据时出错:', error)
-      }
+        await api.sqliteMigrateSettings(saveDataPath)
+      } catch { /* ignore */ }
     }
-
-    // 7. 自动迁移用户数据
     if (api.sqliteMigrateUser) {
       try {
-        const userResult = await api.sqliteMigrateUser(saveDataPath)
-        if (userResult?.ok) {
-          console.log('✅ 成功迁移用户数据')
-        } else {
-          console.warn(`⚠️ 迁移用户数据失败或已存在: ${userResult?.message || '未知错误'}`)
-        }
-      } catch (error: any) {
-        console.warn('迁移用户数据时出错:', error)
-      }
+        await api.sqliteMigrateUser(saveDataPath)
+      } catch { /* ignore */ }
     }
 
     converting.value = false
 
-    // 8. 显示转换结果
     let message = `转换完成！\n\n成功转换: ${totalConverted} 条记录`
     if (totalFailed > 0) {
       message += `\n失败: ${totalFailed} 个文件`
@@ -418,7 +338,6 @@ const handleConvertToNewArchive = async () => {
 
     if (totalConverted > 0) {
       await alertService.success(message)
-      // 刷新数据
       await loadData()
     } else if (totalFailed > 0) {
       await alertService.error(message)

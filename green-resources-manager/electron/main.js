@@ -190,6 +190,9 @@ if (!gotTheLock) {
     // 从数据库删除资源
     ipcMain.handle('sqlite-delete-resource', (event, tableName, resourceId) => sqliteDemo.deleteResourceFromTable(tableName, resourceId))
     
+    // 将旧格式 SQL（多列）迁移为 id+jsonData 格式
+    ipcMain.handle('sqlite-migrate-to-json-format', () => sqliteDemo.migrateOldSqlToJsonFormat())
+    
     // 从 JSON 迁移成就数据到 SQLite
     ipcMain.handle('sqlite-migrate-achievements', (event, customSaveDataPath) => sqliteDemo.migrateAchievementsFromJson(customSaveDataPath))
     

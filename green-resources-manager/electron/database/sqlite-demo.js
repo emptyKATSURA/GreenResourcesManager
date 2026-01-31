@@ -6,6 +6,12 @@
 const path = require('path')
 const fs = require('fs')
 
+// 资源表名列表（使用 id + jsonData 存储）
+const RESOURCE_TABLES = [
+  'games', 'manga', 'audio', 'novel', 'video',
+  'software', 'website', 'singleImage', 'other', 'videoFolder'
+]
+
 /**
  * 获取 SaveData 目录路径（考虑自定义路径）
  * @returns {string} SaveData 目录路径
@@ -85,7 +91,7 @@ async function runDemo() {
 }
 
 /**
- * 解析 JSON 字段的辅助函数
+ * 解析 JSON 字段的辅助函数（用于 settings 等非资源表）
  * @param {string|null|undefined} jsonString - JSON 字符串
  * @returns {any} 解析后的值，如果解析失败则返回空数组
  */
@@ -99,6 +105,122 @@ function parseJsonField(jsonString) {
 }
 
 /**
+ * 将旧格式行对象转换为前端期望格式（用于迁移）
+ * @param {object} row - 旧表的一行数据
+ * @param {string} tableName - 表名
+ * @returns {object} 转换后的对象
+ */
+function migrateOldRowToObject(row, tableName) {
+  const obj = { ...row }
+  const jsonColumns = ['developers', 'tags', 'visitedSessions', 'actors', 'voiceActors', 'productionTeam']
+  for (const col of jsonColumns) {
+    if (col in obj && typeof obj[col] === 'string') {
+      try {
+        obj[col] = JSON.parse(obj[col])
+      } catch {
+        obj[col] = []
+      }
+    }
+  }
+  if ('isFavorite' in obj && (obj.isFavorite === 1 || obj.isFavorite === 0)) {
+    obj.isFavorite = obj.isFavorite === 1
+  }
+  return obj
+}
+
+/**
+ * 检查表是否为旧格式（多列结构）
+ * @param {object} db - Database 实例
+ * @param {string} tableName - 表名
+ * @returns {boolean}
+ */
+function isOldFormatTable(db, tableName) {
+  const columns = db.prepare(`PRAGMA table_info("${tableName}")`).all()
+  const colNames = columns.map(c => c.name)
+  return colNames.length > 2 || !colNames.includes('jsonData')
+}
+
+/**
+ * 确保资源表存在（id + jsonData 格式）
+ * @param {object} db - Database 实例
+ */
+function ensureResourceTablesExist(db) {
+  for (const tableName of RESOURCE_TABLES) {
+    db.exec(`CREATE TABLE IF NOT EXISTS "${tableName}" (id TEXT PRIMARY KEY, jsonData TEXT NOT NULL)`)
+  }
+}
+
+/**
+ * 将旧格式 SQL 表（多列）迁移为 id + jsonData 格式
+ * 由用户主动触发，例如在 DatabaseView 中点击按钮
+ * @returns {Promise<{ ok: boolean, migratedTables?: string[], message?: string }>}
+ */
+async function migrateOldSqlToJsonFormat() {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    const migratedTables = []
+
+    for (const tableName of RESOURCE_TABLES) {
+      const exists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(tableName)
+      if (!exists) continue
+      if (!isOldFormatTable(db, tableName)) continue
+
+      const rows = db.prepare(`SELECT * FROM "${tableName}"`).all()
+      db.exec(`CREATE TABLE "${tableName}_migrate" (id TEXT PRIMARY KEY, jsonData TEXT NOT NULL)`)
+      const insertStmt = db.prepare(`INSERT INTO "${tableName}_migrate" (id, jsonData) VALUES (?, ?)`)
+      for (const row of rows) {
+        const obj = migrateOldRowToObject(row, tableName)
+        insertStmt.run(row.id, JSON.stringify(obj))
+      }
+      db.exec(`DROP TABLE "${tableName}"`)
+      db.exec(`ALTER TABLE "${tableName}_migrate" RENAME TO "${tableName}"`)
+      migratedTables.push(`${tableName}(${rows.length})`)
+    }
+
+    db.close()
+    return { ok: true, migratedTables }
+  } catch (err) {
+    console.error('[SQLite] 迁移到 JSON 格式失败:', err)
+    return { ok: false, message: err.message }
+  }
+}
+
+/**
+ * 从资源表读取数据（直接返回 id + jsonData，不做解析）
+ * 供 DatabaseView 展示原始存储格式
+ * @param {object} db - Database 实例
+ * @param {string} tableName - 表名
+ * @returns {Array<{ id: string, jsonData: string }>}
+ */
+function getResourcesFromJsonTable(db, tableName) {
+  const stmt = db.prepare(`SELECT id, jsonData FROM "${tableName}" ORDER BY json_extract(jsonData, '$.addedDate') DESC`)
+  const rows = stmt.all()
+  return rows.map(row => ({ id: row.id, jsonData: row.jsonData }))
+}
+
+/**
+ * 从资源表按 id 列表读取
+ * @param {object} db - Database 实例
+ * @param {string} tableName - 表名
+ * @param {string[]} ids - id 列表
+ * @returns {Array<any>}
+ */
+function getResourcesByIds(db, tableName, ids) {
+  if (!ids.length) return []
+  const placeholders = ids.map(() => '?').join(',')
+  const rows = db.prepare(`SELECT id, jsonData FROM "${tableName}" WHERE id IN (${placeholders})`).all(...ids)
+  return rows.map(row => {
+    try {
+      return { id: row.id, ...JSON.parse(row.jsonData) }
+    } catch {
+      return { id: row.id }
+    }
+  })
+}
+
+/**
  * 获取数据（所有资源类型表），供前端「数据库」页面展示
  * @returns {Promise<{ ok: boolean, tables?: Array<{ tableName: string, rows: Array<any> }>, message?: string }>}
  */
@@ -109,316 +231,14 @@ async function getDemoData() {
     const db = new Database(dbPath)
     const tables = []
     
-    // ========== 创建 games 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS games (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        nickname TEXT,
-        nameZh TEXT,
-        nameEn TEXT,
-        nameJa TEXT,
-        description TEXT,
-        developers TEXT,
-        publisher TEXT,
-        tags TEXT,
-        engine TEXT,
-        coverPath TEXT,
-        resourcePath TEXT,
-        folderSize INTEGER DEFAULT 0,
-        playTime INTEGER DEFAULT 0,
-        playCount INTEGER DEFAULT 0,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectGamesStmt = db.prepare('SELECT * FROM games ORDER BY addedDate DESC')
-    const gamesRows = selectGamesStmt.all()
-    tables.push({
-      tableName: 'games',
-      rows: gamesRows.map(row => ({
-        ...row,
-        developers: parseJsonField(row.developers),
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
+    ensureResourceTablesExist(db)
     
-    // ========== 创建 manga 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS manga (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        author TEXT,
-        tags TEXT,
-        resourcePath TEXT,
-        coverPath TEXT,
-        pagesCount INTEGER DEFAULT 0,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectMangaStmt = db.prepare('SELECT * FROM manga ORDER BY addedDate DESC')
-    const mangaRows = selectMangaStmt.all()
-    tables.push({
-      tableName: 'manga',
-      rows: mangaRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 audio 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS audio (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        artist TEXT,
-        tags TEXT,
-        actors TEXT,
-        resourcePath TEXT,
-        coverPath TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectAudioStmt = db.prepare('SELECT * FROM audio ORDER BY addedDate DESC')
-    const audioRows = selectAudioStmt.all()
-    tables.push({
-      tableName: 'audio',
-      rows: audioRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        actors: parseJsonField(row.actors),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 novel 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS novel (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        author TEXT,
-        genre TEXT,
-        tags TEXT,
-        resourcePath TEXT,
-        coverPath TEXT,
-        publishYear TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectNovelStmt = db.prepare('SELECT * FROM novel ORDER BY addedDate DESC')
-    const novelRows = selectNovelStmt.all()
-    tables.push({
-      tableName: 'novel',
-      rows: novelRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 video 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS video (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        series TEXT,
-        tags TEXT,
-        actors TEXT,
-        resourcePath TEXT,
-        thumbnail TEXT,
-        duration INTEGER DEFAULT 0,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectVideoStmt = db.prepare('SELECT * FROM video ORDER BY addedDate DESC')
-    const videoRows = selectVideoStmt.all()
-    tables.push({
-      tableName: 'video',
-      rows: videoRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        actors: parseJsonField(row.actors),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 software 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS software (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        developer TEXT,
-        tags TEXT,
-        resourcePath TEXT,
-        coverPath TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectSoftwareStmt = db.prepare('SELECT * FROM software ORDER BY addedDate DESC')
-    const softwareRows = selectSoftwareStmt.all()
-    tables.push({
-      tableName: 'software',
-      rows: softwareRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 website 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS website (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        resourcePath TEXT,
-        tags TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectWebsiteStmt = db.prepare('SELECT * FROM website ORDER BY addedDate DESC')
-    const websiteRows = selectWebsiteStmt.all()
-    tables.push({
-      tableName: 'website',
-      rows: websiteRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 singleImage 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS singleImage (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        author TEXT,
-        tags TEXT,
-        resourcePath TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectSingleImageStmt = db.prepare('SELECT * FROM singleImage ORDER BY addedDate DESC')
-    const singleImageRows = selectSingleImageStmt.all()
-    tables.push({
-      tableName: 'singleImage',
-      rows: singleImageRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 other 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS other (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        category TEXT,
-        tags TEXT,
-        resourcePath TEXT,
-        coverPath TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectOtherStmt = db.prepare('SELECT * FROM other ORDER BY addedDate DESC')
-    const otherRows = selectOtherStmt.all()
-    tables.push({
-      tableName: 'other',
-      rows: otherRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
-    
-    // ========== 创建 videoFolder 表（如果不存在）==========
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS videoFolder (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        series TEXT,
-        tags TEXT,
-        actors TEXT,
-        voiceActors TEXT,
-        productionTeam TEXT,
-        resourcePath TEXT,
-        thumbnail TEXT,
-        visitedSessions TEXT,
-        addedDate TEXT,
-        rating REAL DEFAULT 0,
-        comment TEXT,
-        isFavorite INTEGER DEFAULT 0
-      )
-    `)
-    const selectVideoFolderStmt = db.prepare('SELECT * FROM videoFolder ORDER BY addedDate DESC')
-    const videoFolderRows = selectVideoFolderStmt.all()
-    tables.push({
-      tableName: 'videoFolder',
-      rows: videoFolderRows.map(row => ({
-        ...row,
-        tags: parseJsonField(row.tags),
-        actors: parseJsonField(row.actors),
-        voiceActors: parseJsonField(row.voiceActors),
-        productionTeam: parseJsonField(row.productionTeam),
-        visitedSessions: parseJsonField(row.visitedSessions),
-        isFavorite: row.isFavorite === 1
-      }))
-    })
+    for (const tableName of RESOURCE_TABLES) {
+      tables.push({
+        tableName,
+        rows: getResourcesFromJsonTable(db, tableName)
+      })
+    }
     
     // ========== 创建 achievements 表（如果不存在）==========
     db.exec(`
@@ -658,87 +478,13 @@ async function getPageData(pageId) {
       resourcesByType[tableName].push(resourceId)
     }
     
-    // 从各个资源表中查询数据
+    // 从各个资源表中查询数据（id + jsonData 格式）
+    ensureResourceTablesExist(db)
     const allResources = []
     for (const [tableName, resourceIds] of Object.entries(resourcesByType)) {
       if (resourceIds.length === 0) continue
-      
-      // 检查资源表是否存在
-      const tableExistsStmt = db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name=?
-      `)
-      const tableExists = tableExistsStmt.get(tableName)
-      
-      if (!tableExists) {
-        console.warn(`[SQLite] 资源表 ${tableName} 不存在，跳过查询`)
-        continue
-      }
-      
-      // 构建查询语句（使用 IN 子句）
-      const placeholders = resourceIds.map(() => '?').join(',')
-      const selectResourceStmt = db.prepare(`
-        SELECT * FROM "${tableName}" 
-        WHERE id IN (${placeholders})
-      `)
-      
-      const resources = selectResourceStmt.all(...resourceIds)
-      
-      // 解析 JSON 字段和布尔字段
-      for (const resource of resources) {
-        const parsedResource = { ...resource }
-        
-        // 解析 JSON 字段（根据资源类型不同，字段也不同）
-        if (tableName === 'games') {
-          parsedResource.developers = parseJsonField(resource.developers)
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'manga') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'audio') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.actors = parseJsonField(resource.actors)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'novel') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'video') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.actors = parseJsonField(resource.actors)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'software') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'website') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'singleImage') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'other') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        } else if (tableName === 'videoFolder') {
-          parsedResource.tags = parseJsonField(resource.tags)
-          parsedResource.actors = parseJsonField(resource.actors)
-          parsedResource.voiceActors = parseJsonField(resource.voiceActors)
-          parsedResource.productionTeam = parseJsonField(resource.productionTeam)
-          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
-          parsedResource.isFavorite = resource.isFavorite === 1
-        }
-        
-        allResources.push(parsedResource)
-      }
+      const resources = getResourcesByIds(db, tableName, resourceIds)
+      allResources.push(...resources)
     }
     
     // 按照页面表中的顺序排序（保持原始顺序）
@@ -761,82 +507,7 @@ async function getPageData(pageId) {
 }
 
 /**
- * 将资源数据转换为数据库格式（数组转JSON字符串，布尔转整数）
- * @param {any} resource - 资源数据
- * @param {string} resourceType - 资源类型
- * @returns {any} 转换后的资源数据
- */
-function convertResourceForDatabase(resource, resourceType) {
-  const converted = { ...resource }
-  
-  // 根据资源类型转换字段
-  if (resourceType === 'games') {
-    if (Array.isArray(converted.developers)) {
-      converted.developers = JSON.stringify(converted.developers)
-    }
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (Array.isArray(converted.visitedSessions)) {
-      converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
-  } else if (resourceType === 'manga') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (Array.isArray(converted.visitedSessions)) {
-      converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
-  } else if (resourceType === 'audio') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.actors)) converted.actors = JSON.stringify(converted.actors)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'novel') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'video') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.actors)) converted.actors = JSON.stringify(converted.actors)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'software') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'website') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'singleImage') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'other') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  } else if (resourceType === 'videoFolder') {
-    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
-    if (Array.isArray(converted.actors)) converted.actors = JSON.stringify(converted.actors)
-    if (Array.isArray(converted.voiceActors)) converted.voiceActors = JSON.stringify(converted.voiceActors)
-    if (Array.isArray(converted.productionTeam)) converted.productionTeam = JSON.stringify(converted.productionTeam)
-    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
-    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
-  }
-  
-  return converted
-}
-
-/**
- * 保存资源到对应的资源表
+ * 保存资源到对应的资源表（id + jsonData 格式）
  * @param {string} resourceType - 资源类型（表名）
  * @param {any} resource - 资源数据
  * @returns {Promise<{ ok: boolean, message?: string }>}
@@ -847,31 +518,20 @@ async function saveResourceToTable(resourceType, resource) {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 转换资源数据格式
-    const convertedResource = convertResourceForDatabase(resource, resourceType)
-    
-    // 确保 id 字段存在
-    if (!convertedResource.id) {
+    if (!resource.id) {
       db.close()
       return { ok: false, message: '资源缺少 id 字段' }
     }
     
-    // 获取资源表的所有字段
-    const tableInfoStmt = db.prepare(`PRAGMA table_info("${resourceType}")`)
-    const columns = tableInfoStmt.all()
-    const columnNames = columns.map(col => col.name)
+    ensureResourceTablesExist(db)
     
-    // 构建 INSERT OR REPLACE 语句
-    const fields = columnNames.filter(name => convertedResource.hasOwnProperty(name))
-    const placeholders = fields.map(() => '?').join(', ')
-    const values = fields.map(field => convertedResource[field] ?? null)
+    // 若已是 { id, jsonData } 格式（jsonData 为字符串），直接使用；否则序列化整个对象
+    const jsonToStore = (typeof resource.jsonData === 'string')
+      ? resource.jsonData
+      : JSON.stringify(resource)
     
-    const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO "${resourceType}" (${fields.join(', ')}) 
-      VALUES (${placeholders})
-    `)
-    
-    insertStmt.run(...values)
+    const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${resourceType}" (id, jsonData) VALUES (?, ?)`)
+    insertStmt.run(resource.id, jsonToStore)
     
     db.close()
     return { ok: true }
@@ -932,27 +592,6 @@ async function addResourceToPage(pageId, resourceType, resourceId) {
     console.error(`[SQLite] 添加资源到页面 ${pageId} 失败:`, err.message)
     return { ok: false, message: err.message }
   }
-}
-
-/**
- * 确保所有资源表存在（供 savePageResources / getPageData 等使用）
- * 资源表仅由 getDemoData 创建，用户未打开「数据库」页时不存在，导致拖拽保存失败
- * @param {object} db - better-sqlite3 Database 实例
- */
-function ensureResourceTablesExist(db) {
-  const ddl = [
-    `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, nickname TEXT, nameZh TEXT, nameEn TEXT, nameJa TEXT, description TEXT, developers TEXT, publisher TEXT, tags TEXT, engine TEXT, coverPath TEXT, resourcePath TEXT, folderSize INTEGER DEFAULT 0, playTime INTEGER DEFAULT 0, playCount INTEGER DEFAULT 0, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS manga (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, pagesCount INTEGER DEFAULT 0, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS audio (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, artist TEXT, tags TEXT, actors TEXT, resourcePath TEXT, coverPath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS novel (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, genre TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, publishYear TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS video (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, resourcePath TEXT, thumbnail TEXT, duration INTEGER DEFAULT 0, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS software (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, developer TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS website (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, resourcePath TEXT, tags TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS singleImage (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS other (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, category TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS videoFolder (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, voiceActors TEXT, productionTeam TEXT, resourcePath TEXT, thumbnail TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`
-  ]
-  for (const sql of ddl) db.exec(sql)
 }
 
 /**
@@ -1050,47 +689,9 @@ async function savePageResources(pageId, resources) {
         // 保存映射关系
         resourceTableMap.set(resource.id, tableName)
         
-        // 转换资源数据格式
-        const convertedResource = convertResourceForDatabase(resource, tableName)
-        
-        // 获取资源表的所有字段
-        const tableInfoStmt = db.prepare(`PRAGMA table_info("${tableName}")`)
-        const columns = tableInfoStmt.all()
-        const columnNames = columns.map(col => col.name)
-        
-        // 构建 INSERT OR REPLACE 语句
-        // 确保 id 字段存在
-        if (!convertedResource.id) {
-          console.warn(`[SQLite] 转换后的资源缺少 id 字段，跳过保存`)
-          continue
-        }
-        
-        // 过滤字段：只包含表中存在的字段，且资源数据中有值或为null的字段
-        const fields = columnNames.filter(name => {
-          return name in convertedResource
-        })
-        
-        if (fields.length === 0) {
-          console.warn(`[SQLite] 资源 ${convertedResource.id} 没有匹配的字段，跳过保存`)
-          continue
-        }
-        
-        const placeholders = fields.map(() => '?').join(', ')
-        const values = fields.map(field => {
-          const value = convertedResource[field]
-          return value !== undefined ? value : null
-        })
-        
-        console.log(`[SQLite] 插入资源到 ${tableName}, 字段数: ${fields.length}, id: ${convertedResource.id}`)
-        
-        const insertStmt = db.prepare(`
-          INSERT OR REPLACE INTO "${tableName}" (${fields.join(', ')}) 
-          VALUES (${placeholders})
-        `)
-        
-        insertStmt.run(...values)
+        const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${tableName}" (id, jsonData) VALUES (?, ?)`)
+        insertStmt.run(resource.id, JSON.stringify(resource))
         insertedCount++
-        console.log(`[SQLite] 资源保存成功: ${tableName}.${convertedResource.id}`)
       }
       
       // 2. 清空页面表
@@ -1591,4 +1192,4 @@ async function saveUserToSqlite(user) {
   }
 }
 
-module.exports = { runDemo, getDemoData, getPageData, getSaveDataDirectory, getDatabasePath, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }
+module.exports = { runDemo, getDemoData, getPageData, getSaveDataDirectory, getDatabasePath, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateOldSqlToJsonFormat, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }

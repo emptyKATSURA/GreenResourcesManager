@@ -115,7 +115,7 @@ async function scraperDbImportFromArchive(scrapableFieldsByTable, sourceDbPath) 
           continue
         }
         
-        const rows = mainDb.prepare(`SELECT * FROM "${tableName}"`).all()
+        const rows = mainDb.prepare(`SELECT id, jsonData FROM "${tableName}"`).all()
         console.log(`[ScraperDB] 从 ${tableName} 读取 ${rows.length} 条记录`)
         
         const allowedKeys = scrapableFieldsByTable && Array.isArray(scrapableFieldsByTable[tableName])
@@ -128,15 +128,20 @@ async function scraperDbImportFromArchive(scrapableFieldsByTable, sourceDbPath) 
         `)
         
         for (const row of rows) {
-          const { id, ...rest } = row
-          let dataToSave = rest
-          if (allowedKeys && allowedKeys.length > 0) {
+          let dataToSave
+          try {
+            dataToSave = row.jsonData ? JSON.parse(row.jsonData) : {}
+          } catch {
             dataToSave = {}
-            for (const key of allowedKeys) {
-              if (key in rest) dataToSave[key] = rest[key]
-            }
           }
-          // 非 website 表：resourcePath 改为 resourceFileName、resourceFolderName；website 表完整保留 resourcePath
+          dataToSave.id = row.id
+          if (allowedKeys && allowedKeys.length > 0) {
+            const filtered = {}
+            for (const key of allowedKeys) {
+              if (key in dataToSave) filtered[key] = dataToSave[key]
+            }
+            dataToSave = filtered
+          }
           dataToSave = replaceResourcePathWithFileNameAndFolder(dataToSave, tableName)
           const jsonData = JSON.stringify(dataToSave)
           insertStmt.run(jsonData, updateTime, userName)
@@ -277,29 +282,33 @@ async function scraperDbApplyToResource(sourceTable, mainResourceId, jsonData) {
       return { ok: false, message: '解析刮削数据失败' }
     }
 
-    const row = db.prepare(`SELECT * FROM "${sourceTable}" WHERE id = ?`).get(mainResourceId)
+    const row = db.prepare(`SELECT id, jsonData FROM "${sourceTable}" WHERE id = ?`).get(mainResourceId)
     if (!row) {
       db.close()
       return { ok: false, message: '未找到主存档资源' }
     }
 
-    const updates = []
-    const values = []
+    let current
+    try {
+      current = row.jsonData ? JSON.parse(row.jsonData) : {}
+    } catch {
+      current = {}
+    }
+    let hasUpdate = false
     for (const [key, value] of Object.entries(scraped)) {
       if (key === 'id') continue
-      const currentVal = row[key]
+      const currentVal = current[key]
       const isEmpty = currentVal === null || currentVal === undefined || currentVal === ''
       if (isEmpty && value !== null && value !== undefined && value !== '') {
-        updates.push(`"${key}" = ?`)
-        values.push(typeof value === 'object' ? JSON.stringify(value) : value)
+        current[key] = value
+        hasUpdate = true
       }
     }
-    if (updates.length === 0) {
+    if (!hasUpdate) {
       db.close()
       return { ok: true, message: '无需更新（主存档已有完整数据）' }
     }
-    values.push(mainResourceId)
-    db.prepare(`UPDATE "${sourceTable}" SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+    db.prepare(`UPDATE "${sourceTable}" SET jsonData = ? WHERE id = ?`).run(JSON.stringify(current), mainResourceId)
     db.close()
     return { ok: true }
   } catch (err) {

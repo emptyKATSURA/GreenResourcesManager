@@ -180,6 +180,7 @@ declare global {
       sqliteSaveResource: (resourceType: string, resource: any) => Promise<{ ok: boolean; message?: string }>
       sqliteAddResourceToPage: (pageId: string, resourceType: string, resourceId: string) => Promise<{ ok: boolean; message?: string }>
       sqliteSavePageResources: (pageId: string, resources: Array<any>) => Promise<{ ok: boolean; message?: string }>
+      sqliteMigrateToJsonFormat: () => Promise<{ ok: boolean; migratedTables?: string[]; message?: string }>
       sqliteMigrateAchievements: (customSaveDataPath?: string) => Promise<{ ok: boolean; message?: string; migratedCount?: number }>
       sqliteMigrateSettings: (customSaveDataPath?: string) => Promise<{ ok: boolean; message?: string }>
       sqliteGetSettings: () => Promise<{ ok: boolean; settings?: any; timestamp?: string; version?: string; message?: string }>

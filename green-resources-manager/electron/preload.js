@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sqliteSavePageResources: (pageId, resources) => ipcRenderer.invoke('sqlite-save-page-resources', pageId, resources),
   // 从数据库删除资源
   sqliteDeleteResource: (tableName, resourceId) => ipcRenderer.invoke('sqlite-delete-resource', tableName, resourceId),
+  // 将旧格式 SQL 迁移为 id+jsonData 格式
+  sqliteMigrateToJsonFormat: () => ipcRenderer.invoke('sqlite-migrate-to-json-format'),
   // 从 JSON 迁移成就数据到 SQLite
   sqliteMigrateAchievements: (customSaveDataPath) => ipcRenderer.invoke('sqlite-migrate-achievements', customSaveDataPath),
   // 从 JSON 迁移设置数据到 SQLite
