@@ -288,22 +288,22 @@ export abstract class BaseResources {
 					// 使用 extractPrimitiveValue 确保提取的是原始值
 					const value = BaseResources.extractPrimitiveValue(jsonData[key])
 					
-					console.log('[BaseResources.fromJSON] 处理字段:', {
-						key,
-						originalValue: jsonData[key],
-						extractedValue: value,
-						valueType: typeof value,
-						isObject: typeof value === 'object' && value !== null,
-						isArray: Array.isArray(value)
-					})
+					// console.log('[BaseResources.fromJSON] 处理字段:', {
+					// 	key,
+					// 	originalValue: jsonData[key],
+					// 	extractedValue: value,
+					// 	valueType: typeof value,
+					// 	isObject: typeof value === 'object' && value !== null,
+					// 	isArray: Array.isArray(value)
+					// })
 					
 					field.value = value
 					
-					console.log('[BaseResources.fromJSON] 赋值完成:', {
-						key,
-						finalValue: field.value,
-						finalValueType: typeof field.value
-					})
+					// console.log('[BaseResources.fromJSON] 赋值完成:', {
+					// 	key,
+					// 	finalValue: field.value,
+					// 	finalValueType: typeof field.value
+					// })
 				}
 			}
 		}
