@@ -57,7 +57,16 @@
               :default-formatter="formatCellValue"
               @delete="handleDeleteRow"
               @cell-edit="handleCellEdit"
-            />
+            >
+              <template #cell="{ value }">
+                <template v-if="isJsonLike(value)">
+                  <VueJsonPretty :data="getJsonData(value) as any" :deep="3" class="db-json-cell" />
+                </template>
+                <template v-else>
+                  {{ formatCellValue(value) }}
+                </template>
+              </template>
+            </FunDataTable>
           </div>
           <div v-else class="empty">暂无数据</div>
         </div>
@@ -74,6 +83,8 @@ import { usePagination } from '../composables/usePagination'
 import FunPagination from '../fun-ui/navigation/Pagination/FunPagination.vue'
 import FunDataTable from '../fun-ui/basic/DataTable/FunDataTable.vue'
 import FunSwitch from '../fun-ui/basic/Switch/FunSwitch.vue'
+import VueJsonPretty from 'vue-json-pretty'
+import 'vue-json-pretty/lib/styles.css'
 
 const loading = ref(true)
 const error = ref('')
@@ -118,6 +129,35 @@ const handlePageChange = (pageNum: number) => {
 watch(activeTable, () => {
   paginationComposable.resetToFirstPage()
 })
+
+// 判断是否为可高亮展示的 JSON（对象或数组，或可解析为对象/数组的字符串）
+const isJsonLike = (value: any): boolean => {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'object') return true
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return typeof parsed === 'object' && parsed !== null
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
+// 得到供 VueJsonPretty 使用的 data（对象或数组）
+const getJsonData = (value: any): object | any[] => {
+  if (value === null || value === undefined) return {}
+  if (typeof value === 'object') return value
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as object | any[]
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
 
 // 格式化单元格值（完全展示原始数据，不做格式化）
 const formatCellValue = (value: any): string => {
@@ -683,5 +723,13 @@ onMounted(async () => {
   font-size: 0.9rem;
   border-left: 3px solid var(--accent-color, #4a90e2);
   flex-shrink: 0;
+}
+
+.db-json-cell {
+  font-size: 0.85rem;
+
+  /* 单元格的最大高度，防止数据过长 */
+  max-height: 800px;
+  overflow: auto;
 }
 </style>
