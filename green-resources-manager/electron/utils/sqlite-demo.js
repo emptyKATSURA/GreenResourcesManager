@@ -114,6 +114,10 @@ async function getDemoData() {
       CREATE TABLE IF NOT EXISTS games (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        nickname TEXT,
+        nameZh TEXT,
+        nameEn TEXT,
+        nameJa TEXT,
         description TEXT,
         developers TEXT,
         publisher TEXT,
@@ -955,9 +959,26 @@ function ensureVideoDurationColumn(db) {
   }
 }
 
+/** 确保 games 表有 nickname/nameZh/nameEn/nameJa 列（兼容旧数据库迁移） */
+function ensureGamesNameColumns(db) {
+  const cols = ['nickname', 'nameZh', 'nameEn', 'nameJa']
+  try {
+    const tableInfo = db.prepare('PRAGMA table_info(games)').all()
+    const existing = new Set(tableInfo.map(c => c.name))
+    for (const col of cols) {
+      if (!existing.has(col)) {
+        db.exec(`ALTER TABLE games ADD COLUMN ${col} TEXT`)
+        console.log(`[SQLite] games 表已添加 ${col} 列`)
+      }
+    }
+  } catch (e) {
+    console.warn('[SQLite] ensureGamesNameColumns:', e.message)
+  }
+}
+
 function ensureResourceTablesExist(db) {
   const ddl = [
-    `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, developers TEXT, publisher TEXT, tags TEXT, engine TEXT, coverPath TEXT, resourcePath TEXT, folderSize INTEGER DEFAULT 0, playTime INTEGER DEFAULT 0, playCount INTEGER DEFAULT 0, lastPlayed TEXT, firstPlayed TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, nickname TEXT, nameZh TEXT, nameEn TEXT, nameJa TEXT, description TEXT, developers TEXT, publisher TEXT, tags TEXT, engine TEXT, coverPath TEXT, resourcePath TEXT, folderSize INTEGER DEFAULT 0, playTime INTEGER DEFAULT 0, playCount INTEGER DEFAULT 0, lastPlayed TEXT, firstPlayed TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS manga (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, pagesCount INTEGER DEFAULT 0, lastViewed TEXT, viewCount INTEGER DEFAULT 0, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS audio (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, artist TEXT, tags TEXT, actors TEXT, resourcePath TEXT, coverPath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS novel (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, genre TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, publishYear TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
@@ -970,6 +991,7 @@ function ensureResourceTablesExist(db) {
   ]
   for (const sql of ddl) db.exec(sql)
   ensureVideoDurationColumn(db)
+  ensureGamesNameColumns(db)
 }
 
 /**
@@ -1608,4 +1630,4 @@ async function saveUserToSqlite(user) {
   }
 }
 
-module.exports = { runDemo, getDemoData, getPageData, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }
+module.exports = { runDemo, getDemoData, getPageData, getSaveDataDirectory, getDatabasePath, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }

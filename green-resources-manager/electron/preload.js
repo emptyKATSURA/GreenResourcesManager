@@ -104,6 +104,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 保存用户数据到 SQLite
   sqliteSaveUser: (user) => ipcRenderer.invoke('sqlite-save-user', user),
   
+  // 刮削库数据库操作
+  scraperDbImport: () => ipcRenderer.invoke('scraper-db-import'),
+  scraperDbGetAll: () => ipcRenderer.invoke('scraper-db-get-all'),
+  scraperDbClear: () => ipcRenderer.invoke('scraper-db-clear'),
+  
   // 获取文件图标
   getFileIcon: (filePath, size) => ipcRenderer.invoke('get-file-icon', filePath, size),
   

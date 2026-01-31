@@ -188,6 +188,11 @@ declare global {
       sqliteGetUser: () => Promise<{ ok: boolean; user?: any; timestamp?: string; version?: string; message?: string }>
       sqliteSaveUser: (user: any) => Promise<{ ok: boolean; message?: string }>
       
+      // 刮削库数据库操作
+      scraperDbImport: () => Promise<{ ok: boolean; count?: number; message?: string }>
+      scraperDbGetAll: () => Promise<{ ok: boolean; data?: Array<any>; message?: string }>
+      scraperDbClear: () => Promise<{ ok: boolean; message?: string }>
+      
       // 其他方法
       [key: string]: any
     }

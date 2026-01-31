@@ -1444,7 +1444,8 @@ class SaveManager {
         return false
       }
       
-      const sqliteResult = await window.electronAPI.sqliteSaveSettings(settings)
+      // 传递深拷贝后的纯数据，避免 Vue Proxy 导致 IPC 克隆失败
+      const sqliteResult = await window.electronAPI.sqliteSaveSettings(this.settingsCache)
       if (sqliteResult?.ok) {
         console.log('设置数据已保存到 SQLite')
         this.settingsCacheDirty = false

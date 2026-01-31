@@ -285,7 +285,7 @@ export default {
     type: {
       type: String,
       required: true,
-      validator: value => ['game', 'image', 'novel', 'video', 'audio', 'folder', 'anime'].includes(value)
+      validator: value => ['game', 'image', 'singleimage', 'novel', 'video', 'audio', 'folder', 'anime'].includes(value)
     },
     isRunning: {
       type: Boolean,
@@ -331,7 +331,8 @@ export default {
       if (this.type === 'video') return '▶️'
       if (this.type === 'audio') return '▶️'
       if (this.type === 'folder') return '📁'
-      return '📖' // image 类型也使用阅读图标
+      if (this.type === 'singleimage') return '🖼️'  // 单图：打开图片
+      return '📖' // image 类型使用阅读图标
     },
     showActionButton() {
       // 对于压缩包类型的游戏，不显示 action 按钮
@@ -585,7 +586,7 @@ export default {
       // 这样可以避免 prop 默认值导致的误判
       const itemFileExists = getFieldValue(this.item?.fileExists)
       const fileExistsValue = itemFileExists !== undefined ? itemFileExists : this.fileExists
-      const shouldShow = ['game', 'audio', 'image', 'novel', 'video', 'folder', 'anime'].includes(this.type) && fileExistsValue === false
+      const shouldShow = ['game', 'audio', 'image', 'singleimage', 'novel', 'video', 'folder', 'anime'].includes(this.type) && fileExistsValue === false
       return shouldShow
     },
     isArchive() {
@@ -656,6 +657,12 @@ export default {
     // 获取封面图片路径
     // 优先使用 coverPath，如果没有则从截图文件夹读取第一张图片，最后使用默认图片
     coverImagePath() {
+      // 单图类型：直接使用图片自身（resourcePath）作为封面
+      if (this.type === 'singleimage') {
+        const resourcePath = getFieldValue(this.item.resourcePath)
+        return resourcePath || ''
+      }
+      
       // 优先使用 coverPath
       const coverPath = getFieldValue(this.item.coverPath)
       

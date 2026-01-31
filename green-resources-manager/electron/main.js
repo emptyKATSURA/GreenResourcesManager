@@ -32,6 +32,7 @@ const pathUtils = require('./utils/path-utils')
 const windowsUtils = require('./utils/windows-utils')
 const constants = require('./utils/constants')
 const sqliteDemo = require('./utils/sqlite-demo')
+const scraperDb = require('./utils/scraper-db')
 
 // 判断是否为开发环境
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -209,6 +210,11 @@ if (!gotTheLock) {
     
     // 保存用户数据到 SQLite
     ipcMain.handle('sqlite-save-user', (event, user) => sqliteDemo.saveUserToSqlite(user))
+    
+    // 刮削库数据库操作
+    ipcMain.handle('scraper-db-import', () => scraperDb.scraperDbImportFromArchive())
+    ipcMain.handle('scraper-db-get-all', () => scraperDb.scraperDbGetAll())
+    ipcMain.handle('scraper-db-clear', () => scraperDb.scraperDbClear())
     
     // 注册快捷键相关的 IPC 处理器
     shortcuts.registerIpcHandlers(

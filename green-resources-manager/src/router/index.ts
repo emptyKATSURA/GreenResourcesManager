@@ -49,6 +49,17 @@ const fixedRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/scraper-library',
+    name: 'scraper-library',
+    component: () => import('../pages/ScraperLibraryView.vue'),
+    meta: {
+      title: '本地刮削库',
+      icon: '📚',
+      description: '本地刮削库（暂未开放）',
+      requiresFilter: false
+    }
+  },
+  {
     path: '/workshop',
     name: 'workshop',
     component: () => import('../pages/WorkshopView.vue'),

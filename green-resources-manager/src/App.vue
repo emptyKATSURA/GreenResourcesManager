@@ -107,6 +107,21 @@
             <span class="nav-text">{{ viewConfig.database?.name || '本地存档' }}</span>
           </div>
         </li>
+
+        <!-- 本地刮削库（一级菜单） -->
+        <li 
+          class="nav-item-wrapper"
+          :class="{ active: $route.name === 'scraper-library' }"
+        >
+          <div 
+            class="nav-item"
+            :class="{ active: $route.name === 'scraper-library' }"
+            @click="navigateTo('scraper-library')"
+          >
+            <span class="nav-icon">{{ viewConfig['scraper-library']?.icon || '📚' }}</span>
+            <span class="nav-text">{{ viewConfig['scraper-library']?.name || '本地刮削库' }}</span>
+          </div>
+        </li>
         
         <!-- 插件注册的导航项 -->
         <li 
@@ -302,6 +317,11 @@ export default {
           icon: '🗄️',
           description: '展示存档的数据'
         },
+        'scraper-library': {
+          name: '本地刮削库',
+          icon: '📚',
+          description: '本地刮削库（暂未开放）'
+        },
         workshop: {
           name: '创意工坊',
           icon: '🎨',
@@ -352,8 +372,8 @@ export default {
     },
     // 主导航页面ID列表（一级菜单）
     mainNavViewIds() {
-      // 主页、搜索、debug、本地存档是一级菜单，资源页面是主页的子菜单
-      return ['home', 'search', 'debug', 'database']
+      // 主页、搜索、debug、本地存档、本地刮削库是一级菜单，资源页面是主页的子菜单
+      return ['home', 'search', 'debug', 'database', 'scraper-library']
     },
     // 资源页面列表（主页的子菜单）
     resourcePages() {

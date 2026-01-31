@@ -35,6 +35,26 @@ export class Game extends BaseResources {
 		saveable: true,
 		editType: new FormField_Text('游戏名', true)
 	})
+
+	nickname: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('昵称', false)
+	})
+
+	nameZh: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('中文名', false)
+	})
+
+	nameEn: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('英文名', false)
+	})
+
+	nameJa: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('日文名', false)
+	})
 	
 	description: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
@@ -113,6 +133,10 @@ export class Game extends BaseResources {
 			id: this.id.value,
 			resourceType: this.resourceType.value,
 			name: this.name.value,
+			nickname: this.nickname.value,
+			nameZh: this.nameZh.value,
+			nameEn: this.nameEn.value,
+			nameJa: this.nameJa.value,
 			description: this.description.value,
 			developers: Array.isArray(this.developers.value) ? [...this.developers.value] : this.developers.value,
 			publisher: this.publisher.value,
