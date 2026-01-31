@@ -212,7 +212,7 @@ if (!gotTheLock) {
     ipcMain.handle('sqlite-save-user', (event, user) => sqliteDemo.saveUserToSqlite(user))
     
     // 刮削库数据库操作
-    ipcMain.handle('scraper-db-import', (event, scrapableFieldsByTable) => scraperDb.scraperDbImportFromArchive(scrapableFieldsByTable))
+    ipcMain.handle('scraper-db-import', (event, scrapableFieldsByTable, sourceDbPath) => scraperDb.scraperDbImportFromArchive(scrapableFieldsByTable, sourceDbPath))
     ipcMain.handle('scraper-db-get-all', () => scraperDb.scraperDbGetAll())
     ipcMain.handle('scraper-db-clear', () => scraperDb.scraperDbClear())
     ipcMain.handle('scraper-db-search', (event, sourceTable, name, resourcePath) => scraperDb.scraperDbSearch(sourceTable, name, resourcePath))

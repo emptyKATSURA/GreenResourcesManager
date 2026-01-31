@@ -173,28 +173,50 @@ const formatCellValue = (value: any): string => {
   return String(value)
 }
 
-// 从存档导入：读取各资源表，去掉 id，保存到独立的刮削库数据库
+/** 从路径取文件名（兼容 / 与 \） */
+function getFileNameFromPath(filePath: string): string {
+  const parts = filePath.replace(/\/$|\\$/, '').split(/[/\\]/)
+  return parts[parts.length - 1] ?? ''
+}
+
+// 存档数据库与刮削库数据库的合法文件名
+const ARCHIVE_DB_NAME = 'database.db'
+const SCRAPER_LIBRARY_DB_NAME = 'scraper-library.db'
+
+// 从存档导入：选择存档 db 文件 → 读取各资源表，去掉 id，保存到本地刮削库
 const handleImportFromArchive = async () => {
   const api = (window as any).electronAPI
   if (!api?.scraperDbImport) {
     await alertService.error('当前环境无法访问刮削库 API（请使用 Electron 运行）')
     return
   }
+  if (!api?.selectFileWithExtensions) {
+    await alertService.error('无法打开文件选择对话框')
+    return
+  }
+
+  const filePath = await api.selectFileWithExtensions(
+    [{ name: '存档数据库', extensions: ['db'] }, { name: '所有文件', extensions: ['*'] }],
+    null,
+    '选择要导入的存档数据库'
+  )
+  if (!filePath) return
+
+  if (getFileNameFromPath(filePath) !== ARCHIVE_DB_NAME) {
+    await alertService.error(`请选择名为 ${ARCHIVE_DB_NAME} 的存档数据库，防止误导入其它数据库`)
+    return
+  }
 
   importing.value = true
   try {
-    // 各资源配置的可刮削字段，导入时只保存这些字段到刮削库
     const scrapableFieldsByTable = getScrapableFieldsByTable()
-    // 调用 Electron 端导入逻辑：从主存档读取 → 去 id、只保留可刮削字段 → 写入 scraper-library.db
-    const importRes = await api.scraperDbImport(scrapableFieldsByTable)
+    const importRes = await api.scraperDbImport(scrapableFieldsByTable, filePath)
     if (!importRes?.ok) {
       await alertService.error(importRes?.message || '导入失败')
       return
     }
 
-    // 导入成功后，从刮削库数据库读取数据并展示
     await loadScraperData()
-    
     await alertService.success(`导入完成，共 ${importRes.count || 0} 条固有数据已保存到刮削库数据库`)
   } catch (e: any) {
     await alertService.error(`导入失败: ${e?.message || '未知错误'}`)
@@ -266,6 +288,11 @@ const handleMergeOtherLibrary = async () => {
     '选择要合并的刮削库数据库'
   )
   if (!filePath) return
+
+  if (getFileNameFromPath(filePath) !== SCRAPER_LIBRARY_DB_NAME) {
+    await alertService.error(`请选择名为 ${SCRAPER_LIBRARY_DB_NAME} 的刮削库数据库，防止误合并其它数据库`)
+    return
+  }
 
   merging.value = true
   try {

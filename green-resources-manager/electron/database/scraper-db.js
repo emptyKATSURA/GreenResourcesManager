@@ -72,13 +72,16 @@ function replaceResourcePathWithFileNameAndFolder(data, tableName) {
  * 每资源一表，每行：_id, jsonData, updateTime, author
  * resourcePath 不写入刮削库，改为写入 resourceFileName、resourceFolderName
  * @param {Record<string, string[]>} [scrapableFieldsByTable] 各表可刮削字段名列表；若提供则只保存这些字段，否则保存除 id 外全部
+ * @param {string} [sourceDbPath] 存档数据库路径；若提供则从该文件读取，否则从默认主存档路径读取
  * @returns {Promise<{ ok: boolean, count?: number, message?: string }>}
  */
-async function scraperDbImportFromArchive(scrapableFieldsByTable) {
+async function scraperDbImportFromArchive(scrapableFieldsByTable, sourceDbPath) {
   try {
     const Database = require('better-sqlite3')
     
-    const mainDbPath = require('./sqlite-demo').getDatabasePath()
+    const mainDbPath = sourceDbPath && typeof sourceDbPath === 'string' && fs.existsSync(sourceDbPath)
+      ? sourceDbPath
+      : require('./sqlite-demo').getDatabasePath()
     const mainDb = new Database(mainDbPath, { readonly: true })
     
     const scraperDbPath = getScraperDbPath()

@@ -105,7 +105,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sqliteSaveUser: (user) => ipcRenderer.invoke('sqlite-save-user', user),
   
   // 刮削库数据库操作
-  scraperDbImport: (scrapableFieldsByTable) => ipcRenderer.invoke('scraper-db-import', scrapableFieldsByTable),
+  scraperDbImport: (scrapableFieldsByTable, sourceDbPath) => ipcRenderer.invoke('scraper-db-import', scrapableFieldsByTable, sourceDbPath),
   scraperDbGetAll: () => ipcRenderer.invoke('scraper-db-get-all'),
   scraperDbClear: () => ipcRenderer.invoke('scraper-db-clear'),
   scraperDbSearch: (sourceTable, name, resourcePath) => ipcRenderer.invoke('scraper-db-search', sourceTable, name, resourcePath),
