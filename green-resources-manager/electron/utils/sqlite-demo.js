@@ -128,8 +128,7 @@ async function getDemoData() {
         folderSize INTEGER DEFAULT 0,
         playTime INTEGER DEFAULT 0,
         playCount INTEGER DEFAULT 0,
-        lastPlayed TEXT,
-        firstPlayed TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -144,6 +143,7 @@ async function getDemoData() {
         ...row,
         developers: parseJsonField(row.developers),
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -159,8 +159,7 @@ async function getDemoData() {
         resourcePath TEXT,
         coverPath TEXT,
         pagesCount INTEGER DEFAULT 0,
-        lastViewed TEXT,
-        viewCount INTEGER DEFAULT 0,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -174,6 +173,7 @@ async function getDemoData() {
       rows: mangaRows.map(row => ({
         ...row,
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -189,6 +189,7 @@ async function getDemoData() {
         actors TEXT,
         resourcePath TEXT,
         coverPath TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -203,6 +204,7 @@ async function getDemoData() {
         ...row,
         tags: parseJsonField(row.tags),
         actors: parseJsonField(row.actors),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -219,6 +221,7 @@ async function getDemoData() {
         resourcePath TEXT,
         coverPath TEXT,
         publishYear TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -232,6 +235,7 @@ async function getDemoData() {
       rows: novelRows.map(row => ({
         ...row,
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -248,6 +252,7 @@ async function getDemoData() {
         resourcePath TEXT,
         thumbnail TEXT,
         duration INTEGER DEFAULT 0,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -262,6 +267,7 @@ async function getDemoData() {
         ...row,
         tags: parseJsonField(row.tags),
         actors: parseJsonField(row.actors),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -276,6 +282,7 @@ async function getDemoData() {
         tags TEXT,
         resourcePath TEXT,
         coverPath TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -289,6 +296,7 @@ async function getDemoData() {
       rows: softwareRows.map(row => ({
         ...row,
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -301,6 +309,7 @@ async function getDemoData() {
         description TEXT,
         resourcePath TEXT,
         tags TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -314,6 +323,7 @@ async function getDemoData() {
       rows: websiteRows.map(row => ({
         ...row,
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -327,6 +337,7 @@ async function getDemoData() {
         author TEXT,
         tags TEXT,
         resourcePath TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -340,6 +351,7 @@ async function getDemoData() {
       rows: singleImageRows.map(row => ({
         ...row,
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -354,6 +366,7 @@ async function getDemoData() {
         tags TEXT,
         resourcePath TEXT,
         coverPath TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -367,6 +380,7 @@ async function getDemoData() {
       rows: otherRows.map(row => ({
         ...row,
         tags: parseJsonField(row.tags),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -384,6 +398,7 @@ async function getDemoData() {
         productionTeam TEXT,
         resourcePath TEXT,
         thumbnail TEXT,
+        visitedSessions TEXT,
         addedDate TEXT,
         rating REAL DEFAULT 0,
         comment TEXT,
@@ -400,6 +415,7 @@ async function getDemoData() {
         actors: parseJsonField(row.actors),
         voiceActors: parseJsonField(row.voiceActors),
         productionTeam: parseJsonField(row.productionTeam),
+        visitedSessions: parseJsonField(row.visitedSessions),
         isFavorite: row.isFavorite === 1
       }))
     })
@@ -599,7 +615,6 @@ async function getPageData(pageId) {
     const Database = require('better-sqlite3')
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
-    ensureVideoDurationColumn(db)
 
     // 将页面ID转换为表名
     const tableName = `${pageId.replace(/-/g, '_')}_page`
@@ -677,38 +692,48 @@ async function getPageData(pageId) {
         if (tableName === 'games') {
           parsedResource.developers = parseJsonField(resource.developers)
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'manga') {
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'audio') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.actors = parseJsonField(resource.actors)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'novel') {
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'video') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.actors = parseJsonField(resource.actors)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'software') {
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'website') {
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'singleImage') {
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'other') {
           parsedResource.tags = parseJsonField(resource.tags)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         } else if (tableName === 'videoFolder') {
           parsedResource.tags = parseJsonField(resource.tags)
           parsedResource.actors = parseJsonField(resource.actors)
           parsedResource.voiceActors = parseJsonField(resource.voiceActors)
           parsedResource.productionTeam = parseJsonField(resource.productionTeam)
+          parsedResource.visitedSessions = parseJsonField(resource.visitedSessions)
           parsedResource.isFavorite = resource.isFavorite === 1
         }
         
@@ -752,6 +777,9 @@ function convertResourceForDatabase(resource, resourceType) {
     if (Array.isArray(converted.tags)) {
       converted.tags = JSON.stringify(converted.tags)
     }
+    if (Array.isArray(converted.visitedSessions)) {
+      converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    }
     if (typeof converted.isFavorite === 'boolean') {
       converted.isFavorite = converted.isFavorite ? 1 : 0
     }
@@ -759,80 +787,49 @@ function convertResourceForDatabase(resource, resourceType) {
     if (Array.isArray(converted.tags)) {
       converted.tags = JSON.stringify(converted.tags)
     }
+    if (Array.isArray(converted.visitedSessions)) {
+      converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    }
     if (typeof converted.isFavorite === 'boolean') {
       converted.isFavorite = converted.isFavorite ? 1 : 0
     }
   } else if (resourceType === 'audio') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (Array.isArray(converted.actors)) {
-      converted.actors = JSON.stringify(converted.actors)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.actors)) converted.actors = JSON.stringify(converted.actors)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'novel') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'video') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (Array.isArray(converted.actors)) {
-      converted.actors = JSON.stringify(converted.actors)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.actors)) converted.actors = JSON.stringify(converted.actors)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'software') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'website') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'singleImage') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'other') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   } else if (resourceType === 'videoFolder') {
-    if (Array.isArray(converted.tags)) {
-      converted.tags = JSON.stringify(converted.tags)
-    }
-    if (Array.isArray(converted.actors)) {
-      converted.actors = JSON.stringify(converted.actors)
-    }
-    if (Array.isArray(converted.voiceActors)) {
-      converted.voiceActors = JSON.stringify(converted.voiceActors)
-    }
-    if (Array.isArray(converted.productionTeam)) {
-      converted.productionTeam = JSON.stringify(converted.productionTeam)
-    }
-    if (typeof converted.isFavorite === 'boolean') {
-      converted.isFavorite = converted.isFavorite ? 1 : 0
-    }
+    if (Array.isArray(converted.tags)) converted.tags = JSON.stringify(converted.tags)
+    if (Array.isArray(converted.actors)) converted.actors = JSON.stringify(converted.actors)
+    if (Array.isArray(converted.voiceActors)) converted.voiceActors = JSON.stringify(converted.voiceActors)
+    if (Array.isArray(converted.productionTeam)) converted.productionTeam = JSON.stringify(converted.productionTeam)
+    if (Array.isArray(converted.visitedSessions)) converted.visitedSessions = JSON.stringify(converted.visitedSessions)
+    if (typeof converted.isFavorite === 'boolean') converted.isFavorite = converted.isFavorite ? 1 : 0
   }
   
   return converted
@@ -942,56 +939,20 @@ async function addResourceToPage(pageId, resourceType, resourceId) {
  * 资源表仅由 getDemoData 创建，用户未打开「数据库」页时不存在，导致拖拽保存失败
  * @param {object} db - better-sqlite3 Database 实例
  */
-/**
- * 确保 video 表存在 duration 列（兼容旧数据库迁移）
- * @param {object} db - better-sqlite3 Database 实例
- */
-function ensureVideoDurationColumn(db) {
-  try {
-    const tableInfo = db.prepare('PRAGMA table_info(video)').all()
-    const hasDuration = tableInfo.some(col => col.name === 'duration')
-    if (!hasDuration) {
-      db.exec('ALTER TABLE video ADD COLUMN duration INTEGER DEFAULT 0')
-      console.log('[SQLite] video 表已添加 duration 列')
-    }
-  } catch (e) {
-    console.warn('[SQLite] ensureVideoDurationColumn:', e.message)
-  }
-}
-
-/** 确保 games 表有 nickname/nameZh/nameEn/nameJa 列（兼容旧数据库迁移） */
-function ensureGamesNameColumns(db) {
-  const cols = ['nickname', 'nameZh', 'nameEn', 'nameJa']
-  try {
-    const tableInfo = db.prepare('PRAGMA table_info(games)').all()
-    const existing = new Set(tableInfo.map(c => c.name))
-    for (const col of cols) {
-      if (!existing.has(col)) {
-        db.exec(`ALTER TABLE games ADD COLUMN ${col} TEXT`)
-        console.log(`[SQLite] games 表已添加 ${col} 列`)
-      }
-    }
-  } catch (e) {
-    console.warn('[SQLite] ensureGamesNameColumns:', e.message)
-  }
-}
-
 function ensureResourceTablesExist(db) {
   const ddl = [
-    `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, nickname TEXT, nameZh TEXT, nameEn TEXT, nameJa TEXT, description TEXT, developers TEXT, publisher TEXT, tags TEXT, engine TEXT, coverPath TEXT, resourcePath TEXT, folderSize INTEGER DEFAULT 0, playTime INTEGER DEFAULT 0, playCount INTEGER DEFAULT 0, lastPlayed TEXT, firstPlayed TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS manga (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, pagesCount INTEGER DEFAULT 0, lastViewed TEXT, viewCount INTEGER DEFAULT 0, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS audio (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, artist TEXT, tags TEXT, actors TEXT, resourcePath TEXT, coverPath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS novel (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, genre TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, publishYear TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS video (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, resourcePath TEXT, thumbnail TEXT, duration INTEGER DEFAULT 0, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS software (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, developer TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS website (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, resourcePath TEXT, tags TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS singleImage (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS other (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, category TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS videoFolder (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, voiceActors TEXT, productionTeam TEXT, resourcePath TEXT, thumbnail TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`
+    `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, nickname TEXT, nameZh TEXT, nameEn TEXT, nameJa TEXT, description TEXT, developers TEXT, publisher TEXT, tags TEXT, engine TEXT, coverPath TEXT, resourcePath TEXT, folderSize INTEGER DEFAULT 0, playTime INTEGER DEFAULT 0, playCount INTEGER DEFAULT 0, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS manga (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, pagesCount INTEGER DEFAULT 0, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS audio (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, artist TEXT, tags TEXT, actors TEXT, resourcePath TEXT, coverPath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS novel (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, genre TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, publishYear TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS video (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, resourcePath TEXT, thumbnail TEXT, duration INTEGER DEFAULT 0, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS software (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, developer TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS website (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, resourcePath TEXT, tags TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS singleImage (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, author TEXT, tags TEXT, resourcePath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS other (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, category TEXT, tags TEXT, resourcePath TEXT, coverPath TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS videoFolder (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, series TEXT, tags TEXT, actors TEXT, voiceActors TEXT, productionTeam TEXT, resourcePath TEXT, thumbnail TEXT, visitedSessions TEXT, addedDate TEXT, rating REAL DEFAULT 0, comment TEXT, isFavorite INTEGER DEFAULT 0)`
   ]
   for (const sql of ddl) db.exec(sql)
-  ensureVideoDurationColumn(db)
-  ensureGamesNameColumns(db)
 }
 
 /**

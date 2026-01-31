@@ -186,8 +186,7 @@ export function useImageAlbum(pageId: string = 'images') {
       coverPath: coverPath,
       pagesCount: pages.length,
       addedDate: new Date().toISOString(),
-      lastViewed: null,
-      viewCount: 0,
+      visitedSessions: [],
       fileExists: true,
       isArchive: isArchive
     }
@@ -269,11 +268,6 @@ export function useImageAlbum(pageId: string = 'images') {
       target.isFavorite.value = Boolean(favoriteValue)
     }
     
-    // 保持浏览次数不变
-    if (!target.viewCount.value) {
-      target.viewCount.value = 0
-    }
-
     // 如果更换了文件夹，重新扫描图片
     const newResourcePath = BaseResources.extractPrimitiveValue(
       updates.resourcePath?.value || updates.resourcePath ||
@@ -347,8 +341,8 @@ export function useImageAlbum(pageId: string = 'images') {
    * 更新专辑的查看信息
    */
   const updateViewInfo = async (album: Manga): Promise<void> => {
-    album.viewCount.value = (album.viewCount.value || 0) + 1
-    album.lastViewed.value = new Date().toISOString()
+    const sessions = Array.isArray(album.visitedSessions.value) ? album.visitedSessions.value : []
+    album.visitedSessions.value = [...sessions, new Date().toISOString()]
     await saveAlbums()
   }
 

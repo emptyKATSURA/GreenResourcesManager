@@ -199,29 +199,58 @@ const archiveFileMapping = [
   { folder: 'Novel', fileName: 'novels.json', pageId: 'novels' }
 ]
 
-// 转换资源字段名
+// 转换资源字段名（手动转存档时，将旧格式转为新格式）
 const convertResourceFields = (resource: any, pageId: string): any => {
   const mapping = fieldMapping[pageId]
-  if (!mapping) {
-    return resource
+  const converted = { ...resource }
+
+  // 应用字段映射
+  if (mapping) {
+    for (const [oldField, newField] of Object.entries(mapping)) {
+      if (oldField in converted && converted[oldField] !== undefined && converted[oldField] !== null) {
+        if (!(newField in converted) || !converted[newField]) {
+          converted[newField] = converted[oldField]
+        }
+        if (newField in converted && converted[newField] !== converted[oldField]) {
+          delete converted[oldField]
+        } else if (newField in converted) {
+          delete converted[oldField]
+        }
+      }
+    }
   }
 
-  const converted = { ...resource }
-  
-  // 应用字段映射
-  for (const [oldField, newField] of Object.entries(mapping)) {
-    if (oldField in converted && converted[oldField] !== undefined && converted[oldField] !== null) {
-      // 如果新字段已存在，保留新字段的值（优先使用新字段）
-      if (!(newField in converted) || !converted[newField]) {
-        converted[newField] = converted[oldField]
-      }
-      // 删除旧字段（如果新字段已存在且不同）
-      if (newField in converted && converted[newField] !== converted[oldField]) {
-        delete converted[oldField]
-      } else if (newField in converted) {
-        // 如果新字段已存在且值相同，删除旧字段
-        delete converted[oldField]
-      }
+  // games：旧格式 lastPlayed/firstPlayed 转为 visitedSessions
+  if (pageId === 'games') {
+    const hasVisitedSessions = Array.isArray(converted.visitedSessions) && converted.visitedSessions.length > 0
+    if (!hasVisitedSessions && (converted.lastPlayed || converted.firstPlayed)) {
+      const arr: string[] = []
+      if (converted.firstPlayed) arr.push(converted.firstPlayed)
+      if (converted.lastPlayed && converted.lastPlayed !== converted.firstPlayed) arr.push(converted.lastPlayed)
+      converted.visitedSessions = arr
+      delete converted.lastPlayed
+      delete converted.firstPlayed
+    }
+  }
+
+  // 旧格式访问记录转为 visitedSessions（通用）
+  const hasVisitedSessions = Array.isArray(converted.visitedSessions) && converted.visitedSessions.length > 0
+  if (!hasVisitedSessions) {
+    const arr: string[] = []
+    const last = converted.lastViewed || converted.lastPlayed || converted.lastVisited || converted.lastWatched || converted.lastRead
+    if (last) arr.push(last)
+    if (arr.length > 0) {
+      converted.visitedSessions = arr
+      delete converted.lastViewed
+      delete converted.viewCount
+      delete converted.lastPlayed
+      delete converted.firstPlayed
+      delete converted.lastVisited
+      delete converted.visitCount
+      delete converted.lastWatched
+      delete converted.watchCount
+      delete converted.lastRead
+      delete converted.playCount
     }
   }
 

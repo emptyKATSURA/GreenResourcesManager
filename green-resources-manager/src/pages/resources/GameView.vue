@@ -589,8 +589,7 @@ export default {
       formData.folderSize = folderSize
       formData.playTime = 0
       formData.playCount = 0
-      formData.lastPlayed = null
-      formData.firstPlayed = null
+      formData.visitedSessions = []
       formData.addedDate = new Date().toISOString()
       formData.isArchive = isArchive
     },

@@ -183,9 +183,9 @@ export const launchExecutableHandler: ActionHandler = async (resource, context) 
     const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
     const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
     const isArchiveValue = BaseResources.extractPrimitiveValue(resource.isArchive?.value ?? resource.isArchive)
-    const lastPlayedValue = BaseResources.extractPrimitiveValue(resource.lastPlayed?.value || resource.lastPlayed)
+    const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+    const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
     const playCountValue = BaseResources.extractPrimitiveValue(resource.playCount?.value || resource.playCount) || 0
-    const firstPlayedValue = BaseResources.extractPrimitiveValue(resource.firstPlayed?.value || resource.firstPlayed)
     const playTimeValue = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
     
     // 检查是否为压缩包，压缩包不能运行
@@ -205,23 +205,18 @@ export const launchExecutableHandler: ActionHandler = async (resource, context) 
     }
 
     console.log('启动资源:', resourceName, executablePath)
-    console.log('更新前 - lastPlayed:', lastPlayedValue)
+    console.log('更新前 - visitedSessions 数量:', visitedSessions.length)
     console.log('更新前 - playCount:', playCountValue)
 
-    // 更新资源统计（启动时也更新 lastPlayed，记录开始运行的时间）
+    // 更新资源统计（每次启动记录到 visitedSessions）
+    const launchTime = new Date().toISOString()
     const updates: any = {
-      lastPlayed: new Date().toISOString(),
+      visitedSessions: [...visitedSessions, launchTime],
       playCount: playCountValue + 1
     }
 
-    // 如果是第一次启动，记录第一次运行时间
-    if (!firstPlayedValue) {
-      updates.firstPlayed = new Date().toISOString()
-      console.log(`资源 ${resourceName} 第一次启动，记录时间:`, updates.firstPlayed)
-    }
-
     await context.updateResource(resourceId, updates)
-    console.log('更新后 - lastPlayed:', updates.lastPlayed)
+    console.log('更新后 - 本次启动时间:', launchTime)
     console.log('更新后 - playCount:', updates.playCount)
     console.log('资源数据已保存')
 
@@ -351,10 +346,21 @@ export const openImageHandler: ActionHandler = async (resource, context) => {
  */
 export const openNovelReaderHandler: ActionHandler = async (resource, context) => {
   try {
+    const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
     const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
     const filePath = BaseResources.extractPrimitiveValue(
       resource.resourcePath?.value || resource.filePath?.value || resource.resourcePath || resource.filePath
     )
+    
+    if (resourceId && context.updateResource && resource.visitedSessions) {
+      const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+      const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
+      try {
+        await context.updateResource(resourceId, { visitedSessions: [...visitedSessions, new Date().toISOString()] })
+      } catch (e) {
+        console.warn('[ResourceActionHandlers] 更新访问记录失败:', e)
+      }
+    }
     
     console.log('[ResourceActionHandlers] 开始打开小说:', resourceName, filePath)
     
@@ -469,17 +475,13 @@ export const openWebsiteHandler: ActionHandler = async (resource, context) => {
       return
     }
 
-    // 增加访问次数（如果资源有 visitCount 字段）
-    const currentVisitCount = BaseResources.extractPrimitiveValue(
-      resource.visitCount?.value || resource.visitCount
-    ) || 0
+    const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+    const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
     
-    // 更新访问次数和最后访问时间
     if (context.updateResource && resourceId) {
       try {
         await context.updateResource(resourceId, {
-          visitCount: currentVisitCount + 1,
-          lastVisited: new Date().toISOString()
+          visitedSessions: [...visitedSessions, new Date().toISOString()]
         })
       } catch (error) {
         console.warn('[ResourceActionHandlers] 更新访问次数失败:', error)
@@ -536,30 +538,14 @@ export const playAudioHandler: ActionHandler = async (resource, context) => {
       return
     }
     
-    // 更新播放统计（参考 AudioManager.incrementPlayCount 的实现）
-    const lastPlayedValue = BaseResources.extractPrimitiveValue(resource.lastPlayed?.value || resource.lastPlayed)
-    const playCountValue = BaseResources.extractPrimitiveValue(resource.playCount?.value || resource.playCount) || 0
-    const firstPlayedValue = BaseResources.extractPrimitiveValue(resource.firstPlayed?.value || resource.firstPlayed)
+    const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+    const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
+    const updates = { visitedSessions: [...visitedSessions, new Date().toISOString()] }
     
-    const updates: any = {
-      lastPlayed: new Date().toISOString(),
-      playCount: playCountValue + 1
-    }
-    
-    // 如果是第一次播放，记录第一次播放时间
-    if (!firstPlayedValue) {
-      updates.firstPlayed = new Date().toISOString()
-      console.log(`音频 ${resourceName} 第一次播放，记录时间:`, updates.firstPlayed)
-    }
-    
-    // 更新资源数据（参考 useAudioPlayback 的实现）
     if (context.updateResource && resourceId) {
       try {
         await context.updateResource(resourceId, updates)
-        console.log('[ResourceActionHandlers] 播放统计已更新:', {
-          playCount: updates.playCount,
-          lastPlayed: updates.lastPlayed
-        })
+        console.log('[ResourceActionHandlers] 播放统计已更新')
       } catch (error) {
         console.warn('[ResourceActionHandlers] 更新播放统计失败:', error)
         // 继续执行，不阻止播放
@@ -576,9 +562,9 @@ export const playAudioHandler: ActionHandler = async (resource, context) => {
       resourcePath: filePath, // 也保留 resourcePath 以防万一
       artist: BaseResources.extractPrimitiveValue(resource.artist?.value || resource.artist) || '',
       duration: BaseResources.extractPrimitiveValue(resource.duration?.value || resource.duration) || 0,
-      playCount: updates.playCount,
-      lastPlayed: updates.lastPlayed,
-      firstPlayed: updates.firstPlayed || firstPlayedValue,
+      playCount: updates.visitedSessions.length,
+      lastPlayed: updates.visitedSessions[updates.visitedSessions.length - 1],
+      firstPlayed: updates.visitedSessions[0] || null,
       coverPath: BaseResources.extractPrimitiveValue(resource.coverPath?.value || resource.coverPath) || '',
       tags: Array.isArray(resource.tags?.value) ? resource.tags.value : (Array.isArray(resource.tags) ? resource.tags : []),
       actors: Array.isArray(resource.actors?.value) ? resource.actors.value : (Array.isArray(resource.actors) ? resource.actors : []),
@@ -620,8 +606,6 @@ export const playVideoHandler: ActionHandler = async (resource, context) => {
       resource.resourcePath?.value || resource.resourcePath
     )
     const fileExists = BaseResources.extractPrimitiveValue(resource.fileExists?.value ?? resource.fileExists)
-    const watchCountValue = BaseResources.extractPrimitiveValue(resource.watchCount?.value || resource.watchCount) || 0
-    const lastWatchedValue = BaseResources.extractPrimitiveValue(resource.lastWatched?.value || resource.lastWatched)
 
     if (!filePath) {
       notify.toast('error', '播放失败', `视频 "${resourceName}" 没有配置视频路径`)
@@ -670,13 +654,13 @@ export const playVideoHandler: ActionHandler = async (resource, context) => {
       }
     }
 
-    const updates: any = {
-      lastWatched: new Date().toISOString(),
-      watchCount: watchCountValue + 1
-    }
+    const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+    const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
     if (context.updateResource && resourceId) {
       try {
-        await context.updateResource(resourceId, updates)
+        await context.updateResource(resourceId, {
+          visitedSessions: [...visitedSessions, new Date().toISOString()]
+        })
       } catch (e) {
         console.warn('[ResourceActionHandlers] 更新观看统计失败:', e)
       }
@@ -698,6 +682,7 @@ export const playVideoHandler: ActionHandler = async (resource, context) => {
  */
 export const launchDefaultHandler: ActionHandler = async (resource, context) => {
   try {
+    const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
     const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
     const filePath = BaseResources.extractPrimitiveValue(
       resource.resourcePath?.value || resource.resourcePath || resource.filePath?.value || resource.filePath
@@ -705,6 +690,15 @@ export const launchDefaultHandler: ActionHandler = async (resource, context) => 
     if (!filePath || !filePath.trim()) {
       notify.toast('error', '打开失败', `资源 "${resourceName}" 没有配置文件路径`)
       return
+    }
+    if (resourceId && context.updateResource && resource.visitedSessions) {
+      const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+      const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
+      try {
+        await context.updateResource(resourceId, { visitedSessions: [...visitedSessions, new Date().toISOString()] })
+      } catch (e) {
+        console.warn('[ResourceActionHandlers] 更新访问记录失败:', e)
+      }
     }
     if (context.isElectronEnvironment && window.electronAPI?.openExternal) {
       await window.electronAPI.openExternal(filePath)

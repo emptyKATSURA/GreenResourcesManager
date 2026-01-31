@@ -53,6 +53,21 @@ export class SingleImage extends BaseResources {
 		], true)
 	})
 
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
+		saveable: true,
+		defaultValue: []
+	})
+
+	get lastViewed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	get viewCount(): number {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) ? arr.length : 0
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
@@ -66,6 +81,7 @@ export class SingleImage extends BaseResources {
 			author: this.author.value || '',
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
 			resourcePath: this.resourcePath.value || '',
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',

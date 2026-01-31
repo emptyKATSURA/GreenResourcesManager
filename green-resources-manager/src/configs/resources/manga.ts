@@ -65,15 +65,23 @@ export class Manga extends BaseResources {
 		defaultValue: 0
 	})
 
-	lastViewed: ResourceField<string | null> = new ResourceField<string | null>({
+	// 每次查看的时间记录（ISO 字符串数组，按时间升序）
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
 		saveable: true,
-		defaultValue: null
+		defaultValue: []
 	})
 
-	viewCount: ResourceField<number> = new ResourceField<number>({
-		saveable: true,
-		defaultValue: 0
-	})
+	/** 最后查看时间（从 visitedSessions 派生） */
+	get lastViewed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	/** 浏览次数（从 visitedSessions 派生） */
+	get viewCount(): number {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) ? arr.length : 0
+	}
 
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
@@ -89,8 +97,7 @@ export class Manga extends BaseResources {
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
 			resourcePath: this.resourcePath.value || '',
 			coverPath: this.coverPath.value || '',
-			lastViewed: this.lastViewed.value || null,
-			viewCount: this.viewCount.value || 0,
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',

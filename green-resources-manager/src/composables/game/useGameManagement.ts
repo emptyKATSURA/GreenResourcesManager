@@ -206,7 +206,6 @@ export function useGameManagement(
     if (game) {
       const currentPlayTimeValue: number = (game as any).playTime || 0
       ;(game as any).playTime = currentPlayTimeValue + playTime
-      ;(game as any).lastPlayed = new Date().toISOString()
       await saveGames()
       await checkGameTimeAchievements()
     }

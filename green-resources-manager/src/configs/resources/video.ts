@@ -70,6 +70,21 @@ export class Video extends BaseResources {
 		defaultValue: 0
 	})
 
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
+		saveable: true,
+		defaultValue: []
+	})
+
+	get lastWatched(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	get watchCount(): number {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) ? arr.length : 0
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
@@ -86,6 +101,7 @@ export class Video extends BaseResources {
 			resourcePath: this.resourcePath.value || '',
 			thumbnail: this.thumbnail.value || '',
 			duration: this.duration.value ?? 0,
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',

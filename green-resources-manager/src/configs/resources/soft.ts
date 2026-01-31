@@ -83,17 +83,21 @@ export class Software extends BaseResources {
 		defaultValue: 0
 	})
 
-	// 最后运行时间（ISO 字符串）
-	lastPlayed: ResourceField<string | null> = new ResourceField<string | null>({
+	// 每次访问（启动）的时间记录（ISO 字符串数组，按时间升序）
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
 		saveable: true,
-		defaultValue: null
+		defaultValue: []
 	})
 
-	// 首次运行时间（ISO 字符串）
-	firstPlayed: ResourceField<string | null> = new ResourceField<string | null>({
-		saveable: true,
-		defaultValue: null
-	})
+	get lastPlayed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	get firstPlayed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[0] : null
+	}
 
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
@@ -112,8 +116,7 @@ export class Software extends BaseResources {
 			folderSize: this.folderSize.value ?? 0,
 			playTime: this.playTime.value ?? 0,
 			playCount: this.playCount.value ?? 0,
-			lastPlayed: this.lastPlayed.value ?? null,
-			firstPlayed: this.firstPlayed.value ?? null,
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',

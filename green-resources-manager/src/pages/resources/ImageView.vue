@@ -438,7 +438,7 @@ export default {
         tags: [],
         resourcePath: '',
         coverPath: '',
-        viewCount: 0
+        visitedSessions: []
       },
       tagInput: '',
       // showDetailModal, pages 已移至 setup()
@@ -461,7 +461,7 @@ export default {
         tags: [],
         resourcePath: '',
         coverPath: '',
-        viewCount: 0
+        visitedSessions: []
       },
       editTagInput: '',
       // 右键菜单配置
@@ -744,7 +744,7 @@ export default {
         tags: [],
         resourcePath: '',
         coverPath: '',
-        viewCount: 0
+        visitedSessions: []
       }
       // 同步到 composable 的 ref
       this.newAlbumFolderPath = ''
@@ -760,7 +760,7 @@ export default {
         tags: [],
         resourcePath: '',
         coverPath: '',
-        viewCount: 0
+        visitedSessions: []
       }
       // 同步到 composable 的 ref
       this.newAlbumFolderPath = ''

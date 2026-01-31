@@ -45,6 +45,21 @@ export class Website extends BaseResources {
 		editType: new FormField_Tags('网站标签', false)
 	})
 
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
+		saveable: true,
+		defaultValue: []
+	})
+
+	get lastVisited(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	get visitCount(): number {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) ? arr.length : 0
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
@@ -57,6 +72,7 @@ export class Website extends BaseResources {
 			description: this.description.value || '',
 			resourcePath: this.resourcePath.value || '',
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',
@@ -120,13 +136,13 @@ export class Website extends BaseResources {
 				type: 'count' as const,
 				field: 'visitCount',
 				label: '访问',
-				formatter: 'formatVisitCount'
+				formatter: 'formatViewCount'
 			},
 			{
 				type: 'date' as const,
 				field: 'lastVisited',
 				label: '',
-				formatter: 'formatLastVisited'
+				formatter: 'formatLastPlayed'
 			}
 		]
 	}

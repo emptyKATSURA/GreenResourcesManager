@@ -571,8 +571,7 @@ export default defineComponent({
               folderSize: 0,
               playTime: 0,
               playCount: 0,
-              lastPlayed: null,
-              firstPlayed: null,
+              visitedSessions: [],
               addedDate: new Date().toISOString(),
               fileExists: true
             }
@@ -841,13 +840,7 @@ export default defineComponent({
           } else {
             resource.playTime = totalPlayTime
           }
-          
-          if (resource.lastPlayed && typeof resource.lastPlayed === 'object' && 'value' in resource.lastPlayed) {
-            resource.lastPlayed.value = new Date().toISOString()
-          } else {
-            resource.lastPlayed = new Date().toISOString()
-          }
-          
+          // visitedSessions 在启动时已记录，此处仅更新 playTime
           gameInitialPlayTimes.value.delete(resourceId)
           
           // 持久化到数据库
@@ -943,25 +936,11 @@ export default defineComponent({
           pages.value = []
         },
         updateViewInfo: async (album: any) => {
-          // 更新浏览信息（增加浏览次数、更新最后查看时间等）
           const albumId = BaseResources.extractPrimitiveValue(album.id?.value || album.id)
           const item = items.value.find((i: any) => (i.id?.value || i.id) === albumId)
-          if (item) {
-            // 更新最后查看时间
-            const now = new Date().toISOString()
-            if (item.lastViewed && typeof item.lastViewed === 'object' && 'value' in item.lastViewed) {
-              item.lastViewed.value = now
-            } else {
-              item.lastViewed = now
-            }
-            
-            // 增加浏览次数
-            const currentViewCount = BaseResources.extractPrimitiveValue(item.viewCount?.value || item.viewCount) || 0
-            if (item.viewCount && typeof item.viewCount === 'object' && 'value' in item.viewCount) {
-              item.viewCount.value = currentViewCount + 1
-            } else {
-              item.viewCount = currentViewCount + 1
-            }
+          if (item && item.visitedSessions) {
+            const sessions = Array.isArray(item.visitedSessions.value) ? item.visitedSessions.value : []
+            item.visitedSessions.value = [...sessions, new Date().toISOString()]
           }
         },
         loadAlbumPages: async () => {
@@ -2236,27 +2215,13 @@ export default defineComponent({
       currentAlbum.value = resourcePage.selectedItem.value
       pages.value = detailPages.value
       
-      // 增加浏览次数（使用 context 中的 updateViewInfo 方法，完全复刻 ImageView.vue）
       if (currentAlbum.value) {
         try {
-          // 更新最后查看时间
-          const now = new Date().toISOString()
           const albumId = BaseResources.extractPrimitiveValue(currentAlbum.value.id?.value || currentAlbum.value.id)
           const item = items.value.find((i: any) => (i.id?.value || i.id) === albumId)
-          if (item) {
-            if (item.lastViewed && typeof item.lastViewed === 'object' && 'value' in item.lastViewed) {
-              item.lastViewed.value = now
-            } else {
-              item.lastViewed = now
-            }
-            
-            // 增加浏览次数
-            const currentViewCount = BaseResources.extractPrimitiveValue(item.viewCount?.value || item.viewCount) || 0
-            if (item.viewCount && typeof item.viewCount === 'object' && 'value' in item.viewCount) {
-              item.viewCount.value = currentViewCount + 1
-            } else {
-              item.viewCount = currentViewCount + 1
-            }
+          if (item && item.visitedSessions) {
+            const sessions = Array.isArray(item.visitedSessions.value) ? item.visitedSessions.value : []
+            item.visitedSessions.value = [...sessions, new Date().toISOString()]
           }
         } catch (error) {
           console.warn('[GenericResourceView] 更新浏览信息失败:', error)

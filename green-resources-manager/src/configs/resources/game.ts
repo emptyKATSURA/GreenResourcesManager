@@ -112,17 +112,23 @@ export class Game extends BaseResources {
 		defaultValue: 0
 	})
 
-	// 最后运行时间（ISO 字符串）
-	lastPlayed: ResourceField<string | null> = new ResourceField<string | null>({
+	// 每次访问（启动）的时间记录（ISO 字符串数组，按时间升序）
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
 		saveable: true,
-		defaultValue: null
+		defaultValue: []
 	})
 
-	// 首次运行时间（ISO 字符串）
-	firstPlayed: ResourceField<string | null> = new ResourceField<string | null>({
-		saveable: true,
-		defaultValue: null
-	})
+	/** 最后一次游玩时间（从 visitedSessions 派生） */
+	get lastPlayed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	/** 首次游玩时间（从 visitedSessions 派生） */
+	get firstPlayed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[0] : null
+	}
 
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
@@ -146,8 +152,7 @@ export class Game extends BaseResources {
 			resourcePath: this.resourcePath.value,
 			playTime: this.playTime.value,
 			playCount: this.playCount.value,
-			lastPlayed: this.lastPlayed.value,
-			firstPlayed: this.firstPlayed.value,
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value,
 			rating: this.rating.value,
 			comment: this.comment.value,

@@ -56,6 +56,27 @@ export class Other extends BaseResources {
 		editType: new FormField_SelectGameCover('资源封面', false)
 	})
 
+	// 每次访问的时间记录（ISO 字符串数组）
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
+		saveable: true,
+		defaultValue: []
+	})
+
+	get lastPlayed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
+	get firstPlayed(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[0] : null
+	}
+
+	get playCount(): number {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) ? arr.length : 0
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
@@ -70,6 +91,7 @@ export class Other extends BaseResources {
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
 			resourcePath: this.resourcePath.value || '',
 			coverPath: this.coverPath.value || '',
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',

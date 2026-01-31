@@ -27,11 +27,8 @@ export function useGamePlayTime(
     if (game) {
       console.log(`[DEBUG] ✅ 找到游戏 ${game.name}，进程结束，时长:`, data.playTime, '秒')
 
-      // 更新游戏时长和最后游玩时间
+      // 更新游戏时长（playSessions 在启动时已记录）
       await updateGamePlayTimeFn(data.executablePath, data.playTime)
-      await updateGameFn(game.id, {
-        lastPlayed: new Date().toISOString()
-      })
 
       // 从全局运行列表中移除
       console.log(`[DEBUG] 🔄 调用 removeRunningGame(${game.id})`)

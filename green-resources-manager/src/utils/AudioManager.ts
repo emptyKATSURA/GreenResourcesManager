@@ -48,9 +48,7 @@ class AudioManager {
         duration: Number(audioData.duration) || 0,
         filePath: audioData.filePath || '',
         thumbnail: audioData.thumbnail || '',
-        playCount: Number(audioData.playCount) || 0,
-        lastPlayed: audioData.lastPlayed || null,
-        firstPlayed: audioData.firstPlayed || null,
+        visitedSessions: Array.isArray(audioData.visitedSessions) ? audioData.visitedSessions : [],
         addedDate: audioData.addedDate || new Date().toISOString(),
         rating: Number(audioData.rating) || 0,
         notes: audioData.notes || '',
@@ -129,7 +127,7 @@ class AudioManager {
     }
   }
 
-  // 增加播放次数
+  // 增加播放次数（记录到 visitedSessions）
   async incrementPlayCount(audioId) {
     try {
       const audio = this.audios.find(a => a.id === audioId)
@@ -137,16 +135,12 @@ class AudioManager {
         throw new Error('音频不存在')
       }
 
-      audio.playCount = (audio.playCount || 0) + 1
-      audio.lastPlayed = new Date().toISOString()
-      
-      if (!audio.firstPlayed) {
-        audio.firstPlayed = new Date().toISOString()
-      }
+      const sessions = Array.isArray(audio.visitedSessions) ? audio.visitedSessions : []
+      audio.visitedSessions = [...sessions, new Date().toISOString()]
 
       const success = await this.saveAudios()
       if (success) {
-        console.log('播放次数更新成功:', audio.name, '播放次数:', audio.playCount)
+        console.log('播放次数更新成功:', audio.name, '播放次数:', audio.visitedSessions?.length || 0)
         return audio
       } else {
         throw new Error('保存音频数据失败')
@@ -175,7 +169,10 @@ class AudioManager {
 
   // 按播放次数排序
   sortByPlayCount() {
-    return [...this.audios].sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+    return [...this.audios].sort((a, b) => 
+      (Array.isArray(b.visitedSessions) ? b.visitedSessions.length : 0) - 
+      (Array.isArray(a.visitedSessions) ? a.visitedSessions.length : 0)
+    )
   }
 
   // 按添加时间排序

@@ -172,8 +172,7 @@ export function useGameDragAndDrop(options: GameDragDropOptions) {
             folderSize: 0,
             playTime: 0,
             playCount: 0,
-            lastPlayed: null,
-            firstPlayed: null,
+            visitedSessions: [],
             addedDate: new Date().toISOString(),
             fileExists: true, // 拖拽添加的游戏默认文件存在
             isArchive: isArchive // 标记是否为压缩包

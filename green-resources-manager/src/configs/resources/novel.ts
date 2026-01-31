@@ -69,6 +69,16 @@ export class Novel extends BaseResources {
 		editType: new FormField_Text('出版年份', false)
 	})
 
+	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
+		saveable: true,
+		defaultValue: []
+	})
+
+	get lastRead(): string | null {
+		const arr = this.visitedSessions.value
+		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象
@@ -85,6 +95,7 @@ export class Novel extends BaseResources {
 			resourcePath: this.resourcePath.value || '',
 			coverPath: this.coverPath.value || '',
 			publishYear: this.publishYear.value || '',
+			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
 			comment: this.comment.value || '',
