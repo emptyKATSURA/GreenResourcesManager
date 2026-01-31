@@ -139,6 +139,17 @@ const fixedRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/changelog',
+    name: 'changelog',
+    component: () => import('../pages/ChangelogView.vue'),
+    meta: {
+      title: '更新记录',
+      icon: '📋',
+      description: '版本更新与功能变更记录',
+      requiresFilter: false
+    }
+  },
+  {
     path: '/collections',
     name: 'collections',
     component: () => import('../pages/CollectionsView.vue'),

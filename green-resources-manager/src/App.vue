@@ -342,6 +342,11 @@ export default {
           icon: '❓',
           description: '了解应用功能和使用方法'
         },
+        changelog: {
+          name: '更新记录',
+          icon: '📋',
+          description: '版本更新与功能变更记录'
+        },
         settings: {
           name: '设置',
           icon: '⚙️',
@@ -385,7 +390,7 @@ export default {
     },
     // 底部导航页面ID列表
     footerViews() {
-      return ['workshop', 'users', 'messages', 'help', 'settings']
+      return ['workshop', 'users', 'messages', 'help', 'changelog', 'settings']
     },
     // 根据点击状态返回对应的 logo 图标
     logoIcon() {
