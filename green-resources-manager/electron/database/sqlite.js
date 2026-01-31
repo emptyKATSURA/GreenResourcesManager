@@ -1,5 +1,5 @@
 /**
- * SQLite 最小示例：仅用于跑通流程，不涉及业务
+ * 主数据库模块：资源、页面、设置、用户等数据存储
  * 使用 better-sqlite3（原生模块，性能更好）
  */
 
@@ -65,44 +65,6 @@ function getDatabasePath() {
   return dbPath
 }
 
-/**
- * 运行 SQLite 流程演示：初始化 -> 建表 -> 插入 -> 查询 -> 关闭
- * @returns {Promise<{ ok: boolean, message?: string }>}
- */
-async function runDemo() {
-  try {
-    const Database = require('better-sqlite3')
-    const dbPath = getDatabasePath()
-    const db = new Database(dbPath)
-    db.exec('CREATE TABLE IF NOT EXISTS demo (id INTEGER PRIMARY KEY, name TEXT)')
-    const insertStmt = db.prepare('INSERT INTO demo (id, name) VALUES (?, ?)')
-    insertStmt.run(1, 'sqlite-demo')
-    const selectStmt = db.prepare('SELECT * FROM demo')
-    const rows = selectStmt.all()
-    db.close()
-    console.log('[SQLite Demo] 流程跑通: 建表 -> 插入 -> 查询 -> 关闭')
-    console.log('[SQLite Demo] 查询结果:', rows)
-    console.log('[SQLite Demo] 数据库文件路径:', dbPath)
-    return { ok: true, message: 'better-sqlite3 流程正常' }
-  } catch (err) {
-    console.error('[SQLite Demo] 失败:', err.message)
-    return { ok: false, message: err.message }
-  }
-}
-
-/**
- * 解析 JSON 字段的辅助函数（用于 settings 等非资源表）
- * @param {string|null|undefined} jsonString - JSON 字符串
- * @returns {any} 解析后的值，如果解析失败则返回空数组
- */
-function parseJsonField(jsonString) {
-  if (!jsonString) return []
-  try {
-    return JSON.parse(jsonString)
-  } catch (e) {
-    return []
-  }
-}
 
 /**
  * 将旧格式行对象转换为前端期望格式（用于迁移）
@@ -221,10 +183,63 @@ function getResourcesByIds(db, tableName, ids) {
 }
 
 /**
- * 获取数据（所有资源类型表），供前端「数据库」页面展示
+ * 获取指定资源表的所有记录（解析后的对象数组）
+ * @param {string} tableName - 表名（如 'games', 'videoFolder'）
+ * @returns {Promise<Array<any>>} 资源数组
+ */
+async function getTableResources(tableName) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    ensureResourceTablesExist(db)
+    const rows = getResourcesFromJsonTable(db, tableName)
+    const result = rows.map(row => {
+      try {
+        return { id: row.id, ...JSON.parse(row.jsonData) }
+      } catch {
+        return { id: row.id }
+      }
+    })
+    db.close()
+    return result
+  } catch (err) {
+    console.error(`[SQLite] 获取表 ${tableName} 资源失败:`, err.message)
+    throw err
+  }
+}
+
+/**
+ * 根据 ID 获取单个资源
+ * @param {string} tableName - 表名
+ * @param {string} resourceId - 资源 ID
+ * @returns {Promise<Object|null>} 资源对象，不存在则返回 null
+ */
+async function getResourceById(tableName, resourceId) {
+  try {
+    const Database = require('better-sqlite3')
+    const dbPath = getDatabasePath()
+    const db = new Database(dbPath)
+    ensureResourceTablesExist(db)
+    const row = db.prepare(`SELECT id, jsonData FROM "${tableName}" WHERE id = ?`).get(resourceId)
+    db.close()
+    if (!row) return null
+    try {
+      return { id: row.id, ...JSON.parse(row.jsonData) }
+    } catch {
+      return { id: row.id }
+    }
+  } catch (err) {
+    console.error(`[SQLite] 获取资源失败:`, err.message)
+    throw err
+  }
+}
+
+/**
+ * 获取所有表数据，供前端「数据库」页面展示
  * @returns {Promise<{ ok: boolean, tables?: Array<{ tableName: string, rows: Array<any> }>, message?: string }>}
  */
-async function getDemoData() {
+async function getAllTablesData() {
   try {
     const Database = require('better-sqlite3')
     const dbPath = getDatabasePath()
@@ -1192,4 +1207,4 @@ async function saveUserToSqlite(user) {
   }
 }
 
-module.exports = { runDemo, getDemoData, getPageData, getSaveDataDirectory, getDatabasePath, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateOldSqlToJsonFormat, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }
+module.exports = { getAllTablesData, getPageData, getTableResources, getResourceById, getSaveDataDirectory, getDatabasePath, saveResourceToTable, addResourceToPage, savePageResources, deleteResourceFromTable, migrateOldSqlToJsonFormat, migrateAchievementsFromJson, migrateSettingsFromJson, getSettingsFromSqlite, saveSettingsToSqlite, migrateUserFromJson, getUserFromSqlite, saveUserToSqlite }

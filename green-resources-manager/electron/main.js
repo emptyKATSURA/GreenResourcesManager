@@ -31,7 +31,7 @@ const fileUtils = require('./utils/file-utils')
 const pathUtils = require('./utils/path-utils')
 const windowsUtils = require('./utils/windows-utils')
 const constants = require('./utils/constants')
-const sqliteDemo = require('./database/sqlite-demo')
+const sqlite = require('./database/sqlite')
 const scraperDb = require('./database/scraper-db')
 
 // 判断是否为开发环境
@@ -173,46 +173,46 @@ if (!gotTheLock) {
     tabHandlers.registerTabHandlers(ipcMain, mainWindow, isDev)
 
     // SQLite demo 数据查询（供「数据库」页面展示）
-    ipcMain.handle('sqlite-demo-get-data', () => sqliteDemo.getDemoData())
+    ipcMain.handle('sqlite-get-all-tables-data', () => sqlite.getAllTablesData())
     
     // 从数据库读取页面数据
-    ipcMain.handle('sqlite-get-page-data', (event, pageId) => sqliteDemo.getPageData(pageId))
+    ipcMain.handle('sqlite-get-page-data', (event, pageId) => sqlite.getPageData(pageId))
     
     // 保存资源到数据库
-    ipcMain.handle('sqlite-save-resource', (event, resourceType, resource) => sqliteDemo.saveResourceToTable(resourceType, resource))
+    ipcMain.handle('sqlite-save-resource', (event, resourceType, resource) => sqlite.saveResourceToTable(resourceType, resource))
     
     // 添加资源到页面索引
-    ipcMain.handle('sqlite-add-resource-to-page', (event, pageId, resourceType, resourceId) => sqliteDemo.addResourceToPage(pageId, resourceType, resourceId))
+    ipcMain.handle('sqlite-add-resource-to-page', (event, pageId, resourceType, resourceId) => sqlite.addResourceToPage(pageId, resourceType, resourceId))
     
     // 保存页面资源（批量）
-    ipcMain.handle('sqlite-save-page-resources', (event, pageId, resources) => sqliteDemo.savePageResources(pageId, resources))
+    ipcMain.handle('sqlite-save-page-resources', (event, pageId, resources) => sqlite.savePageResources(pageId, resources))
     
     // 从数据库删除资源
-    ipcMain.handle('sqlite-delete-resource', (event, tableName, resourceId) => sqliteDemo.deleteResourceFromTable(tableName, resourceId))
+    ipcMain.handle('sqlite-delete-resource', (event, tableName, resourceId) => sqlite.deleteResourceFromTable(tableName, resourceId))
     
     // 将旧格式 SQL（多列）迁移为 id+jsonData 格式
-    ipcMain.handle('sqlite-migrate-to-json-format', () => sqliteDemo.migrateOldSqlToJsonFormat())
+    ipcMain.handle('sqlite-migrate-to-json-format', () => sqlite.migrateOldSqlToJsonFormat())
     
     // 从 JSON 迁移成就数据到 SQLite
-    ipcMain.handle('sqlite-migrate-achievements', (event, customSaveDataPath) => sqliteDemo.migrateAchievementsFromJson(customSaveDataPath))
+    ipcMain.handle('sqlite-migrate-achievements', (event, customSaveDataPath) => sqlite.migrateAchievementsFromJson(customSaveDataPath))
     
     // 从 JSON 迁移设置数据到 SQLite
-    ipcMain.handle('sqlite-migrate-settings', (event, customSaveDataPath) => sqliteDemo.migrateSettingsFromJson(customSaveDataPath))
+    ipcMain.handle('sqlite-migrate-settings', (event, customSaveDataPath) => sqlite.migrateSettingsFromJson(customSaveDataPath))
     
     // 从 SQLite 读取设置数据
-    ipcMain.handle('sqlite-get-settings', () => sqliteDemo.getSettingsFromSqlite())
+    ipcMain.handle('sqlite-get-settings', () => sqlite.getSettingsFromSqlite())
     
     // 保存设置数据到 SQLite
-    ipcMain.handle('sqlite-save-settings', (event, settings) => sqliteDemo.saveSettingsToSqlite(settings))
+    ipcMain.handle('sqlite-save-settings', (event, settings) => sqlite.saveSettingsToSqlite(settings))
     
     // 从 JSON 迁移用户数据到 SQLite
-    ipcMain.handle('sqlite-migrate-user', (event, customSaveDataPath) => sqliteDemo.migrateUserFromJson(customSaveDataPath))
+    ipcMain.handle('sqlite-migrate-user', (event, customSaveDataPath) => sqlite.migrateUserFromJson(customSaveDataPath))
     
     // 从 SQLite 读取用户数据
-    ipcMain.handle('sqlite-get-user', () => sqliteDemo.getUserFromSqlite())
+    ipcMain.handle('sqlite-get-user', () => sqlite.getUserFromSqlite())
     
     // 保存用户数据到 SQLite
-    ipcMain.handle('sqlite-save-user', (event, user) => sqliteDemo.saveUserToSqlite(user))
+    ipcMain.handle('sqlite-save-user', (event, user) => sqlite.saveUserToSqlite(user))
     
     // 刮削库数据库操作
     ipcMain.handle('scraper-db-import', (event, scrapableFieldsByTable, sourceDbPath) => scraperDb.scraperDbImportFromArchive(scrapableFieldsByTable, sourceDbPath))
@@ -244,11 +244,6 @@ if (!gotTheLock) {
     
     // 启动 HTTP API 服务器
     apiServer.startHttpServer()
-
-    // SQLite 流程演示（仅跑通，无业务）
-    sqliteDemo.runDemo().then((r) => {
-      if (!r.ok) console.error('[SQLite Demo]', r.message)
-    })
 
     // 在 macOS 上，当单击 dock 图标并且没有其他窗口打开时，
     // 通常在应用程序中重新创建窗口

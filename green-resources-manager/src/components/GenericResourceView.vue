@@ -1978,26 +1978,6 @@ export default defineComponent({
         console.log(`[GenericResourceView] ====== 加载数据 ====== pageId="${pageId}", resourceType="${resourceType.value}", ResourceClass=${ResourceClass?.name}`)
         const result = await window.electronAPI.sqliteGetPageData(pageId)
         console.log(`[GenericResourceView] sqliteGetPageData 返回:`, { ok: result?.ok, dataLength: result?.data?.length, message: result?.message })
-        // 番剧页调试：用现有 sqliteDemoGetData 查看 anime_series_page 与 videoFolder 实际数据
-        if (pageId === 'anime-series' && window.electronAPI.sqliteDemoGetData) {
-          const demoRes = await window.electronAPI.sqliteDemoGetData()
-          if (demoRes?.ok && demoRes?.tables) {
-            const animePage = demoRes.tables.find((t: any) => t.tableName === 'anime_series_page')
-            const videoFolder = demoRes.tables.find((t: any) => t.tableName === 'videoFolder')
-            console.log('[GenericResourceView] anime_series_page 表:', animePage ? { rowCount: animePage.rows?.length, rows: animePage.rows } : '未找到')
-            console.log('[GenericResourceView] videoFolder 表:', videoFolder ? { rowCount: videoFolder.rows?.length, rows: videoFolder.rows?.slice(0, 20) } : '未找到')
-            // 调试：对比 resourceType/resourceId 与 videoFolder.id 是否匹配
-            if (animePage?.rows?.length && videoFolder?.rows?.length) {
-              const firstRow = animePage.rows[0] as any
-              const pageResourceType = firstRow.resourceType ?? firstRow.resourcetype
-              const pageResourceId = firstRow.resourceId ?? firstRow.resourceid
-              const vfIds = videoFolder.rows.map((r: any) => r.id ?? r.Id)
-              console.log('[GenericResourceView] 番剧页调试 - anime_series_page 第一行:', { resourceType: pageResourceType, resourceId: pageResourceId, 所有字段: firstRow })
-              console.log('[GenericResourceView] 番剧页调试 - videoFolder 所有 id:', vfIds)
-              console.log('[GenericResourceView] 番剧页调试 - resourceId 是否在 videoFolder 中:', vfIds.includes(pageResourceId))
-            }
-          }
-        }
         if (!result || !result.ok) {
           throw new Error(result?.message || '[GenericResourceView] 获取页面数据失败')
         }

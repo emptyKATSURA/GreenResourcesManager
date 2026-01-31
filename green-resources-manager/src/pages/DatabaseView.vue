@@ -394,13 +394,13 @@ const handleConvertToNewArchive = async () => {
 // 加载数据
 const loadData = async () => {
   const api = (window as any).electronAPI
-  if (!api?.sqliteDemoGetData) {
+  if (!api?.sqliteGetAllTablesData) {
     error.value = '当前环境无法访问 SQLite（请使用 Electron 运行）'
     loading.value = false
     return
   }
   try {
-    const res = await api.sqliteDemoGetData()
+    const res = await api.sqliteGetAllTablesData()
     if (res?.ok) {
       // 支持新的多表格式：{ tables: [{ tableName, rows }, ...] }
       if (Array.isArray(res.tables)) {

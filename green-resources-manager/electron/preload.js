@@ -78,7 +78,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDiskTypeByPath: (filePath) => ipcRenderer.invoke('get-disk-type-by-path', filePath),
 
   // SQLite demo 数据（数据库页面展示）
-  sqliteDemoGetData: () => ipcRenderer.invoke('sqlite-demo-get-data'),
+  sqliteGetAllTablesData: () => ipcRenderer.invoke('sqlite-get-all-tables-data'),
   // 从数据库读取页面数据
   sqliteGetPageData: (pageId) => ipcRenderer.invoke('sqlite-get-page-data', pageId),
   // 保存资源到数据库

@@ -18,10 +18,28 @@
         >
           {{ merging ? '合并中...' : '合并其它刮削库' }}
         </button>
+        <button type="button" class="btn-help" @click="helpVisible = true">
+          帮助说明
+        </button>
         <span v-if="importedItems.length > 0" class="import-summary">
           已导入 {{ importedItems.length }} 条固有数据（无 id）
         </span>
       </div>
+
+      <!-- 帮助说明弹窗 -->
+      <FunModal v-model="helpVisible" title="刮削库 · 帮助说明" :max-width="'520px'">
+        <div class="help-body">
+          <p><strong>什么是刮削库？</strong></p>
+          <p>刮削库用于存放可供刮削使用的资源数据。这里的记录是「固有数据」（不含游玩时长、评分、游玩记录等），主要来自存档中各资源表的条目，用于在刮削时匹配、补全元数据。</p>
+          <p><strong>从存档导入刮削库</strong></p>
+          <p>从当前应用的存档中，将各资源表里已有的数据导入到刮削库。导入的是不含 id 的固有数据，方便在其它环境或合并时使用。</p>
+          <p><strong>合并其它刮削库</strong></p>
+          <p>选择另一个刮削库文件（如从别处导出的 JSON），与当前刮削库合并。若存在重复项（按 json 或 name 判断），可选择「覆盖」用外部数据替换本地，或「忽略」保留本地数据；其余记录将直接新增。</p>
+        </div>
+        <template #footer>
+          <button type="button" class="btn-confirm" @click="helpVisible = false">知道了</button>
+        </template>
+      </FunModal>
 
       <!-- 合并刮削库：重复项选择弹窗 -->
       <div v-if="mergeDialogVisible" class="modal-overlay" @mousedown.self="mergeDialogVisible = false">
@@ -107,11 +125,13 @@ import alertService from '../utils/AlertService.ts'
 import { usePagination } from '../composables/usePagination'
 import FunPagination from '../fun-ui/navigation/Pagination/FunPagination.vue'
 import FunDataTable from '../fun-ui/basic/DataTable/FunDataTable.vue'
+import FunModal from '../fun-ui/feedback/Modal/FunModal.vue'
 import { getScrapableFieldsByTable } from '../configs/resources/scrapableFields'
 
 const importing = ref(false)
 const merging = ref(false)
 const importedItems = ref<Array<Record<string, any>>>([])
+const helpVisible = ref(false)
 
 // 合并其它刮削库：弹窗与重复项
 const mergeDialogVisible = ref(false)
@@ -659,6 +679,48 @@ onMounted(() => {
   border: none;
 }
 .modal-content .btn-confirm:hover {
+  background: var(--accent-hover);
+}
+
+.btn-help {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn-help:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+}
+
+.help-body p {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.help-body p:last-child {
+  margin-bottom: 0;
+}
+.help-body strong {
+  color: var(--text-primary);
+}
+
+/* FunModal 插槽内按钮沿用弹窗按钮样式 */
+:deep(.fun-modal__footer .btn-confirm) {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+}
+:deep(.fun-modal__footer .btn-confirm:hover) {
   background: var(--accent-hover);
 }
 </style>
