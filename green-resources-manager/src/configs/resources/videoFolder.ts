@@ -82,6 +82,14 @@ export class VideoFolder extends BaseResources {
 		return Array.isArray(arr) && arr.length > 0 ? arr[arr.length - 1] : null
 	}
 
+	/** 可被刮削的字段（导入刮削库时只保存这些） */
+	static getScrapableFieldKeys(): string[] {
+		return [
+			'resourceType', 'name', 'description', 'tags', 'actors',
+			'voiceActors', 'productionTeam', 'resourcePath', 'thumbnail'
+		]
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象

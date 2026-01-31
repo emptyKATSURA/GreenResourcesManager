@@ -60,6 +60,11 @@ export class Website extends BaseResources {
 		return Array.isArray(arr) ? arr.length : 0
 	}
 
+	/** 可被刮削的字段（导入刮削库时只保存这些） */
+	static getScrapableFieldKeys(): string[] {
+		return ['resourceType', 'name', 'description', 'resourcePath', 'tags']
+	}
+
 	/**
 	 * 获取可保存的数据（纯 JSON 对象）
 	 * @returns {any} 可保存的纯 JSON 对象

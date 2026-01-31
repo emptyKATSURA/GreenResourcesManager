@@ -213,6 +213,15 @@
       @confirm="confirmPathUpdate"
       @cancel="closePathUpdateDialog"
     />
+
+    <!-- 刮削补全对话框 -->
+    <ScraperUpdateDialog
+      :visible="showScraperDialog"
+      :matches="scraperMatches"
+      :current-item="scraperCurrentItem"
+      @confirm="confirmScraperUpdate"
+      @cancel="closeScraperDialog"
+    />
     
     <!-- 强制结束游戏确认对话框 -->
     <div v-if="showTerminateConfirmDialog" class="modal-overlay" @click="closeTerminateConfirmDialog">
@@ -291,7 +300,23 @@ import { useVideoPlayback } from '../composables/video/useVideoPlayback'
 import { useVideoThumbnail } from '../composables/video/useVideoThumbnail'
 import FolderVideosGrid from './video/FolderVideosGrid.vue'
 import ResourcesEditDialog from './ResourcesEditDialog.vue'
+import ScraperUpdateDialog from './ScraperUpdateDialog.vue'
 import type { FilterItem } from '../types/filter'
+
+// 资源类型 -> 刮削库表名
+const RESOURCE_TYPE_TO_SCRAPER_TABLE: Record<string, string> = {
+  Game: 'games',
+  Software: 'software',
+  Image: 'manga',
+  Manga: 'manga',
+  SingleImage: 'singleImage',
+  Video: 'video',
+  Anime: 'videoFolder',
+  Novel: 'novel',
+  Website: 'website',
+  Audio: 'audio',
+  Other: 'other'
+}
 
 // 资源类型到资源类和页面配置的映射
 const resourceClassMap: Record<string, { resourceClass: any; pageClass: any; testPageClass?: any }> = {
@@ -356,6 +381,7 @@ export default defineComponent({
     ContentView,
     ResourcesEditDialog,
     PathUpdateDialog,
+    ScraperUpdateDialog,
     FolderVideosGrid,
     // FunDropZone,  // 临时移除，避免性能问题
     FunGrid
@@ -705,6 +731,9 @@ export default defineComponent({
     
     // 强制结束游戏确认对话框状态
     const showTerminateConfirmDialog = ref(false)
+    const showScraperDialog = ref(false)
+    const scraperMatches = ref<any[]>([])
+    const scraperCurrentItem = ref<any>(null)
     const resourceToTerminate = ref<any>(null)
 
     // 检查资源是否正在运行（通用方法，支持所有资源类型）
@@ -1230,6 +1259,37 @@ export default defineComponent({
           items.value.splice(index, 1)
         }
       },
+      scraper: async (item: any) => {
+        if (!isElectronEnvironment.value || !window.electronAPI?.scraperDbSearch) {
+          notify.toast('error', '刮削', '当前环境不支持刮削功能')
+          return
+        }
+        const rt = resourceType.value
+        const scraperTable = RESOURCE_TYPE_TO_SCRAPER_TABLE[rt]
+        if (!scraperTable) {
+          notify.toast('error', '刮削', `资源类型 ${rt} 暂不支持刮削`)
+          return
+        }
+        const name = BaseResources.extractPrimitiveValue(item.name?.value || item.name) || ''
+        const resourcePath = getResourceFilePath(item) || BaseResources.extractPrimitiveValue(item.folderPath?.value ?? item.folderPath) || ''
+        try {
+          const res = await window.electronAPI.scraperDbSearch(scraperTable, name, resourcePath)
+          if (!res?.ok) {
+            notify.toast('error', '刮削', res?.message || '搜索刮削库失败')
+            return
+          }
+          const matches = res.matches || []
+          if (matches.length === 0) {
+            notify.toast('info', '刮削', '未找到匹配的刮削数据（同名或同文件夹）')
+            return
+          }
+          scraperMatches.value = matches
+          scraperCurrentItem.value = item
+          showScraperDialog.value = true
+        } catch (e: any) {
+          notify.toast('error', '刮削', e?.message || '搜索失败')
+        }
+      },
       'update-folder-size': async (item: any) => {
         if (!isElectronEnvironment.value) {
           notify.toast('error', '操作失败', '当前环境不支持文件夹大小计算功能')
@@ -1499,7 +1559,7 @@ export default defineComponent({
         getItemName: (item: any) => item.name?.value || item.name,
         itemType: pageConfig.name || '资源'
       },
-      contextMenuItems: ResourceClass.contextMenuItems || [],
+      contextMenuItems: [...(ResourceClass.contextMenuItems || []), { key: 'scraper', icon: '📥', label: '刮削' }],
       contextMenuHandlers: contextMenuHandlers,
       emptyState: pageConfig.getEmptyStateConfig ? pageConfig.getEmptyStateConfig() : {
         icon: '📄',
@@ -1657,6 +1717,50 @@ export default defineComponent({
         default:
           break
       }
+    }
+
+    const confirmScraperUpdate = async (match: any) => {
+      const item = scraperCurrentItem.value
+      if (!item || !window.electronAPI?.scraperDbApply || !isElectronEnvironment.value) return
+      const rt = resourceType.value
+      const scraperTable = RESOURCE_TYPE_TO_SCRAPER_TABLE[rt]
+      const mainId = BaseResources.extractPrimitiveValue(item.id?.value ?? item.id)
+      if (!mainId || !scraperTable || !match?.jsonData) {
+        notify.toast('error', '刮削', '参数不完整')
+        closeScraperDialog()
+        return
+      }
+      try {
+        const res = await window.electronAPI.scraperDbApply(scraperTable, mainId, match.jsonData)
+        if (res?.ok) {
+          const scraped = typeof match.jsonData === 'string' ? JSON.parse(match.jsonData) : match.jsonData
+          for (const [key, value] of Object.entries(scraped)) {
+            if (key === 'id') continue
+            const f = item[key]
+            const current = f && typeof f === 'object' && 'value' in f ? f.value : item[key]
+            const isEmpty = current === null || current === undefined || current === ''
+            if (isEmpty && value !== null && value !== undefined && value !== '') {
+              if (f && typeof f === 'object' && 'value' in f) {
+                f.value = value
+              } else {
+                item[key] = value
+              }
+            }
+          }
+          await saveData()
+          notify.toast('success', '刮削', '补全成功')
+        } else {
+          notify.toast('error', '刮削', res?.message || '更新失败')
+        }
+      } catch (e: any) {
+        notify.toast('error', '刮削', e?.message || '更新失败')
+      }
+      closeScraperDialog()
+    }
+    const closeScraperDialog = () => {
+      showScraperDialog.value = false
+      scraperMatches.value = []
+      scraperCurrentItem.value = null
     }
 
     // 右键菜单与详情面板复用同一套逻辑：按 key 派发到 handleDetailActionImpl
@@ -2356,6 +2460,11 @@ export default defineComponent({
       handleDragDrop,
       // 路径更新对话框相关
       showPathUpdateDialog: resourcePage.showPathUpdateDialog,
+      showScraperDialog,
+      scraperMatches,
+      scraperCurrentItem,
+      confirmScraperUpdate,
+      closeScraperDialog,
       pathUpdateInfo: resourcePage.pathUpdateInfo,
       closePathUpdateDialog: resourcePage.closePathUpdateDialog,
       confirmPathUpdate,

@@ -55,7 +55,7 @@ const fixedRoutes: RouteRecordRaw[] = [
     meta: {
       title: '本地刮削库',
       icon: '📚',
-      description: '本地刮削库（暂未开放）',
+      description: '本地刮削库，对资源右键点击刮削即可使用',
       requiresFilter: false
     }
   },

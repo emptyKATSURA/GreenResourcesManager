@@ -79,7 +79,16 @@ export abstract class BaseResources {
 		}
 		return null
 	}
-	
+
+	/**
+	 * 静态方法：返回可被刮削的字段名列表（从存档导入刮削库时只保存这些字段）
+	 * 子类应重写此方法，返回如 name、description、tags、resourcePath、coverPath 等
+	 * @returns 字段名数组，不包含 id
+	 */
+	static getScrapableFieldKeys(): string[] {
+		return []
+	}
+
 	//内部字段
 
 	// 资源唯一标识符

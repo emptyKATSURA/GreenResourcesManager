@@ -31,8 +31,8 @@ const fileUtils = require('./utils/file-utils')
 const pathUtils = require('./utils/path-utils')
 const windowsUtils = require('./utils/windows-utils')
 const constants = require('./utils/constants')
-const sqliteDemo = require('./utils/sqlite-demo')
-const scraperDb = require('./utils/scraper-db')
+const sqliteDemo = require('./database/sqlite-demo')
+const scraperDb = require('./database/scraper-db')
 
 // 判断是否为开发环境
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -212,9 +212,13 @@ if (!gotTheLock) {
     ipcMain.handle('sqlite-save-user', (event, user) => sqliteDemo.saveUserToSqlite(user))
     
     // 刮削库数据库操作
-    ipcMain.handle('scraper-db-import', () => scraperDb.scraperDbImportFromArchive())
+    ipcMain.handle('scraper-db-import', (event, scrapableFieldsByTable) => scraperDb.scraperDbImportFromArchive(scrapableFieldsByTable))
     ipcMain.handle('scraper-db-get-all', () => scraperDb.scraperDbGetAll())
     ipcMain.handle('scraper-db-clear', () => scraperDb.scraperDbClear())
+    ipcMain.handle('scraper-db-search', (event, sourceTable, name, resourcePath) => scraperDb.scraperDbSearch(sourceTable, name, resourcePath))
+    ipcMain.handle('scraper-db-apply', (event, sourceTable, mainResourceId, jsonData) => scraperDb.scraperDbApplyToResource(sourceTable, mainResourceId, jsonData))
+    ipcMain.handle('scraper-db-read-external', (event, dbPath) => scraperDb.scraperDbReadExternal(dbPath))
+    ipcMain.handle('scraper-db-merge', (event, overwrites, adds) => scraperDb.scraperDbMerge(overwrites, adds))
     
     // 注册快捷键相关的 IPC 处理器
     shortcuts.registerIpcHandlers(

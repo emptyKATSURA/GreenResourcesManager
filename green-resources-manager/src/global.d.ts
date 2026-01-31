@@ -189,9 +189,13 @@ declare global {
       sqliteSaveUser: (user: any) => Promise<{ ok: boolean; message?: string }>
       
       // 刮削库数据库操作
-      scraperDbImport: () => Promise<{ ok: boolean; count?: number; message?: string }>
+      scraperDbImport: (scrapableFieldsByTable?: Record<string, string[]>) => Promise<{ ok: boolean; count?: number; message?: string }>
       scraperDbGetAll: () => Promise<{ ok: boolean; data?: Array<any>; message?: string }>
       scraperDbClear: () => Promise<{ ok: boolean; message?: string }>
+      scraperDbSearch: (sourceTable: string, name: string, resourcePath: string) => Promise<{ ok: boolean; matches?: Array<any>; message?: string }>
+      scraperDbApply: (sourceTable: string, mainResourceId: number, jsonData: string) => Promise<{ ok: boolean; message?: string }>
+      scraperDbReadExternal: (dbPath: string) => Promise<{ ok: boolean; data?: Array<{ _id: number; sourceTable: string; updateTime: string; author: string | null; jsonData: string }>; message?: string }>
+      scraperDbMerge: (overwrites: Array<{ localId: number; sourceTable: string; jsonData: string; updateTime: string; author: string | null }>, adds: Array<{ sourceTable: string; jsonData: string; updateTime: string; author: string | null }>) => Promise<{ ok: boolean; overwritten?: number; added?: number; message?: string }>
       
       // 其他方法
       [key: string]: any

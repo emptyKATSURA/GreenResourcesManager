@@ -10,9 +10,64 @@
         >
           {{ importing ? '导入中...' : '从存档导入刮削库' }}
         </button>
+        <button
+          type="button"
+          class="btn-merge"
+          :disabled="merging"
+          @click="handleMergeOtherLibrary"
+        >
+          {{ merging ? '合并中...' : '合并其它刮削库' }}
+        </button>
         <span v-if="importedItems.length > 0" class="import-summary">
           已导入 {{ importedItems.length }} 条固有数据（无 id）
         </span>
+      </div>
+
+      <!-- 合并刮削库：重复项选择弹窗 -->
+      <div v-if="mergeDialogVisible" class="modal-overlay" @mousedown.self="mergeDialogVisible = false">
+        <div class="modal-content merge-dialog" @mousedown.stop>
+          <div class="modal-header">
+            <h3>合并其它刮削库</h3>
+            <button type="button" class="btn-close" @click="mergeDialogVisible = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <p v-if="mergeDuplicates.length === 0" class="merge-summary">
+              未发现重复，将新增 {{ mergeAddCount }} 条记录。
+            </p>
+            <template v-else>
+              <p class="merge-summary">
+                发现 {{ mergeDuplicates.length }} 条重复（json 或 name 相同），请选择覆盖或忽略；另有 {{ mergeAddCount }} 条将直接新增。
+              </p>
+              <div class="merge-bulk-actions">
+                <button type="button" class="btn-bulk" @click="setAllMergeDecision('ignore')">全部忽略</button>
+                <button type="button" class="btn-bulk" @click="setAllMergeDecision('overwrite')">全选覆盖</button>
+              </div>
+              <div class="merge-duplicate-list">
+                <div
+                  v-for="(item, idx) in mergeDuplicates"
+                  :key="idx"
+                  class="merge-duplicate-row"
+                >
+                  <span class="merge-name">{{ item.externalName || '(无名称)' }}</span>
+                  <span class="merge-vs">← 覆盖本地</span>
+                  <span class="merge-name local">{{ item.localName || '(无名称)' }}</span>
+                  <label class="merge-choice">
+                    <input type="radio" :name="'merge-' + idx" value="overwrite" v-model="item.decision" />
+                    覆盖
+                  </label>
+                  <label class="merge-choice">
+                    <input type="radio" :name="'merge-' + idx" value="ignore" v-model="item.decision" />
+                    忽略
+                  </label>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-cancel" @click="mergeDialogVisible = false">取消</button>
+            <button type="button" class="btn-confirm" @click="confirmMerge">确认合并</button>
+          </div>
+        </div>
       </div>
 
       <div v-if="importedItems.length === 0" class="scraper-library-empty">
@@ -52,73 +107,40 @@ import alertService from '../utils/AlertService.ts'
 import { usePagination } from '../composables/usePagination'
 import FunPagination from '../fun-ui/navigation/Pagination/FunPagination.vue'
 import FunDataTable from '../fun-ui/basic/DataTable/FunDataTable.vue'
-
-// 资源表名（只从这些表导入固有数据）
-const RESOURCE_TABLE_NAMES = [
-  'games',
-  'manga',
-  'audio',
-  'novel',
-  'video',
-  'software',
-  'website',
-  'singleImage',
-  'other',
-  'videoFolder'
-]
+import { getScrapableFieldsByTable } from '../configs/resources/scrapableFields'
 
 const importing = ref(false)
+const merging = ref(false)
 const importedItems = ref<Array<Record<string, any>>>([])
 
-// 列标题中文映射
-const COLUMN_LABELS: Record<string, string> = {
-  _sourceTable: '来源表',
-  name: '名称',
-  resourcePath: '资源路径',
-  description: '描述',
-  tags: '标签',
-  coverPath: '封面路径',
-  thumbnail: '缩略图',
-  author: '作者',
-  series: '系列',
-  developers: '开发者',
-  developer: '开发者',
-  actors: '演员',
-  voiceActors: '声优',
-  productionTeam: '制作组',
-  addedDate: '添加时间',
-  rating: '评分',
-  comment: '备注',
-  isFavorite: '收藏',
-  genre: '类型',
-  artist: '艺术家',
-  publisher: '发行商',
-  category: '分类',
-  publishYear: '出版年',
-  duration: '时长',
-  pagesCount: '页数',
-  viewCount: '浏览数',
-  lastViewed: '最后查看'
-}
+// 合并其它刮削库：弹窗与重复项
+const mergeDialogVisible = ref(false)
+const mergeDuplicates = ref<Array<{
+  external: { _id: number; sourceTable: string; updateTime: string; author: string | null; jsonData: string }
+  local: { _id: number; sourceTable: string; updateTime: string; author: string | null; jsonData: string }
+  externalName: string
+  localName: string
+  decision: 'overwrite' | 'ignore'
+}>>([])
+const mergeAddCount = ref(0)
+/** 待合并的外部数据（非重复项将新增） */
+let mergeExternalData: Array<{ _id: number; sourceTable: string; updateTime: string; author: string | null; jsonData: string }> = []
 
-// 从导入数据中收集所有列并生成带中文标题的列配置
+// 从导入数据中收集所有列，表头直接用英文字段名（资源结构灵活，列随数据动态变化）
 const displayColumns = computed(() => {
   if (importedItems.value.length === 0) return []
   const allKeys = new Set<string>()
   importedItems.value.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)))
   const keys = Array.from(allKeys).sort((a, b) => {
-    if (a === '_sourceTable') return -1
-    if (b === '_sourceTable') return 1
+    if (a === 'sourceTable') return -1
+    if (b === 'sourceTable') return 1
     if (a === 'name') return -1
     if (b === 'name') return 1
     if (a === 'resourcePath') return -1
     if (b === 'resourcePath') return 1
     return a.localeCompare(b)
   })
-  return keys.map(key => ({
-    key,
-    label: COLUMN_LABELS[key] ?? key
-  }))
+  return keys.map(key => ({ key, label: key }))
 })
 
 const paginationComposable = usePagination(importedItems, 50, '条记录')
@@ -161,8 +183,10 @@ const handleImportFromArchive = async () => {
 
   importing.value = true
   try {
-    // 调用 Electron 端导入逻辑：从主存档读取 → 去 id → 写入 scraper-library.db
-    const importRes = await api.scraperDbImport()
+    // 各资源配置的可刮削字段，导入时只保存这些字段到刮削库
+    const scrapableFieldsByTable = getScrapableFieldsByTable()
+    // 调用 Electron 端导入逻辑：从主存档读取 → 去 id、只保留可刮削字段 → 写入 scraper-library.db
+    const importRes = await api.scraperDbImport(scrapableFieldsByTable)
     if (!importRes?.ok) {
       await alertService.error(importRes?.message || '导入失败')
       return
@@ -197,6 +221,148 @@ const loadScraperData = async () => {
     }
   } catch (e: any) {
     console.error('[ScraperLibrary] 加载刮削库数据异常:', e)
+  }
+}
+
+/** 从刮削库记录中取显示名（用于重复判断） */
+function getRecordDisplayName(record: { jsonData: string }): string {
+  if (!record?.jsonData) return ''
+  try {
+    const data = typeof record.jsonData === 'string' ? JSON.parse(record.jsonData) : record.jsonData
+    const name = data?.name ?? data?.resourcePath ?? data?.resourceFileName ?? ''
+    return String(name).trim()
+  } catch {
+    return ''
+  }
+}
+
+/** 判断两条记录是否重复：json 相同或 name 相同（同表） */
+function isDuplicate(
+  external: { sourceTable: string; jsonData: string },
+  local: { sourceTable: string; jsonData: string }
+): boolean {
+  if (external.sourceTable !== local.sourceTable) return false
+  if (external.jsonData === local.jsonData) return true
+  const a = getRecordDisplayName(external).toLowerCase()
+  const b = getRecordDisplayName(local).toLowerCase()
+  return a !== '' && a === b
+}
+
+// 合并其它刮削库：选择文件 → 读取外部 → 检测重复 → 弹窗选择
+const handleMergeOtherLibrary = async () => {
+  const api = (window as any).electronAPI
+  if (!api?.scraperDbReadExternal || !api?.scraperDbMerge) {
+    await alertService.error('当前环境无法访问刮削库 API（请使用 Electron 运行）')
+    return
+  }
+  if (!api?.selectFileWithExtensions) {
+    await alertService.error('无法打开文件选择对话框')
+    return
+  }
+
+  const filePath = await api.selectFileWithExtensions(
+    [{ name: '刮削库数据库', extensions: ['db'] }, { name: '所有文件', extensions: ['*'] }],
+    null,
+    '选择要合并的刮削库数据库'
+  )
+  if (!filePath) return
+
+  merging.value = true
+  try {
+    const res = await api.scraperDbReadExternal(filePath)
+    if (!res?.ok || !Array.isArray(res.data)) {
+      await alertService.error(res?.message || '读取外部刮削库失败')
+      return
+    }
+    const externalData = res.data
+    if (externalData.length === 0) {
+      await alertService.info('所选刮削库为空，无需合并')
+      return
+    }
+
+    const localData = importedItems.value as Array<{ _id: number; sourceTable: string; updateTime: string; author: string | null; jsonData: string }>
+    const duplicates: Array<{
+      external: typeof externalData[0]
+      local: typeof localData[0]
+      externalName: string
+      localName: string
+      decision: 'overwrite' | 'ignore'
+    }> = []
+    const externalIndicesToAdd = new Set<number>()
+
+    for (let i = 0; i < externalData.length; i++) {
+      const ext = externalData[i]
+      const matched = localData.find((loc) => isDuplicate(ext, loc))
+      if (matched) {
+        duplicates.push({
+          external: ext,
+          local: matched,
+          externalName: getRecordDisplayName(ext),
+          localName: getRecordDisplayName(matched),
+          decision: 'ignore'
+        })
+      } else {
+        externalIndicesToAdd.add(i)
+      }
+    }
+
+    mergeExternalData = externalData
+    mergeDuplicates.value = duplicates
+    mergeAddCount.value = externalIndicesToAdd.size
+    mergeDialogVisible.value = true
+  } catch (e: any) {
+    await alertService.error(`合并准备失败: ${e?.message || '未知错误'}`)
+  } finally {
+    merging.value = false
+  }
+}
+
+// 全部忽略 / 全选覆盖
+const setAllMergeDecision = (decision: 'overwrite' | 'ignore') => {
+  mergeDuplicates.value.forEach((item) => { item.decision = decision })
+}
+
+// 确认合并：按用户选择执行覆盖/忽略，并新增非重复项
+const confirmMerge = async () => {
+  const api = (window as any).electronAPI
+  if (!api?.scraperDbMerge) return
+
+  const overwrites: Array<{ localId: number; sourceTable: string; jsonData: string; updateTime: string; author: string | null }> = []
+  for (const item of mergeDuplicates.value) {
+    if (item.decision === 'overwrite') {
+      overwrites.push({
+        localId: item.local._id,
+        sourceTable: item.external.sourceTable,
+        jsonData: item.external.jsonData,
+        updateTime: item.external.updateTime,
+        author: item.external.author
+      })
+    }
+  }
+
+  const adds = mergeExternalData
+    .filter((ext) => !mergeDuplicates.value.some((d) => d.external.sourceTable === ext.sourceTable && d.external.jsonData === ext.jsonData))
+    .map((r) => ({
+    sourceTable: r.sourceTable,
+    jsonData: r.jsonData,
+    updateTime: r.updateTime,
+    author: r.author
+  }))
+
+  merging.value = true
+  try {
+    const result = await api.scraperDbMerge(overwrites, adds)
+    if (!result?.ok) {
+      await alertService.error(result?.message || '合并失败')
+      return
+    }
+    mergeDialogVisible.value = false
+    await loadScraperData()
+    await alertService.success(`合并完成：覆盖 ${result.overwritten ?? 0} 条，新增 ${result.added ?? 0} 条`)
+  } catch (e: any) {
+    await alertService.error(`合并失败: ${e?.message || '未知错误'}`)
+  } finally {
+    merging.value = false
   }
 }
 
@@ -255,6 +421,29 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
+.btn-merge {
+  padding: var(--spacing-md) var(--spacing-xl);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-merge:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+}
+
+.btn-merge:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .import-summary {
   color: var(--text-secondary);
   font-size: 0.9rem;
@@ -302,5 +491,147 @@ onMounted(() => {
   overflow: auto;
   flex: 1;
   min-height: 0;
+}
+
+/* 合并刮削库弹窗 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content.merge-dialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  max-width: 560px;
+  width: 90%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px var(--shadow-dark);
+}
+.modal-content .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.modal-content .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+.modal-content .btn-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.modal-content .modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.merge-summary {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.merge-bulk-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.merge-bulk-actions .btn-bulk {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.merge-bulk-actions .btn-bulk:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+}
+.merge-duplicate-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.merge-duplicate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+.merge-duplicate-row:last-child {
+  border-bottom: none;
+}
+.merge-duplicate-row .merge-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.merge-duplicate-row .merge-name.local {
+  color: var(--text-secondary);
+}
+.merge-duplicate-row .merge-vs {
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.merge-duplicate-row .merge-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.modal-content .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.modal-content .btn-cancel,
+.modal-content .btn-confirm {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.modal-content .btn-cancel {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+.modal-content .btn-confirm {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+}
+.modal-content .btn-confirm:hover {
+  background: var(--accent-hover);
 }
 </style>
