@@ -65,7 +65,11 @@ const menuItems: MenuItem[] = [
     icon: '🔌',
     label: 'API 手册',
     children: [
-      { id: 'api-games', icon: '🎮', label: '游戏' }
+      { id: 'api-games', icon: '🎮', label: '游戏' },
+      { id: 'api-manga', icon: '📚', label: '漫画' },
+      { id: 'api-videos', icon: '🎬', label: '视频' },
+      { id: 'api-novels', icon: '📖', label: '小说' },
+      { id: 'api-websites', icon: '🌐', label: '网站' }
     ]
   },
   { id: 'workshop', icon: '🎨', label: '创意工坊手册' },
@@ -84,6 +88,10 @@ const isItemActive = (item: MenuItem): boolean => {
   if (item.id === 'api' && item.children) {
     return props.activeSection === 'api' || 
            props.activeSection === 'api-games' ||
+           props.activeSection === 'api-manga' ||
+           props.activeSection === 'api-videos' ||
+           props.activeSection === 'api-novels' ||
+           props.activeSection === 'api-websites' ||
            item.children.some(subChild => props.activeSection === subChild.id)
   }
   

@@ -13,42 +13,7 @@
       </ul>
     </DetailCard>
 
-    <DetailCard title="📚 API 模块">
-      <p>当前可用的 API 模块：</p>
-      <ul>
-        <li><strong>🎮 游戏管理 API：</strong>提供游戏的增删改查功能</li>
-        <li><em>更多 API 模块正在开发中...</em></li>
-      </ul>
-      <p>请在左侧导航栏中选择具体的 API 模块查看详细文档。</p>
-    </DetailCard>
-
-    <DetailCard title="🎮 游戏管理 API（概览）">
-      <p>游戏管理 API 提供了完整的 CRUD 操作：</p>
-      <ul>
-        <li><strong>GET /api/games</strong> - 获取所有游戏</li>
-        <li><strong>GET /api/games/:id</strong> - 获取单个游戏</li>
-        <li><strong>POST /api/games</strong> - 创建游戏</li>
-        <li><strong>PUT /api/games/:id</strong> - 更新游戏</li>
-        <li><strong>DELETE /api/games/:id</strong> - 删除游戏</li>
-      </ul>
-      <p>详细文档请查看左侧导航栏中的 <strong>API 手册 > 游戏</strong>。</p>
-    </DetailCard>
-
-    <DetailCard title="⚠️ 错误处理">
-      <p>API 使用标准的 HTTP 状态码：</p>
-      <ul>
-        <li><strong>200 OK：</strong>请求成功</li>
-        <li><strong>201 Created：</strong>资源创建成功</li>
-        <li><strong>204 No Content：</strong>删除成功（无响应体）</li>
-        <li><strong>400 Bad Request：</strong>请求参数错误</li>
-        <li><strong>404 Not Found：</strong>资源不存在</li>
-        <li><strong>500 Internal Server Error：</strong>服务器内部错误</li>
-      </ul>
-      <p>错误响应格式：</p>
-      <pre class="code-block"><code>{
-  "error": "错误信息"
-}</code></pre>
-    </DetailCard>
+  
 
     <DetailCard title="🔒 安全说明">
       <ul>

@@ -20,6 +20,12 @@
  */
 
 const gamesApi = require('./games-api')
+const mangaApi = require('./manga-api')
+const videosApi = require('./videos-api')
+const audioApi = require('./audio-api')
+const novelsApi = require('./novel-api')
+const websitesApi = require('./website-api')
+const softwareApi = require('./software-api')
 
 /**
  * 注册所有 API 路由到 Express 应用
@@ -29,11 +35,23 @@ function registerAllRoutes(app) {
   // 注册游戏 API 路由
   gamesApi.registerGamesRoutes(app)
   
-  // TODO: 未来可以在这里添加其他资源类型的 API 路由
-  // 例如：
-  // comicsApi.registerComicsRoutes(app)
-  // audioApi.registerAudioRoutes(app)
-  // videoApi.registerVideoRoutes(app)
+  // 注册漫画 API 路由
+  mangaApi.registerMangaRoutes(app)
+  
+  // 注册视频 API 路由
+  videosApi.registerVideosRoutes(app)
+  
+  // 注册音频 API 路由
+  audioApi.registerAudioRoutes(app)
+  
+  // 注册小说 API 路由
+  novelsApi.registerNovelsRoutes(app)
+  
+  // 注册网站 API 路由
+  websitesApi.registerWebsitesRoutes(app)
+  
+  // 注册软件 API 路由
+  softwareApi.registerSoftwareRoutes(app)
 }
 
 module.exports = {

@@ -23,7 +23,11 @@ import NovelSection from '../components/help/sections/NovelSection.vue'
 import WebsiteSection from '../components/help/sections/WebsiteSection.vue'
 import AudioSection from '../components/help/sections/AudioSection.vue'
 import ApiSection from '../components/help/sections/ApiSection.vue'
-import ApiGamesSection from '../components/help/sections/ApiGamesSection.vue'
+import ApiGamesSection from '../components/help/sections/api-pages/ApiGamesSection.vue'
+import ApiMangaSection from '../components/help/sections/api-pages/ApiMangaSection.vue'
+import ApiVideosSection from '../components/help/sections/api-pages/ApiVideosSection.vue'
+import ApiNovelsSection from '../components/help/sections/api-pages/ApiNovelsSection.vue'
+import ApiWebsitesSection from '../components/help/sections/api-pages/ApiWebsitesSection.vue'
 import FaqSection from '../components/help/sections/FaqSection.vue'
 import WorkshopSection from '../components/help/sections/WorkshopSection.vue'
 import SupportSection from '../components/help/sections/SupportSection.vue'
@@ -43,6 +47,10 @@ export default defineComponent({
     AudioSection,
     ApiSection,
     ApiGamesSection,
+    ApiMangaSection,
+    ApiVideosSection,
+    ApiNovelsSection,
+    ApiWebsitesSection,
     FaqSection,
     SupportSection,
     AboutSection,
@@ -62,6 +70,10 @@ export default defineComponent({
       audio: AudioSection,
       api: ApiSection,
       'api-games': ApiGamesSection,
+      'api-manga': ApiMangaSection,
+      'api-videos': ApiVideosSection,
+      'api-novels': ApiNovelsSection,
+      'api-websites': ApiWebsitesSection,
       faq: FaqSection,
       support: SupportSection,
       about: AboutSection,
