@@ -43,6 +43,7 @@
     "express": "^5.2.1",
     "pdfjs-dist": "^5.4.449",
     "pinia": "^3.0.4",
+    "prismjs": "^1.30.0",
     "vue": "^3.3.8",
     "vue-json-pretty": "^2.6.0",
     "vue-router": "^4.6.4"
