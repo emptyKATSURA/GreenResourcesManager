@@ -150,6 +150,17 @@ const fixedRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/sponsor',
+    name: 'sponsor',
+    component: () => import('../pages/SponsorView.vue'),
+    meta: {
+      title: '赞助产品',
+      icon: '❤️',
+      description: '支持项目持续开发',
+      requiresFilter: false
+    }
+  },
+  {
     path: '/collections',
     name: 'collections',
     component: () => import('../pages/CollectionsView.vue'),
