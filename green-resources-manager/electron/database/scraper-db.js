@@ -18,7 +18,7 @@ const RESOURCE_TABLES = [
  * 使用与主存档相同的 SaveData 目录
  */
 function getScraperDbPath() {
-  const sqliteDemo = require('./sqlite-demo')
+  const sqliteDemo = require('./sqlite')
   const saveDataDir = sqliteDemo.getSaveDataDirectory()
   
   if (!fs.existsSync(saveDataDir)) {

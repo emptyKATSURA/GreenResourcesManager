@@ -13,13 +13,12 @@
       </ul>
     </DetailCard>
 
-    <DetailCard title="📋 API 端点列表">
-      <h4>获取所有游戏</h4>
+    <DetailCard title="📥 获取所有游戏">
       <div class="api-endpoint">
         <div class="method get">GET</div>
         <code>/api/games</code>
       </div>
-      <p><strong>响应：</strong>返回游戏数组</p>
+      <p><strong>响应：</strong>200 OK，返回游戏数组</p>
       <pre class="code-block"><code>[
   {
     "id": "1234567890abc",
@@ -34,22 +33,38 @@
     ...
   }
 ]</code></pre>
+      <p class="code-label">JavaScript</p>
+      <pre class="code-block"><code>const res = await fetch('http://127.0.0.1:8765/api/games')
+const games = await res.json()</code></pre>
+      <p class="code-label">Python</p>
+      <pre class="code-block"><code>import requests
+response = requests.get('http://127.0.0.1:8765/api/games')
+games = response.json()</code></pre>
+    </DetailCard>
 
-      <h4>获取单个游戏</h4>
+    <DetailCard title="📥 获取单个游戏">
       <div class="api-endpoint">
         <div class="method get">GET</div>
         <code>/api/games/:id</code>
       </div>
       <p><strong>参数：</strong><code>id</code> - 游戏ID</p>
-      <p><strong>响应：</strong>返回游戏对象，如果不存在返回 404</p>
+      <p><strong>响应：</strong>200 OK 返回游戏对象，不存在则 404</p>
       <pre class="code-block"><code>{
   "id": "1234567890abc",
   "name": "游戏名称",
   "description": "游戏描述",
   ...
 }</code></pre>
+      <p class="code-label">JavaScript</p>
+      <pre class="code-block"><code>const res = await fetch('http://127.0.0.1:8765/api/games/1234567890abc')
+const game = await res.json()</code></pre>
+      <p class="code-label">Python</p>
+      <pre class="code-block"><code>import requests
+response = requests.get('http://127.0.0.1:8765/api/games/1234567890abc')
+game = response.json()</code></pre>
+    </DetailCard>
 
-      <h4>创建游戏</h4>
+    <DetailCard title="➕ 创建游戏">
       <div class="api-endpoint">
         <div class="method post">POST</div>
         <code>/api/games</code>
@@ -68,14 +83,27 @@
 }</code></pre>
       <p><strong>响应：</strong>201 Created，返回创建的游戏对象</p>
       <p><strong>注意：</strong>ID 和 addedDate 会自动生成</p>
+      <p class="code-label">JavaScript</p>
+      <pre class="code-block"><code>const res = await fetch('http://127.0.0.1:8765/api/games', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: '新游戏', developer: '开发商' })
+})
+const createdGame = await res.json()</code></pre>
+      <p class="code-label">Python</p>
+      <pre class="code-block"><code>import requests
+new_game = {'name': '新游戏', 'developer': '开发商'}
+response = requests.post('http://127.0.0.1:8765/api/games', json=new_game)
+created_game = response.json()</code></pre>
+    </DetailCard>
 
-      <h4>更新游戏</h4>
+    <DetailCard title="✏️ 更新游戏">
       <div class="api-endpoint">
         <div class="method put">PUT</div>
         <code>/api/games/:id</code>
       </div>
       <p><strong>参数：</strong><code>id</code> - 游戏ID</p>
-      <p><strong>请求体：</strong>要更新的字段（JSON 对象）</p>
+      <p><strong>请求体：</strong>要更新的字段（JSON 对象，只需传要修改的字段）</p>
       <pre class="code-block"><code>{
   "name": "更新后的游戏名",
   "description": "更新后的描述",
@@ -83,8 +111,21 @@
 }</code></pre>
       <p><strong>响应：</strong>200 OK，返回更新后的游戏对象</p>
       <p><strong>注意：</strong>ID 和 addedDate 字段不允许修改</p>
+      <p class="code-label">JavaScript</p>
+      <pre class="code-block"><code>const res = await fetch('http://127.0.0.1:8765/api/games/1234567890abc', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: '更新后的游戏名' })
+})
+const updatedGame = await res.json()</code></pre>
+      <p class="code-label">Python</p>
+      <pre class="code-block"><code>import requests
+update_data = {'name': '更新后的游戏名'}
+response = requests.put('http://127.0.0.1:8765/api/games/1234567890abc', json=update_data)
+updated_game = response.json()</code></pre>
+    </DetailCard>
 
-      <h4>删除游戏</h4>
+    <DetailCard title="🗑️ 删除游戏">
       <div class="api-endpoint">
         <div class="method delete">DELETE</div>
         <code>/api/games/:id</code>
@@ -92,83 +133,13 @@
       <p><strong>参数：</strong><code>id</code> - 游戏ID</p>
       <p><strong>响应：</strong>204 No Content（成功）或 404 Not Found（不存在）</p>
       <p><strong>注意：</strong>删除操作不会删除本地游戏文件，仅移除管理器中的引用</p>
-    </DetailCard>
-
-    <DetailCard title="📝 使用示例">
-      <h4>使用 curl 命令</h4>
-      <pre class="code-block"><code># 获取所有游戏
-curl http://127.0.0.1:8765/api/games
-
-# 获取单个游戏
-curl http://127.0.0.1:8765/api/games/1234567890abc
-
-# 创建游戏
-curl -X POST http://127.0.0.1:8765/api/games \
-  -H "Content-Type: application/json" \
-  -d '{"name":"新游戏","developer":"开发商"}'
-
-# 更新游戏
-curl -X PUT http://127.0.0.1:8765/api/games/1234567890abc \
-  -H "Content-Type: application/json" \
-  -d '{"name":"更新后的游戏名"}'
-
-# 删除游戏
-curl -X DELETE http://127.0.0.1:8765/api/games/1234567890abc</code></pre>
-
-      <h4>使用 PowerShell</h4>
-      <pre class="code-block"><code># 获取所有游戏
-Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/games" -Method Get
-
-# 获取单个游戏
-Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/games/1234567890abc" -Method Get
-
-# 创建游戏
-$body = @{
-    name = "新游戏"
-    developer = "开发商"
-    publisher = "发行商"
-} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/games" -Method Post -Body $body -ContentType "application/json"
-
-# 更新游戏
-$updateBody = @{
-    name = "更新后的游戏名"
-} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/games/1234567890abc" -Method Put -Body $updateBody -ContentType "application/json"
-
-# 删除游戏
-Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/games/1234567890abc" -Method Delete</code></pre>
-
-      <h4>使用 Python</h4>
+      <p class="code-label">JavaScript</p>
+      <pre class="code-block"><code>await fetch('http://127.0.0.1:8765/api/games/1234567890abc', { method: 'DELETE' })
+// 成功返回 204，无响应体</code></pre>
+      <p class="code-label">Python</p>
       <pre class="code-block"><code>import requests
-
-# 获取所有游戏
-response = requests.get('http://127.0.0.1:8765/api/games')
-games = response.json()
-
-# 获取单个游戏
-response = requests.get('http://127.0.0.1:8765/api/games/1234567890abc')
-game = response.json()
-
-# 创建游戏
-new_game = {
-    'name': '新游戏',
-    'developer': '开发商',
-    'publisher': '发行商'
-}
-response = requests.post('http://127.0.0.1:8765/api/games', json=new_game)
-created_game = response.json()
-
-# 更新游戏
-update_data = {
-    'name': '更新后的游戏名'
-}
-response = requests.put('http://127.0.0.1:8765/api/games/1234567890abc', json=update_data)
-updated_game = response.json()
-
-# 删除游戏
 response = requests.delete('http://127.0.0.1:8765/api/games/1234567890abc')
-# 删除成功返回 204，无响应体</code></pre>
+# 成功返回 204，无响应体</code></pre>
     </DetailCard>
 
     <DetailCard title="📊 游戏数据字段说明">
@@ -291,6 +262,17 @@ h4 {
 }
 
 h4:first-child {
+  margin-top: 0;
+}
+
+.code-label {
+  margin: 16px 0 4px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+
+.code-label:first-of-type {
   margin-top: 0;
 }
 
