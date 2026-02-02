@@ -294,7 +294,7 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
 import saveManager from '../../utils/SaveManager.ts'
 
 export default {

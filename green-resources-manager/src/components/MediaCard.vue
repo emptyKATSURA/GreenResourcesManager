@@ -323,16 +323,11 @@ export default {
   },
   computed: {
     actionIcon() {
-      if (this.type === 'game') {
-        // 如果游戏正在运行，显示停止图标
-        return this.isRunning ? '⏹️' : '▶️'
+      if (this.type === 'game' && this.isRunning) {
+        return '⏹️'
       }
-      if (this.type === 'novel') return '📖'
-      if (this.type === 'video') return '▶️'
-      if (this.type === 'audio') return '▶️'
-      if (this.type === 'folder') return '📁'
-      if (this.type === 'singleimage') return '🖼️'  // 单图：打开图片
-      return '📖' // image 类型使用阅读图标
+      const configIcon = this.item?.constructor?.actionConfig?.icon
+      return configIcon ?? '▶️'
     },
     showActionButton() {
       // 对于压缩包类型的游戏，不显示 action 按钮

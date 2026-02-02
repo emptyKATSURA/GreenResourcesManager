@@ -223,17 +223,17 @@
       @cancel="closeScraperDialog"
     />
     
-    <!-- 强制结束游戏确认对话框 -->
+    <!-- 强制结束程序确认对话框 -->
     <div v-if="showTerminateConfirmDialog" class="modal-overlay" @click="closeTerminateConfirmDialog">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>强制结束游戏</h3>
+          <h3>强制结束程序</h3>
           <button class="btn-close" @click="closeTerminateConfirmDialog">✕</button>
         </div>
         <div class="modal-body">
-          <p>确定要强制结束游戏 <strong>{{ terminateResourceName }}</strong> 吗？</p>
+          <p>确定要强制结束程序 <strong>{{ terminateResourceName }}</strong> 吗？</p>
           <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 10px;">
-            此操作将立即终止游戏进程，未保存的数据可能会丢失。
+            此操作将立即终止程序进程，未保存的数据可能会丢失。
           </p>
         </div>
         <div class="modal-footer">
@@ -438,6 +438,11 @@ export default defineComponent({
       : resourceConfig.pageClass
     
     const pageConfig = new PageClass()
+
+    // 当前资源类型是否使用 launchExecutable（游戏、软件等可执行程序），用于运行状态与时长追踪
+    const supportsRunningTracking = computed(() =>
+      ResourceClass?.actionConfig?.handlerName === 'launchExecutable'
+    )
 
     // 响应式数据
     const items = ref<any[]>([])
@@ -729,30 +734,23 @@ export default defineComponent({
     // 定时器引用（用于定期更新总时长）
     let playtimeUpdateTimer: ReturnType<typeof setInterval> | null = null
     
-    // 强制结束游戏确认对话框状态
+    // 强制结束程序确认对话框状态
     const showTerminateConfirmDialog = ref(false)
     const showScraperDialog = ref(false)
     const scraperMatches = ref<any[]>([])
     const scraperCurrentItem = ref<any>(null)
     const resourceToTerminate = ref<any>(null)
 
-    // 检查资源是否正在运行（通用方法，支持所有资源类型）
+    // 检查资源是否正在运行（凡使用 launchExecutable 的资源都会登记到 store，按 id 查询即可）
     const isResourceRunning = (resource: any): boolean => {
       const resourceId = resource.id?.value || resource.id
       if (!resourceId) return false
-      
-      // 对于游戏类型，使用 gameRunningStore 检查
-      if (resourceType.value === 'Game') {
-        return gameRunningStore.isGameRunning(resourceId)
-      }
-      
-      // 其他资源类型暂时不支持运行状态检查
-      return false
+      return gameRunningStore.isGameRunning(resourceId)
     }
 
-    // 创建用于筛选的 isGameRunning 函数（接受 Game 对象）
-    const isGameRunningForFilter = (game: any) => {
-      return gameRunningStore.isGameRunning(game.id?.value || game.id)
+    // 创建用于筛选的“运行中”函数（游戏/软件等可执行程序共用同一 store）
+    const isGameRunningForFilter = (item: any) => {
+      return gameRunningStore.isGameRunning(item.id?.value || item.id)
     }
 
     
@@ -781,19 +779,17 @@ export default defineComponent({
         const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
         
         if (!isElectronEnvironment.value || !window.electronAPI || !window.electronAPI.terminateGame) {
-          notify.toast('error', '操作失败', '当前环境不支持强制结束游戏功能')
+          notify.toast('error', '操作失败', '当前环境不支持强制结束程序功能')
           return
         }
 
         const result = await window.electronAPI.terminateGame(executablePath)
         
         if (result.success) {
-          // 从运行列表中移除
-          if (resourceType.value === 'Game') {
-            gameRunningStore.removeRunningGame(resourceId)
-          }
+          // 从运行列表中移除（游戏/软件等可执行程序统一登记，统一移除）
+          gameRunningStore.removeRunningGame(resourceId)
           
-          // 更新游戏时长（使用初始时长逻辑）
+          // 更新运行时长（使用初始时长逻辑）
           if (result.playTime && result.playTime > 0) {
             const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
             const initialPlayTime = gameInitialPlayTimes.value.get(resourceId) || currentPlayTime
@@ -821,18 +817,18 @@ export default defineComponent({
             gameInitialPlayTimes.value.delete(resourceId)
           }
           
-          notify.toast('success', '游戏已结束', `${resourceName} 已强制结束`)
+          notify.toast('success', '程序已结束', `${resourceName} 已强制结束`)
         } else {
-          console.warn('[GenericResourceView] ⚠️ 强制结束游戏失败:', result.error)
+          console.warn('[GenericResourceView] ⚠️ 强制结束程序失败:', result.error)
           notify.toast('error', '结束失败', `结束失败: ${result.error || '未知错误'}`)
         }
       } catch (error) {
-        console.error('[GenericResourceView] ❌ 终止游戏失败:', error)
+        console.error('[GenericResourceView] ❌ 终止程序失败:', error)
         notify.toast('error', '结束失败', `结束失败: ${error.message || '未知错误'}`)
       }
     }
 
-    // 处理游戏进程结束事件
+    // 处理可执行程序进程结束事件（游戏/软件等）
     const handleGameProcessEnded = async (data: { executablePath: string; playTime: number; pid: number }) => {
       // 根据 executablePath 找到对应的资源
       const resource = items.value.find((item: any) => {
@@ -842,15 +838,13 @@ export default defineComponent({
         return itemPath === data.executablePath
       })
       
-      if (resource) {
+        if (resource) {
         const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
         
-        // 从运行列表中移除
-        if (resourceType.value === 'Game') {
-          gameRunningStore.removeRunningGame(resourceId)
-        }
+        // 从运行列表中移除（凡用 launchExecutable 启动的都会在此登记，统一移除）
+        gameRunningStore.removeRunningGame(resourceId)
         
-        // 更新游戏时长（使用最终时长更新逻辑）
+        // 更新运行时长（使用最终时长更新逻辑）
         if (data.playTime && data.playTime > 0) {
           // 获取初始 playTime（从保存的初始值获取，如果不存在则使用当前值）
           const currentPlayTime = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
@@ -914,8 +908,8 @@ export default defineComponent({
           return isResourceRunning(resource)
         },
         addRunningResource: (resourceInfo: any) => {
-          // 对于游戏类型，添加到运行列表
-          if (resourceType.value === 'Game') {
+          // 凡配置了 launchExecutable 的资源（游戏、软件等）都登记到运行列表
+          if (supportsRunningTracking.value) {
             gameRunningStore.addRunningGame({
               id: resourceInfo.id,
               pid: resourceInfo.pid,
@@ -925,8 +919,7 @@ export default defineComponent({
           }
         },
         removeRunningResource: (resourceId: string) => {
-          // 对于游戏类型，从运行列表移除
-          if (resourceType.value === 'Game') {
+          if (supportsRunningTracking.value) {
             gameRunningStore.removeRunningGame(resourceId)
           }
         },
@@ -1403,7 +1396,7 @@ export default defineComponent({
       }
     }
 
-    // 强制结束游戏确认对话框相关方法
+    // 强制结束程序确认对话框相关方法
     const closeTerminateConfirmDialog = () => {
       showTerminateConfirmDialog.value = false
       resourceToTerminate.value = null
@@ -2024,16 +2017,14 @@ export default defineComponent({
       window.addEventListener('game-request-update-playtime', handleRequestUpdatePlaytime as EventListener)
       window.addEventListener('game-request-final-playtime', handleRequestFinalPlaytime as EventListener)
       
-      // 启动定时器，定期触发游戏时长更新（每1秒）
-      // 只有当有游戏在运行时才触发更新
+      // 启动定时器，定期触发行时长更新（每1秒）（凡使用 launchExecutable 的页面都参与）
       playtimeUpdateTimer = setInterval(() => {
-        if (resourceType.value === 'Game') {
-          const runningGameIds = gameRunningStore.runningGameIds
-          if (runningGameIds && runningGameIds.length > 0) {
-            // 为每个运行中的游戏触发更新事件
-            runningGameIds.forEach(gameId => {
+        if (supportsRunningTracking.value) {
+          const runningIds = gameRunningStore.runningGameIds
+          if (runningIds && runningIds.length > 0) {
+            runningIds.forEach((resourceId: string) => {
               const event = new CustomEvent('game-request-update-playtime', {
-                detail: { gameId }
+                detail: { gameId: resourceId }
               })
               window.dispatchEvent(event)
             })
@@ -2457,7 +2448,7 @@ export default defineComponent({
       pathUpdateMissingLabel,
       pathUpdateFoundLabel,
       pathUpdateQuestion,
-      // 强制结束游戏确认对话框相关
+      // 强制结束程序确认对话框相关
       showTerminateConfirmDialog,
       resourceToTerminate,
       terminateResourceName,
@@ -2870,7 +2861,7 @@ export default defineComponent({
   overflow: hidden;
 }
 
-/* 强制结束游戏确认对话框样式 */
+/* 强制结束程序确认对话框样式 */
 .modal-overlay {
   position: fixed;
   top: 0;

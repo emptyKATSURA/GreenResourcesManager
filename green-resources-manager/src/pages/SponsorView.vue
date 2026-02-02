@@ -10,7 +10,7 @@
         <p class="section-desc">扫码赞赏，感谢您的支持</p>
         <div class="qrcode-wrap">
           <img
-            src="/imgs/wechat-sponsor.png"
+            src="/imgs/wechat-sponsor.jpg"
             alt="微信赞赏码"
             class="qrcode-img"
             @error="onWechatImgError"

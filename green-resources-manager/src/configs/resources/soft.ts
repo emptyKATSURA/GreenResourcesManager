@@ -36,6 +36,11 @@ export class Software extends BaseResources {
 		saveable: true,
 		editType: new FormField_Text('软件名称', false)
 	})
+
+	nickname: ResourceField<string> = new ResourceField<string>({
+		saveable: true,
+		editType: new FormField_Text('软件别名', false)
+	})
 	
 	description: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
@@ -113,6 +118,7 @@ export class Software extends BaseResources {
 			id: this.id.value || this.id.defaultValue || '',
 			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'software',
 			name: this.name.value || '',
+			nickname: this.nickname.value || '',
 			description: this.description.value || '',
 			developer: this.developer.value || '',
 			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],

@@ -4,7 +4,7 @@
 
 **另外附加了游戏化，可以让您的资源收集和管理变得像游戏一样有趣！上头！**
 
-[![Version](https://img.shields.io/badge/version-0.6.7-blue.svg)](https://github.com/klsdf/GreenResourcesManager) [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange.svg)](LICENSE) [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](https://github.com/klsdf/GreenResourcesManager) [![Vue](https://img.shields.io/badge/Vue-3.3.8-4FC08D.svg)](https://vuejs.org/) [![Electron](https://img.shields.io/badge/Electron-27.1.0-47848F.svg)](https://www.electronjs.org/)
+[![Version](https://img.shields.io/badge/version-0.6.7-blue.svg)](https://github.com/klsdf/GreenResourcesManager) [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange.svg)](LICENSE) [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](https://github.com/klsdf/GreenResourcesManager) [![Vue](https://img.shields.io/badge/Vue-3.3.8-4FC08D.svg)](https://vuejs.org/) [![Electron](https://img.shields.io/badge/Electron-29.0.0-47848F.svg)](https://www.electronjs.org/)
 
 [![Bilibili](https://img.shields.io/badge/bilibili-哔哩哔哩-00A1D6?logo=bilibili)](https://space.bilibili.com/3690993813555960?spm_id_from=333.1007.0.0) [![QQ群](https://img.shields.io/badge/QQ群-群号-blue?logo=tencent-qq)](https://qm.qq.com/q/16bCL6VeTo) [![帽子社官网](https://img.shields.io/badge/帽子社-官网-orange)](https://hat-soft.top/)
 
@@ -82,6 +82,7 @@ Green Resources Manager 是一款专为"仓鼠症"用户设计的全能多媒体
 
 - Node.js (推荐使用 LTS 版本)
 - npm
+- 本项目使用 **Electron 29**；若本机为 Node 24，安装后需对原生模块执行 `electron-rebuild`（见下）。
 
 ### 绿色资源管理器的构建
 
@@ -97,7 +98,18 @@ cd green-resources-manager
 npm install
 ```
 
-#### 3. 调试应用
+#### 3. 原生模块（better-sqlite3）与 Electron 一致
+
+若运行时报错：`was compiled against a different Node.js version using NODE_MODULE_VERSION 137 ... requires NODE_MODULE_VERSION 121`，说明 better-sqlite3 是按系统 Node 编译的，需按 **Electron 29** 重新编译：
+
+```bash
+npm install --save-dev electron-rebuild
+npx electron-rebuild
+```
+
+之后每次 `npm install` 后若涉及原生模块，建议再执行一次 `npx electron-rebuild`。
+
+#### 4. 调试应用
 
 启动Vite开发服务器和Electron应用
 
@@ -105,7 +117,7 @@ npm install
 npm run electron-dev
 ```
 
-#### 4. 构建应用
+#### 5. 构建应用
 
 ```bash
 npm run electron-build
@@ -117,6 +129,7 @@ npm run electron-build
 - 本项目的epub阅读器的设计参考了 [vue-epub-reader](https://github.com/lyh-create/vue-epub-reader)
 
 ## 🚀 未来规划
+
 - [ ] **游戏化功能**
   - [ ] 游戏剧情和主线
   - [ ] 时间表和每日任务
@@ -132,7 +145,6 @@ npm run electron-build
   - [ ] 游戏攻略
   - [ ] 游戏修改器
   - [ ] 游戏修改教程
-
 
 ## 🤝 加入我们
 
