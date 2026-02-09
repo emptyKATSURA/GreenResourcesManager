@@ -137,13 +137,14 @@ export function useResourceCRUD<T>(config: ResourceCRUDConfig<T>) {
     if (!confirmed) return
 
     try {
-      // 假设item有id属性
-      const itemId = (item as any).id
-      if (!itemId) {
+      // 支持 ResourceField（id 为 { value }）或普通 id
+      const rawId = (item as any).id
+      const itemId = rawId != null && typeof rawId === 'object' && 'value' in rawId ? rawId.value : rawId
+      if (itemId === undefined || itemId === null || itemId === '') {
         throw new Error('资源ID不存在')
       }
 
-      await onDelete(itemId)
+      await onDelete(String(itemId))
       if (onLoad) {
         await onLoad()
       }

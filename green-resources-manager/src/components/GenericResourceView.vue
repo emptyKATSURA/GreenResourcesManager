@@ -304,6 +304,9 @@ import ResourcesEditDialog from './ResourcesEditDialog.vue'
 import ScraperUpdateDialog from './ScraperUpdateDialog.vue'
 import type { FilterItem } from '../types/filter'
 
+// 刮削数据专有字段，不写入主存档
+const SCRAPER_ONLY_KEYS = ['resourceFileName', 'resourceFolderName']
+
 // 资源类型 -> 刮削库表名
 const RESOURCE_TYPE_TO_SCRAPER_TABLE: Record<string, string> = {
   Game: 'games',
@@ -1741,7 +1744,7 @@ export default defineComponent({
         if (res?.ok) {
           const scraped = typeof match.jsonData === 'string' ? JSON.parse(match.jsonData) : match.jsonData
           for (const [key, value] of Object.entries(scraped)) {
-            if (key === 'id') continue
+            if (key === 'id' || SCRAPER_ONLY_KEYS.includes(key)) continue
             const f = item[key]
             const current = f && typeof f === 'object' && 'value' in f ? f.value : item[key]
             const isEmpty = current === null || current === undefined || current === ''

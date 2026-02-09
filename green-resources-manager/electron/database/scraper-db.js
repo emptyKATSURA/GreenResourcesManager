@@ -81,7 +81,7 @@ async function scraperDbImportFromArchive(scrapableFieldsByTable, sourceDbPath) 
     
     const mainDbPath = sourceDbPath && typeof sourceDbPath === 'string' && fs.existsSync(sourceDbPath)
       ? sourceDbPath
-      : require('./sqlite-demo').getDatabasePath()
+      : require('./sqlite').getDatabasePath()
     const mainDb = new Database(mainDbPath, { readonly: true })
     
     const scraperDbPath = getScraperDbPath()
@@ -266,7 +266,7 @@ async function scraperDbSearch(sourceTable, name, resourcePath) {
 async function scraperDbApplyToResource(sourceTable, mainResourceId, jsonData) {
   try {
     const Database = require('better-sqlite3')
-    const mainDbPath = require('./sqlite-demo').getDatabasePath()
+    const mainDbPath = require('./sqlite').getDatabasePath()
     const db = new Database(mainDbPath)
 
     if (!RESOURCE_TABLES.includes(sourceTable)) {
@@ -294,9 +294,10 @@ async function scraperDbApplyToResource(sourceTable, mainResourceId, jsonData) {
     } catch {
       current = {}
     }
+    const scraperOnlyKeys = ['resourceFileName', 'resourceFolderName']
     let hasUpdate = false
     for (const [key, value] of Object.entries(scraped)) {
-      if (key === 'id') continue
+      if (key === 'id' || scraperOnlyKeys.includes(key)) continue
       const currentVal = current[key]
       const isEmpty = currentVal === null || currentVal === undefined || currentVal === ''
       if (isEmpty && value !== null && value !== undefined && value !== '') {

@@ -57,6 +57,9 @@
 </template>
 
 <script>
+// 刮削数据专有字段，不写入主存档
+const SCRAPER_ONLY_KEYS = ['resourceFileName', 'resourceFolderName']
+
 export default {
   name: 'ScraperUpdateDialog',
   props: {
@@ -85,7 +88,7 @@ export default {
       }
       const entries = []
       for (const [key, value] of Object.entries(scraped)) {
-        if (key === 'id') continue
+        if (key === 'id' || SCRAPER_ONLY_KEYS.includes(key)) continue
         const current = this.getCurrentValue(this.currentItem, key)
         const isEmpty = current === null || current === undefined || current === ''
         const hasNew = value !== null && value !== undefined && value !== ''

@@ -49,7 +49,7 @@
             :placeholder="getFieldPlaceholder(key, field)"
           />
           
-          <!-- 选择字段（引擎类型，需要特殊处理） -->
+          <!-- 选择字段（引擎类型，自带检测引擎按钮） -->
           <template v-else-if="field instanceof FormField_SelectEngine">
             <fun-select
               :id="key"
@@ -57,16 +57,16 @@
               :options="getSelectOptions(key, field)"
               :placeholder="getFieldPlaceholder(key, field)"
             />
-            <div class="engine-auto-detect" v-if="enableEngineAutoDetect">
+            <div class="engine-auto-detect">
               <button 
                 type="button" 
                 class="btn-auto-detect" 
                 @click="handleAutoDetectEngine"
                 :disabled="!getExecutablePathValue() || !isElectronEnvironment"
-                :title="!getExecutablePathValue() ? '请先选择游戏文件' : ''"
+                :title="!getExecutablePathValue() ? '请先选择游戏文件' : (isElectronEnvironment ? '根据游戏路径自动识别引擎' : '仅 Electron 环境支持')"
               >
                 <span class="btn-icon">🔍</span>
-                自动识别引擎
+                检测引擎
               </button>
             </div>
           </template>
