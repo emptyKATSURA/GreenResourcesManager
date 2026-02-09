@@ -154,6 +154,14 @@ export default {
         this.isLoading = false
       }
     },
+    getLastAccessedFromItem(item: any, ...fields: string[]): string | null | undefined {
+      for (const f of fields) {
+        if (item && item[f]) return item[f]
+      }
+      const arr = item?.visitedSessions
+      if (Array.isArray(arr) && arr.length > 0) return arr[arr.length - 1]
+      return undefined
+    },
     normalizeGame(game: any): UnifiedResource {
       return {
         id: game.id,
@@ -162,7 +170,7 @@ export default {
         category: game.developer || '游戏',
         description: game.description,
         thumbnail: game.coverPath || (game as any).image,
-        lastAccessed: game.lastPlayed,
+        lastAccessed: this.getLastAccessedFromItem(game, 'lastPlayed'),
         badge: game.playTime ? undefined : '未通关',
         metadata: {
           developer: game.developer,
@@ -194,7 +202,7 @@ export default {
         category: album.author || '高清壁纸',
         description: album.description,
         thumbnail: album.cover,
-        lastAccessed: album.lastViewed,
+        lastAccessed: this.getLastAccessedFromItem(album, 'lastViewed'),
         badge: badge,
         metadata: {
           author: album.author,
@@ -227,7 +235,7 @@ export default {
         category: video.series || '冒险视频',
         description: video.description,
         thumbnail: video.thumbnail,
-        lastAccessed: video.lastWatched,
+        lastAccessed: this.getLastAccessedFromItem(video, 'lastWatched'),
         badge: badge,
         metadata: {
           series: video.series,
@@ -260,7 +268,7 @@ export default {
         category: video.series || '番剧',
         description: video.description,
         thumbnail: video.thumbnail,
-        lastAccessed: video.lastWatched,
+        lastAccessed: this.getLastAccessedFromItem(video, 'lastWatched'),
         badge: badge,
         metadata: {
           series: video.series,
@@ -288,7 +296,7 @@ export default {
         category: novel.author || '轻小说',
         description: novel.description,
         thumbnail: novel.coverImage,
-        lastAccessed: novel.lastRead,
+        lastAccessed: this.getLastAccessedFromItem(novel, 'lastRead', 'lastViewed'),
         badge: badge,
         metadata: {
           author: novel.author,
@@ -309,7 +317,7 @@ export default {
         category: website.tags && website.tags.length > 0 ? website.tags[0] : '网站',
         description: website.description,
         thumbnail: website.favicon || website.icon,
-        lastAccessed: website.lastVisited,
+        lastAccessed: this.getLastAccessedFromItem(website, 'lastVisited'),
         badge: website.isBookmark ? '已收藏' : undefined,
         metadata: {
           url: website.url,
@@ -328,7 +336,7 @@ export default {
         category: audio.album || 'OST音乐',
         description: audio.notes,
         thumbnail: audio.coverPath,
-        lastAccessed: audio.lastPlayed,
+        lastAccessed: this.getLastAccessedFromItem(audio, 'lastPlayed'),
         badge: fileSize > 0 ? this.formatSize(fileSize) : undefined,
         metadata: {
           artist: audio.artist,

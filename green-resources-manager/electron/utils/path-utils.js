@@ -91,10 +91,19 @@ function readFileAsDataUrl(filePath) {
     if (!fs.existsSync(filePath)) return null
     
     const ext = path.extname(filePath).toLowerCase()
-    const mime = ext === '.png' ? 'image/png' : 
-                 ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 
+    const mime = ext === '.png' ? 'image/png' :
+                 ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
                  ext === '.gif' ? 'image/gif' :
                  ext === '.pdf' ? 'application/pdf' :
+                 ext === '.mp3' ? 'audio/mpeg' :
+                 ext === '.wav' ? 'audio/wav' :
+                 ext === '.flac' ? 'audio/flac' :
+                 ext === '.aac' ? 'audio/aac' :
+                 ext === '.ogg' ? 'audio/ogg' :
+                 ext === '.m4a' ? 'audio/mp4' :
+                 ext === '.wma' ? 'audio/x-ms-wma' :
+                 ext === '.opus' ? 'audio/opus' :
+                 ext === '.webm' ? 'audio/webm' :
                  'application/octet-stream'
     
     const buf = fs.readFileSync(filePath)

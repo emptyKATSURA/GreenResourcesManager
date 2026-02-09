@@ -1630,6 +1630,7 @@ export default {
         this.showVersionModal = true
       })
     }
+    // this.showVersionModal = true
   },
   beforeUnmount() {
     // 停止定期检查游戏运行状态

@@ -297,6 +297,7 @@ import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
 import { useImageCache } from '../composables/image/useImageCache'
 import { useVideoDuration } from '../composables/video/useVideoDuration'
+import { useAudioDuration } from '../composables/audio/useAudioDuration'
 import { useVideoFolder } from '../composables/video/useVideoFolder'
 import { useVideoPlayback } from '../composables/video/useVideoPlayback'
 import { useVideoThumbnail } from '../composables/video/useVideoThumbnail'
@@ -459,6 +460,7 @@ export default defineComponent({
     const isLoadingData = ref(false)
 
     const { getVideoDuration } = useVideoDuration()
+    const { getAudioDuration } = useAudioDuration()
 
     // 番剧页面：文件夹视频列表、播放、缩略图（用于替换视频页时展示集数列表）
     const videoFolderComposable = useVideoFolder(props.pageConfig?.id)
@@ -2042,6 +2044,40 @@ export default defineComponent({
       }
     }
 
+    /**
+     * 刷新未知时长的音频（仅对 duration 为 0 或未设置的项更新，已有时长的不刷新）
+     */
+    const refreshUnknownAudioDurations = async () => {
+      const toUpdate = items.value.filter((item: any) => {
+        const duration = BaseResources.extractPrimitiveValue(item.duration?.value ?? item.duration)
+        return (duration === undefined || duration === null || duration === 0) && item.resourcePath != null
+      })
+      if (toUpdate.length === 0) return
+      console.log(`[GenericResourceView] 开始刷新 ${toUpdate.length} 个未知时长的音频...`)
+      let updatedCount = 0
+      for (const item of toUpdate) {
+        const path = BaseResources.extractPrimitiveValue(item.resourcePath?.value || item.resourcePath)
+        if (!path || typeof path !== 'string' || !path.trim()) continue
+        try {
+          const duration = await getAudioDuration(path)
+          if (duration > 0) {
+            if (item.duration && typeof item.duration === 'object' && 'value' in item.duration) {
+              item.duration.value = duration
+            } else {
+              item.duration = duration
+            }
+            updatedCount++
+          }
+        } catch (e) {
+          console.warn('[GenericResourceView] 获取音频时长失败:', path, e)
+        }
+      }
+      if (updatedCount > 0) {
+        await saveData()
+        console.log(`[GenericResourceView] 已刷新 ${updatedCount} 个音频时长并保存`)
+      }
+    }
+
     // 监听请求更新游戏时长事件（实时更新总时长）
     const handleRequestUpdatePlaytime = (event: CustomEvent) => {
       const { gameId } = event.detail
@@ -2208,6 +2244,10 @@ export default defineComponent({
         if (resourceType.value === 'Video') {
           refreshUnknownVideoDurations()
         }
+        // 音频页：首次进入时刷新所有未知时长的音频（已有时长的不刷新）
+        if (resourceType.value === 'Audio' || props.pageConfig?.id === 'audio') {
+          refreshUnknownAudioDurations()
+        }
       }
     })
     
@@ -2241,6 +2281,12 @@ export default defineComponent({
           await calculateResourceSizes()
           await calculateMangaPagesCounts()
           await calculateAnimeVideoCounts()
+          if (resourceType.value === 'Video') {
+            refreshUnknownVideoDurations()
+          }
+          if (resourceType.value === 'Audio' || props.pageConfig?.id === 'audio') {
+            refreshUnknownAudioDurations()
+          }
         }
       },
       { immediate: false }

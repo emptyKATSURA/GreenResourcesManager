@@ -6,7 +6,7 @@
 const path = require('path')
 const fs = require('fs')
 
-// 资源表名列表（使用 id + jsonData 存储）
+// 资源表名列表（使用 id + jsonData + timestamp + version 存储）
 const RESOURCE_TABLES = [
   'games', 'manga', 'audio', 'novel', 'video',
   'software', 'website', 'singleImage', 'other', 'videoFolder'
@@ -91,7 +91,7 @@ function migrateOldRowToObject(row, tableName) {
 }
 
 /**
- * 检查表是否为旧格式（多列结构）
+ * 检查表是否为旧格式（多列扁平结构，无 jsonData 列）
  * @param {object} db - Database 实例
  * @param {string} tableName - 表名
  * @returns {boolean}
@@ -99,21 +99,21 @@ function migrateOldRowToObject(row, tableName) {
 function isOldFormatTable(db, tableName) {
   const columns = db.prepare(`PRAGMA table_info("${tableName}")`).all()
   const colNames = columns.map(c => c.name)
-  return colNames.length > 2 || !colNames.includes('jsonData')
+  return !colNames.includes('jsonData')
 }
 
 /**
- * 确保资源表存在（id + jsonData 格式）
+ * 确保资源表存在（新存档格式：id + jsonData + timestamp + version）
  * @param {object} db - Database 实例
  */
 function ensureResourceTablesExist(db) {
   for (const tableName of RESOURCE_TABLES) {
-    db.exec(`CREATE TABLE IF NOT EXISTS "${tableName}" (id TEXT PRIMARY KEY, jsonData TEXT NOT NULL)`)
+    db.exec(`CREATE TABLE IF NOT EXISTS "${tableName}" (id TEXT PRIMARY KEY, jsonData TEXT NOT NULL, timestamp TEXT, version TEXT)`)
   }
 }
 
 /**
- * 将旧格式 SQL 表（多列）迁移为 id + jsonData 格式
+ * 将旧格式 SQL 表（多列）迁移为 id + jsonData + timestamp + version 格式
  * 由用户主动触发，例如在 DatabaseView 中点击按钮
  * @returns {Promise<{ ok: boolean, migratedTables?: string[], message?: string }>}
  */
@@ -130,11 +130,11 @@ async function migrateOldSqlToJsonFormat() {
       if (!isOldFormatTable(db, tableName)) continue
 
       const rows = db.prepare(`SELECT * FROM "${tableName}"`).all()
-      db.exec(`CREATE TABLE "${tableName}_migrate" (id TEXT PRIMARY KEY, jsonData TEXT NOT NULL)`)
-      const insertStmt = db.prepare(`INSERT INTO "${tableName}_migrate" (id, jsonData) VALUES (?, ?)`)
+      db.exec(`CREATE TABLE "${tableName}_migrate" (id TEXT PRIMARY KEY, jsonData TEXT NOT NULL, timestamp TEXT, version TEXT)`)
+      const insertStmt = db.prepare(`INSERT INTO "${tableName}_migrate" (id, jsonData, timestamp, version) VALUES (?, ?, ?, ?)`)
       for (const row of rows) {
         const obj = migrateOldRowToObject(row, tableName)
-        insertStmt.run(row.id, JSON.stringify(obj))
+        insertStmt.run(row.id, JSON.stringify(obj), null, null)
       }
       db.exec(`DROP TABLE "${tableName}"`)
       db.exec(`ALTER TABLE "${tableName}_migrate" RENAME TO "${tableName}"`)
@@ -150,16 +150,21 @@ async function migrateOldSqlToJsonFormat() {
 }
 
 /**
- * 从资源表读取数据（直接返回 id + jsonData，不做解析）
+ * 从资源表读取数据（返回 id + jsonData + timestamp + version，不做解析）
  * 供 DatabaseView 展示原始存储格式
  * @param {object} db - Database 实例
  * @param {string} tableName - 表名
- * @returns {Array<{ id: string, jsonData: string }>}
+ * @returns {Array<{ id: string, jsonData: string, timestamp?: string|null, version?: string|null }>}
  */
 function getResourcesFromJsonTable(db, tableName) {
-  const stmt = db.prepare(`SELECT id, jsonData FROM "${tableName}" ORDER BY json_extract(jsonData, '$.addedDate') DESC`)
+  const stmt = db.prepare(`SELECT id, jsonData, timestamp, version FROM "${tableName}" ORDER BY json_extract(jsonData, '$.addedDate') DESC`)
   const rows = stmt.all()
-  return rows.map(row => ({ id: row.id, jsonData: row.jsonData }))
+  return rows.map(row => ({
+    id: row.id,
+    jsonData: row.jsonData,
+    timestamp: row.timestamp ?? null,
+    version: row.version ?? null
+  }))
 }
 
 /**
@@ -172,12 +177,22 @@ function getResourcesFromJsonTable(db, tableName) {
 function getResourcesByIds(db, tableName, ids) {
   if (!ids.length) return []
   const placeholders = ids.map(() => '?').join(',')
-  const rows = db.prepare(`SELECT id, jsonData FROM "${tableName}" WHERE id IN (${placeholders})`).all(...ids)
+  const rows = db.prepare(`SELECT id, jsonData, timestamp, version FROM "${tableName}" WHERE id IN (${placeholders})`).all(...ids)
   return rows.map(row => {
     try {
-      return { id: row.id, ...JSON.parse(row.jsonData) }
+      const parsed = JSON.parse(row.jsonData)
+      return {
+        id: row.id,
+        ...parsed,
+        timestamp: row.timestamp ?? undefined,
+        version: row.version ?? undefined
+      }
     } catch {
-      return { id: row.id }
+      return {
+        id: row.id,
+        timestamp: row.timestamp ?? undefined,
+        version: row.version ?? undefined
+      }
     }
   })
 }
@@ -196,9 +211,19 @@ async function getTableResources(tableName) {
     const rows = getResourcesFromJsonTable(db, tableName)
     const result = rows.map(row => {
       try {
-        return { id: row.id, ...JSON.parse(row.jsonData) }
+        const parsed = JSON.parse(row.jsonData)
+        return {
+          id: row.id,
+          ...parsed,
+          timestamp: row.timestamp ?? undefined,
+          version: row.version ?? undefined
+        }
       } catch {
-        return { id: row.id }
+        return {
+          id: row.id,
+          timestamp: row.timestamp ?? undefined,
+          version: row.version ?? undefined
+        }
       }
     })
     db.close()
@@ -221,13 +246,23 @@ async function getResourceById(tableName, resourceId) {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     ensureResourceTablesExist(db)
-    const row = db.prepare(`SELECT id, jsonData FROM "${tableName}" WHERE id = ?`).get(resourceId)
+    const row = db.prepare(`SELECT id, jsonData, timestamp, version FROM "${tableName}" WHERE id = ?`).get(resourceId)
     db.close()
     if (!row) return null
     try {
-      return { id: row.id, ...JSON.parse(row.jsonData) }
+      const parsed = JSON.parse(row.jsonData)
+      return {
+        id: row.id,
+        ...parsed,
+        timestamp: row.timestamp ?? undefined,
+        version: row.version ?? undefined
+      }
     } catch {
-      return { id: row.id }
+      return {
+        id: row.id,
+        timestamp: row.timestamp ?? undefined,
+        version: row.version ?? undefined
+      }
     }
   } catch (err) {
     console.error(`[SQLite] 获取资源失败:`, err.message)
@@ -276,86 +311,60 @@ async function getAllTablesData() {
       }))
     })
     
-    // ========== 创建 settings 表（如果不存在）==========
+    // ========== 创建 settings 表（如果不存在，与资源表统一：id + jsonData + timestamp + version）==========
     db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        settings_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
     // 读取设置数据
-    const selectSettingsStmt = db.prepare('SELECT * FROM settings WHERE id = ?')
+    const selectSettingsStmt = db.prepare('SELECT id, jsonData, timestamp, version FROM settings WHERE id = ?')
     const settingsRow = selectSettingsStmt.get('main')
     
     if (settingsRow) {
-      // 解析 JSON 数据
-      let settingsData = null
-      try {
-        settingsData = settingsRow.settings_data ? JSON.parse(settingsRow.settings_data) : null
-      } catch (e) {
-        console.warn('[SQLite] 解析 settings_data JSON 失败:', e)
-        settingsData = null
-      }
-      
       tables.push({
         tableName: 'settings',
         rows: [{
           id: settingsRow.id,
-          settings_data: settingsData, // 解析后的对象，前端显示时会自动转为 JSON 字符串
+          jsonData: settingsRow.jsonData,
           timestamp: settingsRow.timestamp || null,
           version: settingsRow.version || null
         }]
       })
     } else {
-      // 如果没有数据，添加一个空行用于展示
-      tables.push({
-        tableName: 'settings',
-        rows: []
-      })
+      tables.push({ tableName: 'settings', rows: [] })
     }
     
-    // ========== 创建 user 表（如果不存在）==========
+    // ========== 创建 user 表（如果不存在，与资源表统一：id + jsonData + timestamp + version）==========
     db.exec(`
       CREATE TABLE IF NOT EXISTS user (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        user_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
     // 读取用户数据
-    const selectUserStmt = db.prepare('SELECT * FROM user WHERE id = ?')
+    const selectUserStmt = db.prepare('SELECT id, jsonData, timestamp, version FROM user WHERE id = ?')
     const userRow = selectUserStmt.get('main')
     
     if (userRow) {
-      // 解析 JSON 数据
-      let userData = null
-      try {
-        userData = userRow.user_data ? JSON.parse(userRow.user_data) : null
-      } catch (e) {
-        console.warn('[SQLite] 解析 user_data JSON 失败:', e)
-        userData = null
-      }
-      
       tables.push({
         tableName: 'user',
         rows: [{
           id: userRow.id,
-          user_data: userData, // 解析后的对象，前端显示时会自动转为 JSON 字符串
+          jsonData: userRow.jsonData,
           timestamp: userRow.timestamp || null,
           version: userRow.version || null
         }]
       })
     } else {
-      // 如果没有数据，添加一个空行用于展示
-      tables.push({
-        tableName: 'user',
-        rows: []
-      })
+      tables.push({ tableName: 'user', rows: [] })
     }
     
     // ========== 创建 pages 表（如果不存在）==========
@@ -538,15 +547,38 @@ async function saveResourceToTable(resourceType, resource) {
       return { ok: false, message: '资源缺少 id 字段' }
     }
     
+    // settings / user 与资源表统一结构 (id, jsonData, timestamp, version)
+    if (resourceType === 'settings' || resourceType === 'user') {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS "${resourceType}" (
+          id TEXT PRIMARY KEY DEFAULT 'main',
+          jsonData TEXT NOT NULL,
+          timestamp TEXT,
+          version TEXT
+        )
+      `)
+      const jsonToStore = (typeof resource.jsonData === 'string')
+        ? resource.jsonData
+        : JSON.stringify(resource)
+      const timestamp = resource.timestamp != null ? resource.timestamp : new Date().toISOString()
+      const version = resource.version != null ? resource.version : null
+      const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${resourceType}" (id, jsonData, timestamp, version) VALUES (?, ?, ?, ?)`)
+      insertStmt.run(resource.id, jsonToStore, timestamp, version)
+      db.close()
+      return { ok: true }
+    }
+    
     ensureResourceTablesExist(db)
     
     // 若已是 { id, jsonData } 格式（jsonData 为字符串），直接使用；否则序列化整个对象
     const jsonToStore = (typeof resource.jsonData === 'string')
       ? resource.jsonData
       : JSON.stringify(resource)
+    const timestamp = resource.timestamp != null ? resource.timestamp : new Date().toISOString()
+    const version = resource.version != null ? resource.version : null
     
-    const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${resourceType}" (id, jsonData) VALUES (?, ?)`)
-    insertStmt.run(resource.id, jsonToStore)
+    const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${resourceType}" (id, jsonData, timestamp, version) VALUES (?, ?, ?, ?)`)
+    insertStmt.run(resource.id, jsonToStore, timestamp, version)
     
     db.close()
     return { ok: true }
@@ -704,8 +736,10 @@ async function savePageResources(pageId, resources) {
         // 保存映射关系
         resourceTableMap.set(resource.id, tableName)
         
-        const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${tableName}" (id, jsonData) VALUES (?, ?)`)
-        insertStmt.run(resource.id, JSON.stringify(resource))
+        const timestamp = resource.timestamp != null ? resource.timestamp : new Date().toISOString()
+        const version = resource.version != null ? resource.version : null
+        const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${tableName}" (id, jsonData, timestamp, version) VALUES (?, ?, ?, ?)`)
+        insertStmt.run(resource.id, JSON.stringify(resource), timestamp, version)
         insertedCount++
       }
       
@@ -896,15 +930,15 @@ async function migrateSettingsFromJson(customSaveDataPath) {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 确保 settings 表存在
+    // 确保 settings 表存在（与资源表统一：id + jsonData + timestamp + version）
     db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        settings_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
     // 读取 JSON 文件（优先使用自定义路径）
     const saveDataDir = customSaveDataPath || getSaveDataDirectory()
@@ -923,15 +957,13 @@ async function migrateSettingsFromJson(customSaveDataPath) {
       return { ok: false, message: 'JSON 文件格式不正确' }
     }
     
-    // 插入设置数据（覆盖模式，使用 INSERT OR REPLACE）
     const insertSettingsStmt = db.prepare(`
-      INSERT OR REPLACE INTO settings (id, settings_data, timestamp, version)
+      INSERT OR REPLACE INTO settings (id, jsonData, timestamp, version)
       VALUES (?, ?, ?, ?)
     `)
-    
     insertSettingsStmt.run(
       'main',
-      JSON.stringify(settingsData.settings), // 只存储 settings 对象
+      JSON.stringify(settingsData.settings),
       settingsData.timestamp || new Date().toISOString(),
       settingsData.version || '0.0.0'
     )
@@ -955,17 +987,17 @@ async function getSettingsFromSqlite() {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 确保 settings 表存在
+    // 确保 settings 表存在（与资源表统一：id + jsonData + timestamp + version）
     db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        settings_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
-    const selectStmt = db.prepare('SELECT * FROM settings WHERE id = ?')
+    const selectStmt = db.prepare('SELECT id, jsonData, timestamp, version FROM settings WHERE id = ?')
     const row = selectStmt.get('main')
     
     db.close()
@@ -974,12 +1006,11 @@ async function getSettingsFromSqlite() {
       return { ok: false, message: 'SQLite 中未找到设置数据' }
     }
     
-    // 解析 settings_data JSON
     let settings = null
     try {
-      settings = row.settings_data ? JSON.parse(row.settings_data) : null
+      settings = row.jsonData ? JSON.parse(row.jsonData) : null
     } catch (e) {
-      console.warn('[SQLite] 解析 settings_data JSON 失败:', e)
+      console.warn('[SQLite] 解析 settings jsonData 失败:', e)
       return { ok: false, message: '解析设置数据失败' }
     }
     
@@ -1006,17 +1037,16 @@ async function saveSettingsToSqlite(settings) {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 确保 settings 表存在
+    // 确保 settings 表存在（与资源表统一：id + jsonData + timestamp + version）
     db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        settings_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
-    // 获取应用版本号（从 package.json 或使用默认值）
     let version = '0.6.8'
     try {
       const packageJson = require('../../package.json')
@@ -1026,10 +1056,9 @@ async function saveSettingsToSqlite(settings) {
     }
     
     const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO settings (id, settings_data, timestamp, version)
+      INSERT OR REPLACE INTO settings (id, jsonData, timestamp, version)
       VALUES (?, ?, ?, ?)
     `)
-    
     insertStmt.run(
       'main',
       JSON.stringify(settings),
@@ -1057,17 +1086,16 @@ async function migrateUserFromJson(customSaveDataPath) {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 确保 user 表存在
+    // 确保 user 表存在（与资源表统一：id + jsonData + timestamp + version）
     db.exec(`
       CREATE TABLE IF NOT EXISTS user (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        user_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
-    // 读取 JSON 文件（优先使用自定义路径）
     const saveDataDir = customSaveDataPath || getSaveDataDirectory()
     const userJsonPath = path.join(saveDataDir, 'Settings', 'user.json')
     
@@ -1084,15 +1112,13 @@ async function migrateUserFromJson(customSaveDataPath) {
       return { ok: false, message: 'JSON 文件格式不正确' }
     }
     
-    // 插入用户数据（覆盖模式，使用 INSERT OR REPLACE）
     const insertUserStmt = db.prepare(`
-      INSERT OR REPLACE INTO user (id, user_data, timestamp, version)
+      INSERT OR REPLACE INTO user (id, jsonData, timestamp, version)
       VALUES (?, ?, ?, ?)
     `)
-    
     insertUserStmt.run(
       'main',
-      JSON.stringify(userData.user), // 只存储 user 对象
+      JSON.stringify(userData.user),
       userData.timestamp || new Date().toISOString(),
       userData.version || '0.0.0'
     )
@@ -1116,17 +1142,17 @@ async function getUserFromSqlite() {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 确保 user 表存在
+    // 确保 user 表存在（与资源表统一：id + jsonData + timestamp + version）
     db.exec(`
       CREATE TABLE IF NOT EXISTS user (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        user_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
-    const selectStmt = db.prepare('SELECT * FROM user WHERE id = ?')
+    const selectStmt = db.prepare('SELECT id, jsonData, timestamp, version FROM user WHERE id = ?')
     const row = selectStmt.get('main')
     
     db.close()
@@ -1135,12 +1161,11 @@ async function getUserFromSqlite() {
       return { ok: false, message: 'SQLite 中未找到用户数据' }
     }
     
-    // 解析 user_data JSON
     let user = null
     try {
-      user = row.user_data ? JSON.parse(row.user_data) : null
+      user = row.jsonData ? JSON.parse(row.jsonData) : null
     } catch (e) {
-      console.warn('[SQLite] 解析 user_data JSON 失败:', e)
+      console.warn('[SQLite] 解析 user jsonData 失败:', e)
       return { ok: false, message: '解析用户数据失败' }
     }
     
@@ -1167,17 +1192,16 @@ async function saveUserToSqlite(user) {
     const dbPath = getDatabasePath()
     const db = new Database(dbPath)
     
-    // 确保 user 表存在
+    // 确保 user 表存在（与资源表统一：id + jsonData + timestamp + version）
     db.exec(`
       CREATE TABLE IF NOT EXISTS user (
         id TEXT PRIMARY KEY DEFAULT 'main',
-        user_data TEXT,
+        jsonData TEXT NOT NULL,
         timestamp TEXT,
         version TEXT
       )
-    `)
+    `    )
     
-    // 获取应用版本号（从 package.json 或使用默认值）
     let version = '0.6.8'
     try {
       const packageJson = require('../../package.json')
@@ -1187,10 +1211,9 @@ async function saveUserToSqlite(user) {
     }
     
     const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO user (id, user_data, timestamp, version)
+      INSERT OR REPLACE INTO user (id, jsonData, timestamp, version)
       VALUES (?, ?, ?, ?)
     `)
-    
     insertStmt.run(
       'main',
       JSON.stringify(user),

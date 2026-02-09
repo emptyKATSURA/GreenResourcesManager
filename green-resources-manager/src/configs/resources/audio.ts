@@ -66,6 +66,12 @@ export class Audio extends BaseResources {
 		], false)
 	})
 
+	/** 音频时长（秒） */
+	duration: ResourceField<number> = new ResourceField<number>({
+		saveable: true,
+		defaultValue: 0
+	})
+
 	visitedSessions: ResourceField<string[]> = new ResourceField<string[]>({
 		saveable: true,
 		defaultValue: []
@@ -101,6 +107,7 @@ export class Audio extends BaseResources {
 			actors: Array.isArray(this.actors.value) ? [...this.actors.value] : [],
 			resourcePath: this.resourcePath.value || '',
 			coverPath: this.coverPath.value || '',
+			duration: this.duration.value ?? 0,
 			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
 			addedDate: this.addedDate.value || '',
 			rating: this.rating.value || 0,
