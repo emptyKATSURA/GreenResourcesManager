@@ -128,24 +128,50 @@
                   <span class="btn-icon">📸</span>
                   使用截图作为封面
                 </button>
-                <!-- 漫画封面：使用第一张图片 -->
+                <!-- 游戏封面：选择第一张封面（自带） -->
                 <button 
-                  v-if="field instanceof FormField_SelectMangaCover && enableFirstImageCover"
+                  v-if="field instanceof FormField_SelectGameCover"
+                  type="button" 
+                  class="btn-cover-action" 
+                  @click="() => handleUseFirstImageAsGameCover(key)"
+                  :disabled="!canGetGameScreenshotFolderPath"
+                  title="使用该游戏截图文件夹内第一张图片作为封面"
+                >
+                  <span class="btn-icon">🖼️</span>
+                  选择第一张封面
+                </button>
+                <!-- 游戏封面：从封面文件夹选择（自带） -->
+                <button 
+                  v-if="field instanceof FormField_SelectGameCover"
+                  type="button" 
+                  class="btn-cover-action" 
+                  @click="() => handleSelectFromGameCoverFolder(key)"
+                  :disabled="!canGetGameScreenshotFolderPath"
+                  title="从该游戏的截图文件夹中挑选一张图片作为封面"
+                >
+                  <span class="btn-icon">📂</span>
+                  从封面文件夹选择
+                </button>
+                <!-- 漫画封面：使用第一张图片（自带） -->
+                <button 
+                  v-if="field instanceof FormField_SelectMangaCover"
                   type="button" 
                   class="btn-cover-action" 
                   @click="() => handleUseFirstImageAsCover(key)"
                   :disabled="!getFolderPathValue()"
+                  title="使用漫画文件夹内第一张图片作为封面"
                 >
                   <span class="btn-icon">🖼️</span>
                   使用第一张图片
                 </button>
-                <!-- 漫画封面：从文件夹选择 -->
+                <!-- 漫画封面：从文件夹选择（自带） -->
                 <button 
-                  v-if="field instanceof FormField_SelectMangaCover && enableSelectFromFolder"
+                  v-if="field instanceof FormField_SelectMangaCover"
                   type="button" 
                   class="btn-cover-action" 
                   @click="() => handleSelectFromFolder(key)"
                   :disabled="!getFolderPathValue()"
+                  title="从文件夹中挑选一张图片作为封面"
                 >
                   <span class="btn-icon">📂</span>
                   从文件夹选择
@@ -537,6 +563,27 @@ export default {
         currentTags: Array.isArray(this.formData[key]) ? this.formData[key] : [],
         availableTags: Array.isArray(this.availableTagsByField?.[key]) ? this.availableTagsByField[key] : (this.availableTags || [])
       }))
+    },
+    // 当前表单是否可解析出游戏截图文件夹路径（用于游戏封面两个按钮的 disabled）
+    canGetGameScreenshotFolderPath(): boolean {
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return false
+      let hasGameCover = false
+      let nameKey = ''
+      for (const key in resourceInstance) {
+        const value = (resourceInstance as any)[key]
+        let field: FormFieldType | null = null
+        if (value instanceof ResourceField) field = value.editType
+        else if (value instanceof FormFieldType) field = value
+        if (field instanceof FormField_SelectGameCover) hasGameCover = true
+        if (field instanceof FormField_Text && !nameKey) nameKey = key
+      }
+      if (!hasGameCover || !nameKey) return false
+      const gameName = (this.formData[nameKey] || '').trim()
+      const hasName = gameName !== ''
+      const hasPath = this.getExecutablePathValue().trim() !== ''
+      if (this.isEditMode) return hasName && !!this.formData.id
+      return hasName || hasPath
     }
   },
   watch: {
@@ -1213,22 +1260,146 @@ export default {
         await alertService.error(`选择截图失败: ${error.message}`)
       }
     },
-    async handleUseFirstImageAsCover(key: string) {
-      // 这个功能需要在父组件中实现，通过事件或插槽
-      // 父组件应该通过回调或事件更新封面
-      this.$emit('use-first-image-cover', key, this.formData, (coverPath: string) => {
-        if (coverPath) {
-          this.formData[key] = coverPath
+    /** 获取当前表单对应的游戏截图文件夹路径（编辑用 id+name，添加用 name 或可执行路径推导） */
+    async getGameScreenshotFolderPathForForm(): Promise<string | null> {
+      const resourceInstance = this.createResourceInstance()
+      if (!resourceInstance) return null
+      let nameKey = ''
+      for (const fieldKey in resourceInstance) {
+        const value = (resourceInstance as any)[fieldKey]
+        let field: FormFieldType | null = null
+        if (value instanceof ResourceField) field = value.editType
+        else if (value instanceof FormFieldType) field = value
+        if (field instanceof FormField_Text) {
+          nameKey = fieldKey
+          break
         }
+      }
+      const resourceName = (nameKey ? (this.formData[nameKey] || '') : '').trim()
+      if (this.isEditMode) {
+        if (!resourceName || !this.formData.id) return null
+        const { getGameScreenshotFolderPath } = await import('../composables/game/useGameScreenshot')
+        return await getGameScreenshotFolderPath(this.formData.id, resourceName, this.isElectronEnvironment)
+      }
+      const executablePath = this.getExecutablePathValue().trim()
+      if (!resourceName && !executablePath) return null
+      let finalName = resourceName || this.extractGameNameFromPath(executablePath)
+      if (!finalName) return null
+      const settings = await saveManager.loadSettings()
+      let base = ''
+      if (settings.screenshotLocation === 'default') {
+        base = `${saveManager.dataDirectory}/Game/Screenshots`
+      } else if (settings.screenshotLocation === 'custom') {
+        base = settings.screenshotsPath || ''
+      } else {
+        base = settings.screenshotsPath || `${saveManager.dataDirectory}/Game/Screenshots`
+      }
+      if (!base?.trim()) base = `${saveManager.dataDirectory}/Game/Screenshots`
+      const folderName = finalName.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Screenshots'
+      return `${base}/${folderName}`.replace(/\\/g, '/')
+    },
+    async handleUseFirstImageAsGameCover(key: string) {
+      if (!this.isElectronEnvironment || !window.electronAPI?.listImageFiles) {
+        notify.toast('warning', '设置失败', '当前环境不支持')
+        return
+      }
+      const folderPath = await this.getGameScreenshotFolderPathForForm()
+      if (!folderPath) {
+        notify.toast('error', '设置失败', this.isEditMode ? '请先输入游戏名称并保存过（需有游戏ID）' : '请先输入游戏名称或选择可执行文件')
+        return
+      }
+      try {
+        if (window.electronAPI.ensureDirectory) await window.electronAPI.ensureDirectory(folderPath)
+        const resp = await window.electronAPI.listImageFiles(folderPath)
+        if (resp?.success && resp.files?.length > 0) {
+          this.formData[key] = resp.files[0]
+          notify.toast('success', '设置成功', '已使用第一张图片作为封面')
+        } else {
+          notify.toast('warning', '设置失败', '该游戏截图文件夹中没有找到图片')
+        }
+      } catch (e: any) {
+        console.error('选择第一张封面失败:', e)
+        notify.toast('error', '设置失败', e?.message || '操作失败')
+      }
+    },
+    async handleSelectFromGameCoverFolder(key: string) {
+      if (!this.isElectronEnvironment || !window.electronAPI) {
+        notify.toast('warning', '设置失败', '当前环境不支持')
+        return
+      }
+      const folderPath = await this.getGameScreenshotFolderPathForForm()
+      if (!folderPath) {
+        notify.toast('error', '设置失败', this.isEditMode ? '请先输入游戏名称并保存过（需有游戏ID）' : '请先输入游戏名称或选择可执行文件')
+        return
+      }
+      try {
+        if (window.electronAPI.ensureDirectory) await window.electronAPI.ensureDirectory(folderPath)
+        let filePath: string | null = null
+        if (window.electronAPI.selectScreenshotImage) {
+          filePath = await window.electronAPI.selectScreenshotImage(folderPath)
+        } else if (window.electronAPI.selectImageFile) {
+          filePath = await window.electronAPI.selectImageFile(folderPath)
+        }
+        if (filePath) {
+          this.formData[key] = filePath
+          notify.toast('success', '设置成功', '已从封面文件夹选择')
+        }
+      } catch (e: any) {
+        console.error('从封面文件夹选择失败:', e)
+        notify.toast('error', '设置失败', e?.message || '操作失败')
+      }
+    },
+    async handleUseFirstImageAsCover(key: string) {
+      const folderPath = this.getFolderPathValue()
+      if (!folderPath || !folderPath.trim()) {
+        notify.toast('error', '设置失败', '请先选择漫画文件夹')
+        return
+      }
+      if (this.isElectronEnvironment && window.electronAPI?.listImageFiles) {
+        try {
+          const resp = await window.electronAPI.listImageFiles(folderPath.trim())
+          if (resp?.success && resp.files?.length > 0) {
+            this.formData[key] = resp.files[0]
+            notify.toast('success', '设置成功', '已使用第一张图片作为封面')
+          } else {
+            notify.toast('warning', '设置失败', '文件夹中没有找到图片文件')
+          }
+        } catch (e: any) {
+          console.error('使用第一张图片作为封面失败:', e)
+          notify.toast('error', '设置失败', e?.message || '操作失败')
+        }
+        return
+      }
+      this.$emit('use-first-image-cover', key, this.formData, (coverPath: string) => {
+        if (coverPath) this.formData[key] = coverPath
       })
     },
     async handleSelectFromFolder(key: string) {
-      // 这个功能需要在父组件中实现，通过事件或插槽
-      // 父组件应该通过回调或事件更新封面
-      this.$emit('select-from-folder-cover', key, this.formData, (coverPath: string) => {
-        if (coverPath) {
-          this.formData[key] = coverPath
+      const folderPath = this.getFolderPathValue()
+      if (!folderPath || !folderPath.trim()) {
+        notify.toast('error', '设置失败', '请先选择漫画文件夹')
+        return
+      }
+      if (this.isElectronEnvironment && window.electronAPI) {
+        try {
+          let filePath: string | null = null
+          if (window.electronAPI.selectScreenshotImage) {
+            filePath = await window.electronAPI.selectScreenshotImage(folderPath.trim())
+          } else if (window.electronAPI.selectImageFile) {
+            filePath = await window.electronAPI.selectImageFile(folderPath.trim())
+          }
+          if (filePath) {
+            this.formData[key] = filePath
+            notify.toast('success', '设置成功', '已从文件夹选择封面')
+          }
+        } catch (e: any) {
+          console.error('从文件夹选择封面失败:', e)
+          notify.toast('error', '设置失败', e?.message || '操作失败')
         }
+        return
+      }
+      this.$emit('select-from-folder-cover', key, this.formData, (coverPath: string) => {
+        if (coverPath) this.formData[key] = coverPath
       })
     },
     async handleSelectFromFolderCovers(key: string) {
