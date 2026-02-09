@@ -77,21 +77,6 @@
             <span class="nav-text">{{ viewConfig.search?.name || '搜索' }}</span>
           </div>
         </li>
-        
-        <!-- Debug（一级菜单） -->
-        <li 
-          class="nav-item-wrapper"
-          :class="{ active: $route.name === 'debug' }"
-        >
-          <div 
-            class="nav-item"
-            :class="{ active: $route.name === 'debug' }"
-            @click="navigateTo('debug')"
-          >
-            <span class="nav-icon">{{ viewConfig.debug?.icon || '🐛' }}</span>
-            <span class="nav-text">{{ viewConfig.debug?.name || 'Debug' }}</span>
-          </div>
-        </li>
 
         <!-- 本地存档（一级菜单） -->
         <li 
@@ -445,8 +430,8 @@ export default {
     },
     // 主导航页面ID列表（一级菜单）
     mainNavViewIds() {
-      // 主页、搜索、debug、本地存档、本地刮削库是一级菜单，资源页面是主页的子菜单
-      return ['home', 'search', 'debug', 'database', 'scraper-library']
+      // 主页、搜索、本地存档、本地刮削库是一级菜单，资源页面是主页的子菜单
+      return ['home', 'search', 'database', 'scraper-library']
     },
     // 资源页面列表（主页的子菜单）
     resourcePages() {
