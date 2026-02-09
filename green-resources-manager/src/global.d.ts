@@ -4,6 +4,12 @@ declare module '*.vue' {
   export default component
 }
 
+// Vite ?url 导入：将模块作为 URL 引入
+declare module 'pdfjs-dist/build/pdf.worker.min.mjs?url' {
+  const src: string
+  export default src
+}
+
 // 导入文件选择过滤器类型
 import type { FileSelectFilter } from './class/game'
 

@@ -57,9 +57,24 @@
 
 <script lang="ts">
 import { ref, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue'
+
+// Polyfill for Promise.try (not available in older environments, required by pdfjs-dist 5.x)
+if (typeof (Promise as any).try === 'undefined') {
+  (Promise as any).try = function <T>(fn: () => T | PromiseLike<T>) {
+    try {
+      return Promise.resolve(fn())
+    } catch (e) {
+      return Promise.reject(e)
+    }
+  }
+}
+
 // 使用 PDF.js 5.x/6.x 的标准导入
 // 注意：使用 shallowRef 存储 PDF 文档对象，避免 Vue 3 响应式代理与 PDF.js 私有字段冲突
 import * as pdfjsLib from 'pdfjs-dist'
+// 使用主包自带的 Worker，确保版本一致
+// @ts-expect-error Vite 的 ?url 导入，返回资源 URL 字符串
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 // Polyfill for Promise.withResolvers (not available in older environments)
 if (typeof (Promise as any).withResolvers === 'undefined') {
@@ -74,23 +89,12 @@ if (typeof (Promise as any).withResolvers === 'undefined') {
   }
 }
 
-// 配置 PDF.js Worker
-// PDF.js 5.x/6.x 版本使用 .mjs 文件
-if (typeof window !== 'undefined') {
-  const version = pdfjsLib.version || '5.4.449'
-  // 使用 jsdelivr CDN，这是最稳定的 CDN 服务
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`
-  console.log('PDF.js Worker 配置:', pdfjsLib.GlobalWorkerOptions.workerSrc)
-}
+// 配置 PDF.js Worker：使用主包自带的 Worker，确保版本一致
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 // Worker 初始化函数（用于确保 worker 已准备好）
 const initializeWorker = async () => {
-  // Worker 已经在模块加载时配置好了，这里只是确保配置存在
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    const version = pdfjsLib.version || '5.4.449'
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`
-  }
-  // 等待一小段时间，确保 worker 模块加载完成
+  // Worker 已在模块加载时配置
   await new Promise(resolve => setTimeout(resolve, 100))
 }
 
