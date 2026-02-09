@@ -1905,6 +1905,109 @@ export default defineComponent({
       }
     }
 
+    // 自动计算漫画/图片页数（仅针对配置了 pagesCount 且尚未有数据的资源；有值则不覆盖）
+    const calculateMangaPagesCounts = async () => {
+      if (!isElectronEnvironment.value || !window.electronAPI?.listImageFiles) {
+        return
+      }
+
+      const cardConfig = ResourceClass.cardDisplayConfig ||
+                        (typeof ResourceClass.getCardDisplayConfig === 'function'
+                          ? ResourceClass.getCardDisplayConfig()
+                          : null)
+      if (cardConfig?.badge?.field !== 'pagesCount') {
+        return
+      }
+
+      // 筛选：有 resourcePath，且 pagesCount 为空（undefined、null 或 0）才计算
+      const resourcesToCalculate = items.value.filter((item: any) => {
+        const resourcePath = BaseResources.extractPrimitiveValue(
+          item.resourcePath?.value || item.resourcePath
+        )
+        if (!resourcePath || typeof resourcePath !== 'string' || !resourcePath.trim()) {
+          return false
+        }
+        const pagesCount = BaseResources.extractPrimitiveValue(item.pagesCount?.value ?? item.pagesCount)
+        return pagesCount === undefined || pagesCount === null || pagesCount === 0
+      })
+
+      if (resourcesToCalculate.length === 0) {
+        return
+      }
+
+      for (let i = 0; i < resourcesToCalculate.length; i++) {
+        const item = resourcesToCalculate[i]
+        const resourcePath = BaseResources.extractPrimitiveValue(
+          item.resourcePath?.value || item.resourcePath
+        )
+        if (!resourcePath || typeof resourcePath !== 'string' || !resourcePath.trim()) continue
+        try {
+          const resp = await window.electronAPI.listImageFiles(resourcePath)
+          const files = resp?.success ? (resp.files || []) : []
+          const count = files.length
+          if (item.pagesCount && typeof item.pagesCount === 'object' && 'value' in item.pagesCount) {
+            item.pagesCount.value = count
+          } else if (item.pagesCount !== undefined) {
+            item.pagesCount = count
+          } else {
+            item.pagesCount = count
+          }
+        } catch (error) {
+          console.warn('[GenericResourceView] 获取漫画页数失败:', resourcePath, error)
+        }
+        if (i < resourcesToCalculate.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
+      }
+    }
+
+    // 自动计算番剧/视频文件夹的视频数量（仅针对配置了 videoCount 且尚未有数据的资源；有值则不覆盖）
+    const calculateAnimeVideoCounts = async () => {
+      const cardConfig = ResourceClass.cardDisplayConfig ||
+                        (typeof ResourceClass.getCardDisplayConfig === 'function'
+                          ? ResourceClass.getCardDisplayConfig()
+                          : null)
+      if (cardConfig?.badge?.field !== 'videoCount') {
+        return
+      }
+
+      // 筛选：有 resourcePath，且 videoCount 为空（undefined、null 或 0）才计算
+      const resourcesToCalculate = items.value.filter((item: any) => {
+        const resourcePath = BaseResources.extractPrimitiveValue(
+          item.resourcePath?.value || item.resourcePath
+        )
+        if (!resourcePath || typeof resourcePath !== 'string' || !resourcePath.trim()) {
+          return false
+        }
+        const videoCount = BaseResources.extractPrimitiveValue(item.videoCount)
+        return videoCount === undefined || videoCount === null || videoCount === 0
+      })
+
+      if (resourcesToCalculate.length === 0) {
+        return
+      }
+
+      for (let i = 0; i < resourcesToCalculate.length; i++) {
+        const item = resourcesToCalculate[i]
+        const resourcePath = BaseResources.extractPrimitiveValue(
+          item.resourcePath?.value || item.resourcePath
+        )
+        if (!resourcePath || typeof resourcePath !== 'string' || !resourcePath.trim()) continue
+        try {
+          const folder = { ...item, folderPath: resourcePath }
+          const folderVideos = await videoFolderComposable.getFolderVideos(folder)
+          const count = folderVideos?.length ?? 0
+          item.videoCount = count
+        } catch (error) {
+          console.warn('[GenericResourceView] 获取番剧视频数量失败:', resourcePath, error)
+          item.videoCount = 0
+        }
+        if (i < resourcesToCalculate.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
+      }
+    }
+
     /**
      * 刷新未知时长的视频（仅对 duration 为 0 或未设置的项更新，已有时长的不刷新）
      */
@@ -2097,6 +2200,10 @@ export default defineComponent({
         await checkFileExistence()
         // 自动计算资源大小
         await calculateResourceSizes()
+        // 漫画/图片页：首次进入时刷新所有未设置页数的资源的页数
+        await calculateMangaPagesCounts()
+        // 番剧页：首次进入时刷新所有未设置视频数量的资源的视频数
+        await calculateAnimeVideoCounts()
         // 视频页：首次进入时刷新所有未知时长的视频（已有时长的不刷新）
         if (resourceType.value === 'Video') {
           refreshUnknownVideoDurations()
@@ -2132,6 +2239,8 @@ export default defineComponent({
           await new Promise(resolve => setTimeout(resolve, 100))
           await checkFileExistence()
           await calculateResourceSizes()
+          await calculateMangaPagesCounts()
+          await calculateAnimeVideoCounts()
         }
       },
       { immediate: false }
