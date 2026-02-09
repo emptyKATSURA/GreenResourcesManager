@@ -107,6 +107,24 @@
             <span class="checkbox-text">{{ field.fieldName }}</span>
           </label>
           
+          <!-- 单图片文件选择（仅预览 +「选择图片」） -->
+          <template v-else-if="field instanceof FormField_SelectSingleImageFile">
+            <div class="cover-selection-container">
+              <div class="cover-preview" v-if="formData[key]">
+                <img :src="getImageUrl(formData[key])" :alt="'图片预览'" @error="handleImageError">
+                <div class="cover-preview-info">
+                  <span class="cover-filename">{{ getImageFileName(formData[key]) }}</span>
+                </div>
+              </div>
+              <div class="cover-actions">
+                <button type="button" class="btn-cover-action" @click="() => handleBrowseFile(key, field)">
+                  <span class="btn-icon">📁</span>
+                  选择图片
+                </button>
+              </div>
+            </div>
+          </template>
+          
           <!-- 文件选择字段（封面类型，需要特殊处理） -->
           <template v-else-if="isCoverField(field)">
             <div class="cover-selection-container">
@@ -288,7 +306,8 @@ import {
   FormField_SelectFolder,
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
-  FormField_SelectVideoThumbnail
+  FormField_SelectVideoThumbnail,
+  FormField_SelectSingleImageFile
 } from '@resources/base/FormField.ts'
 import { ResourceField } from '@resources/base/ResourceField.ts'
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
@@ -443,7 +462,8 @@ export default {
       FormField_SelectFolder,
       FormField_SelectGameCover,
       FormField_SelectMangaCover,
-      FormField_SelectVideoThumbnail
+      FormField_SelectVideoThumbnail,
+      FormField_SelectSingleImageFile
     }
   },
   data() {
@@ -892,7 +912,7 @@ export default {
     },
     async handleBrowseFile(key: string, field: FormFieldType) {
       try {
-        if (!(field instanceof FormField_SelectFile)) return
+        if (!(field instanceof FormField_SelectFile) && !(field instanceof FormField_SelectSingleImageFile)) return
         
         if (!this.isElectronEnvironment || !window.electronAPI) {
           await alertService.warning('当前环境不支持文件选择功能，请在 Electron 环境中使用')
@@ -1095,8 +1115,8 @@ export default {
           field = value
         }
         
-        if (fieldKey === key && (field instanceof FormField_SelectFile || this.isCoverField(field))) {
-          if (field instanceof FormField_SelectFile) {
+        if (fieldKey === key && (field instanceof FormField_SelectFile || field instanceof FormField_SelectSingleImageFile || this.isCoverField(field))) {
+          if (field instanceof FormField_SelectFile || field instanceof FormField_SelectSingleImageFile) {
             await this.handleBrowseFile(key, field)
           } else {
             // 封面字段使用图片文件选择
@@ -1544,14 +1564,6 @@ export default {
               resource[key] = formValue.trim()
             } else {
               resource[key] = formValue
-            }
-
-            // 编辑模式的特殊处理：如果值为空，保留原有值
-            if (this.isEditMode && this.resourceData) {
-              if (typeof resource[key] === 'string' && resource[key] === '') {
-                const originalValue = (this.resourceData as any)[key]
-                resource[key] = BaseResources.extractPrimitiveValue(originalValue) || ''
-              }
             }
           }
         }

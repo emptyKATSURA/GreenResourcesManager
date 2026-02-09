@@ -2,7 +2,7 @@ import {
 	FormField_Text, 
 	FormField_Textarea, 
 	FormField_Tags, 
-	FormField_SelectFile, 
+	FormField_SelectSingleImageFile, 
 	FormField as FormFieldType,
 	FormField
 } from './base/FormField.ts'
@@ -47,7 +47,7 @@ export class SingleImage extends BaseResources {
 	
 	resourcePath: ResourceField<string> = new ResourceField<string>({
 		saveable: true,
-		editType: new FormField_SelectFile('图片文件', [
+		editType: new FormField_SelectSingleImageFile('图片文件', [
 			{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] },
 			{ name: '所有文件', extensions: ['*'] }
 		], true)

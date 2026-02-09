@@ -196,6 +196,17 @@ export class FormField_SelectFile extends FormField {
 }
 
 /**
+ * 单图片文件选择字段（编辑时仅展示预览 +「选择图片」按钮，无清除按钮）
+ */
+export class FormField_SelectSingleImageFile extends FormField {
+	filters: FileSelectFilter[]
+	constructor(fieldName: string, filters: FileSelectFilter[], required?: boolean) {
+		super(fieldName, required)
+		this.filters = filters
+	}
+}
+
+/**
  * 文件夹选择字段
  */
 export class FormField_SelectFolder extends FormField {
