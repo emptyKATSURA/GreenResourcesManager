@@ -263,7 +263,7 @@
         </section>
       </div>
       <template #footer>
-        <button type="button" class="btn-confirm" @click="showVersionModal = false">知道了</button>
+        <button type="button" class="btn-confirm" @click="onVersionModalClose">知道了</button>
       </template>
     </FunModal>
   </div>
@@ -678,6 +678,19 @@ export default {
       this.pluginView.title = ''
       this.pluginView.content = ''
       this.pluginView.onMount = null
+    },
+    // 关闭更新说明弹窗并写入 hasShowUpdateDialog
+    async onVersionModalClose() {
+      this.showVersionModal = false
+      try {
+        const settings = await saveManager.loadSettings()
+        if (settings) {
+          settings.hasShowUpdateDialog = true
+          await saveManager.saveSettings(settings)
+        }
+      } catch (error) {
+        console.warn('保存 hasShowUpdateDialog 失败:', error)
+      }
     },
     // 切换主页菜单展开/折叠
     toggleHomeMenu() {
@@ -1604,10 +1617,20 @@ export default {
     // 所有初始化完成，隐藏加载提示
     this.isLoading = false
     console.log('✅ 应用初始化完成')
-    // 每次启动显示版本更新弹窗
-    this.$nextTick(() => {
-      this.showVersionModal = true
-    })
+    // 根据存档 hasShowUpdateDialog 决定是否显示版本更新弹窗
+    try {
+      const settings = await saveManager.loadSettings()
+      if (settings && settings.hasShowUpdateDialog !== true) {
+        this.$nextTick(() => {
+          this.showVersionModal = true
+        })
+      }
+    } catch (e) {
+      // 读取失败时默认显示一次
+      this.$nextTick(() => {
+        this.showVersionModal = true
+      })
+    }
   },
   beforeUnmount() {
     // 停止定期检查游戏运行状态

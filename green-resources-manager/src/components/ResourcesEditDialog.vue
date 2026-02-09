@@ -242,10 +242,10 @@
         </button>
       </div>
       </div>
-      <!-- Tag 选择面板 -->
+      <!-- Tag 选择面板：支持多个 FormField_Tags，每个区块对应一个字段 -->
       <TagSelectionPanel
         :visible="visible"
-        :current-tags="getTagsFieldValue()"
+        :tag-fields="tagFieldsForPanel"
         :available-tags="availableTags"
         @select-tag="handleSelectTag"
       />
@@ -361,6 +361,11 @@ export default {
     availableTags: {
       type: Array as PropType<(string | { name: string; count?: number })[]>,
       default: () => []
+    },
+    /** 按字段 key 的候选列表（如 developers / tags），未命中时用 availableTags */
+    availableTagsByField: {
+      type: Object as PropType<Record<string, (string | { name: string; count?: number })[]>>,
+      default: () => ({})
     },
     // 自定义验证函数
     customValidation: {
@@ -523,6 +528,15 @@ export default {
         }
       }
       return true
+    },
+    // 为 TagSelectionPanel 提供带当前值的标签字段列表（必须是 computed，否则子组件收到的是函数）
+    tagFieldsForPanel(): { key: string; label: string; currentTags: string[]; availableTags: (string | { name: string; count?: number })[] }[] {
+      return this.getTagsFields().map(({ key, label }) => ({
+        key,
+        label,
+        currentTags: Array.isArray(this.formData[key]) ? this.formData[key] : [],
+        availableTags: Array.isArray(this.availableTagsByField?.[key]) ? this.availableTagsByField[key] : (this.availableTags || [])
+      }))
     }
   },
   watch: {
@@ -685,27 +699,24 @@ export default {
       }
       return ''
     },
-    // 获取标签字段的值（用于 TagSelectionPanel）
-    getTagsFieldValue(): string[] {
+    // 获取所有 FormField_Tags 字段（用于 TagSelectionPanel 多区块展示）
+    getTagsFields(): { key: string; label: string }[] {
       const resourceInstance = this.createResourceInstance()
       if (!resourceInstance) return []
-      
+      const list: { key: string; label: string }[] = []
       for (const key in resourceInstance) {
         const value = (resourceInstance as any)[key]
         let field: FormFieldType | null = null
-        
-        // 支持 ResourceField 和 FormField 两种形式
         if (value instanceof ResourceField) {
           field = value.editType
         } else if (value instanceof FormFieldType) {
           field = value
         }
-        
         if (field instanceof FormField_Tags) {
-          return Array.isArray(this.formData[key]) ? this.formData[key] : []
+          list.push({ key, label: field.fieldName })
         }
       }
-      return []
+      return list
     },
     // 获取字段标签（必填字段加 *，非必填字段不加标识）
     getFieldLabel(key: string, field: FormFieldType | null): string {
@@ -1421,57 +1432,17 @@ export default {
         delete this.tagInputRefs[key]
       }
     },
-    async handleSelectTag(tag: string) {
-      console.log('[ResourcesEditDialog] handleSelectTag 被调用，tag:', tag)
+    handleSelectTag(payload: string | { fieldKey: string; tag: string }) {
+      const fieldKey = typeof payload === 'object' ? payload?.fieldKey : undefined
+      const tag = typeof payload === 'object' ? payload?.tag : payload
       if (!tag) return
-      
-      const resourceInstance = this.createResourceInstance()
-      if (!resourceInstance) {
-        console.warn('[ResourcesEditDialog] resourceInstance 为空')
-        return
-      }
-      
-      let tagsKey = ''
-      for (const key in resourceInstance) {
-        const value = (resourceInstance as any)[key]
-        let field: FormFieldType | null = null
-        
-        // 支持 ResourceField 和 FormField 两种形式（与 getTagsFieldValue 保持一致）
-        if (value instanceof ResourceField) {
-          field = value.editType
-        } else if (value instanceof FormFieldType) {
-          field = value
-        }
-        
-        if (field instanceof FormField_Tags) {
-          tagsKey = key
-          break
-        }
-      }
-      
-      console.log('[ResourcesEditDialog] 找到的 tagsKey:', tagsKey)
-      console.log('[ResourcesEditDialog] tagInputRefs:', this.tagInputRefs)
-      console.log('[ResourcesEditDialog] formData keys:', Object.keys(this.formData))
-      
-      if (tagsKey && Array.isArray(this.formData[tagsKey])) {
-        const index = this.formData[tagsKey].indexOf(tag)
-        console.log('[ResourcesEditDialog] 标签索引:', index, '当前标签列表:', this.formData[tagsKey])
-        
-        if (index > -1) {
-          // 如果标签已存在，则移除
-          console.log('[ResourcesEditDialog] 移除标签:', tag)
-          this.formData[tagsKey].splice(index, 1)
-        } else {
-          // 如果标签不存在，直接添加到标签列表
-          console.log('[ResourcesEditDialog] 添加标签:', tag)
-          this.formData[tagsKey].push(tag)
-        }
+      const tagsKey = fieldKey
+      if (!tagsKey || !Array.isArray(this.formData[tagsKey])) return
+      const index = this.formData[tagsKey].indexOf(tag)
+      if (index > -1) {
+        this.formData[tagsKey].splice(index, 1)
       } else {
-        console.warn('[ResourcesEditDialog] tagsKey 不存在或 formData[tagsKey] 不是数组', {
-          tagsKey,
-          formDataTagsKey: tagsKey ? this.formData[tagsKey] : undefined,
-          isArray: tagsKey ? Array.isArray(this.formData[tagsKey]) : false
-        })
+        this.formData[tagsKey].push(tag)
       }
     }
   }

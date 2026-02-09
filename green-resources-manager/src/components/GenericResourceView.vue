@@ -106,6 +106,7 @@
       :resource-data="editForm"
       :is-electron-environment="isElectronEnvironment"
       :available-tags="allTags"
+      :available-tags-by-field="availableTagsByField"
       add-title="添加资源"
       edit-title="编辑资源"
       add-button-text="添加"
@@ -763,10 +764,22 @@ export default defineComponent({
       { isGameRunning: isGameRunningForFilter }
     )
     
-    // 从筛选器状态中获取所有标签（用于编辑对话框）
+    // 从筛选器状态中获取所有标签（用于编辑对话框，兼容单一口径）
     const allTags = computed<FilterItem[]>(() => {
       const tagsState = filterComposable.filterStates?.tags
       return tagsState?.items?.value || []
+    })
+
+    // 按字段 key 提供各自的候选列表（开发商用 developers 数据，标签用 tags 数据）
+    const availableTagsByField = computed<Record<string, FilterItem[]>>(() => {
+      const states = filterComposable.filterStates
+      if (!states || typeof states !== 'object') return {}
+      const map: Record<string, FilterItem[]> = {}
+      for (const key of Object.keys(states)) {
+        const items = (states as any)[key]?.items?.value
+        map[key] = Array.isArray(items) ? items : []
+      }
+      return map
     })
 
     // 终止游戏方法
@@ -2480,6 +2493,7 @@ export default defineComponent({
       // 编辑对话框相关
       ResourceClass,
       allTags,
+      availableTagsByField,
       // 编辑对话框状态和方法（从 resourcePage 获取）
       showEditDialog: resourcePage.showEditDialog,
       editForm: resourcePage.editForm,

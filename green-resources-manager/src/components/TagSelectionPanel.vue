@@ -18,37 +18,68 @@
         />
       </div>
 
-      <!-- 常用标签列表 -->
-      <div v-if="filteredAvailableTags && filteredAvailableTags.length > 0" class="tag-list-section">
-        <div class="tag-list-title">
-          <span>{{ title || '标签选择' }}</span>
-          <span class="tag-count-badge">{{ filteredAvailableTags.length }}</span>
+      <!-- 多区块：每个 FormField_Tags 一个区块，用各自 availableTags 数据源，点击填入对应字段 -->
+      <template v-if="tagFields && tagFields.length > 0">
+        <div
+          v-for="field in tagFields"
+          :key="field.key"
+          class="tag-list-section"
+        >
+          <div class="tag-list-title">
+            <span>{{ field.label }}</span>
+            <span class="tag-count-badge">{{ getFilteredAvailableTagsForField(field).length }}</span>
+          </div>
+          <div v-if="getFilteredAvailableTagsForField(field).length > 0" class="tag-list">
+            <button
+              v-for="tagItem in getFilteredAvailableTagsForField(field)"
+              :key="field.key + '-' + getTagName(tagItem)"
+              class="tag-item-btn"
+              :class="{ 'tag-item-selected': isTagSelectedInField(tagItem, field.currentTags) }"
+              @click="handleTagClickForField(tagItem, field.key)"
+            >
+              <span class="tag-name">{{ getTagName(tagItem) }}</span>
+              <span v-if="getTagCount(tagItem)" class="tag-count">{{ getTagCount(tagItem) }}</span>
+              <span v-if="isTagSelectedInField(tagItem, field.currentTags)" class="tag-check">✓</span>
+            </button>
+          </div>
+          <div v-else class="tag-empty-state tag-empty-inline">
+            <p>{{ emptyMessage || '暂无可用标签' }}</p>
+          </div>
         </div>
-        <div class="tag-list">
-          <button
-            v-for="tagItem in filteredAvailableTags"
-            :key="getTagName(tagItem)"
-            class="tag-item-btn"
-            :class="{ 'tag-item-selected': isTagSelected(tagItem) }"
-            @click="handleTagClick(tagItem)"
-          >
-            <span class="tag-name">{{ getTagName(tagItem) }}</span>
-            <span v-if="getTagCount(tagItem)" class="tag-count">{{ getTagCount(tagItem) }}</span>
-            <span v-if="isTagSelected(tagItem)" class="tag-check">✓</span>
-          </button>
-        </div>
-      </div>
+      </template>
 
-      <!-- 空状态 -->
-      <div v-else class="tag-empty-state">
-        <p>{{ emptyMessage || '暂无可用标签' }}</p>
-        <p v-if="availableTags && availableTags.length === 0" class="debug-info" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;">
-          调试：availableTags 为空数组
-        </p>
-        <p v-else-if="!availableTags" class="debug-info" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;">
-          调试：availableTags 未定义
-        </p>
-      </div>
+      <!-- 单区块（兼容旧用法：只传 currentTags + availableTags） -->
+      <template v-else>
+        <div v-if="filteredAvailableTags && filteredAvailableTags.length > 0" class="tag-list-section">
+          <div class="tag-list-title">
+            <span>{{ title || '标签选择' }}</span>
+            <span class="tag-count-badge">{{ filteredAvailableTags.length }}</span>
+          </div>
+          <div class="tag-list">
+            <button
+              v-for="tagItem in filteredAvailableTags"
+              :key="getTagName(tagItem)"
+              class="tag-item-btn"
+              :class="{ 'tag-item-selected': isTagSelected(tagItem) }"
+              @click="handleTagClick(tagItem)"
+            >
+              <span class="tag-name">{{ getTagName(tagItem) }}</span>
+              <span v-if="getTagCount(tagItem)" class="tag-count">{{ getTagCount(tagItem) }}</span>
+              <span v-if="isTagSelected(tagItem)" class="tag-check">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="tag-empty-state">
+          <p>{{ emptyMessage || '暂无可用标签' }}</p>
+          <p v-if="availableTags && availableTags.length === 0" class="debug-info" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;">
+            调试：availableTags 为空数组
+          </p>
+          <p v-else-if="!availableTags" class="debug-info" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;">
+            调试：availableTags 未定义
+          </p>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -67,6 +98,12 @@ export default {
       type: String,
       default: '标签选择'
     },
+    /** 多区块模式：每个 FormField_Tags 一个区块，点击填入对应 key 的字段；每项可带 availableTags 使用各自数据源 */
+    tagFields: {
+      type: Array as () => { key: string; label: string; currentTags: string[]; availableTags?: (string | { name: string; count?: number })[] }[],
+      default: () => []
+    },
+    /** 单区块模式（与 tagFields 二选一） */
     currentTags: {
       type: Array as () => string[],
       default: () => []
@@ -94,11 +131,6 @@ export default {
 
     // 过滤可用标签
     const filteredAvailableTags = computed(() => {
-      // 调试：检查 availableTags
-      console.log('TagSelectionPanel - availableTags:', props.availableTags)
-      console.log('TagSelectionPanel - availableTags type:', typeof props.availableTags)
-      console.log('TagSelectionPanel - availableTags length:', props.availableTags?.length)
-      
       if (!props.availableTags || props.availableTags.length === 0) {
         return []
       }
@@ -122,26 +154,50 @@ export default {
       return typeof tag === 'object' && tag.count !== undefined ? tag.count : null
     }
 
-    // 检查标签是否已选中
+    // 检查标签是否已选中（单区块）
     const isTagSelected = (tag: string | { name: string; count?: number }): boolean => {
       const tagName = getTagName(tag)
       return props.currentTags.includes(tagName)
     }
 
-    // 处理标签点击
-    const handleTagClick = (tag: string | { name: string; count?: number }) => {
+    // 检查标签在指定字段的 currentTags 中是否已选中（多区块）
+    const isTagSelectedInField = (tag: string | { name: string; count?: number }, currentTags: string[]): boolean => {
       const tagName = getTagName(tag)
-      emit('select-tag', tagName)
+      return Array.isArray(currentTags) && currentTags.includes(tagName)
     }
 
+    // 处理标签点击（单区块）
+    const handleTagClick = (tag: string | { name: string; count?: number }) => {
+      emit('select-tag', getTagName(tag))
+    }
+
+    // 处理标签点击（多区块）：带上 fieldKey，填入对应区域
+    const handleTagClickForField = (tag: string | { name: string; count?: number }, fieldKey: string) => {
+      emit('select-tag', { fieldKey, tag: getTagName(tag) })
+    }
+
+    // 多区块时每个区块用各自数据源，再按搜索过滤
+    const getFilteredAvailableTagsForField = (field: { availableTags?: (string | { name: string; count?: number })[] }) => {
+      const source = (field.availableTags != null && Array.isArray(field.availableTags)) ? field.availableTags : props.availableTags
+      if (!source || source.length === 0) return []
+      if (!searchQuery.value.trim()) return source
+      const query = searchQuery.value.toLowerCase().trim()
+      return source.filter((tag: string | { name: string; count?: number }) => {
+        const tagName = typeof tag === 'string' ? tag : tag.name
+        return tagName.toLowerCase().includes(query)
+      })
+    }
 
     return {
       searchQuery,
       filteredAvailableTags,
+      getFilteredAvailableTagsForField,
       getTagName,
       getTagCount,
       isTagSelected,
-      handleTagClick
+      isTagSelectedInField,
+      handleTagClick,
+      handleTagClickForField
     }
   }
 }
@@ -310,6 +366,14 @@ export default {
 .tag-empty-state p {
   margin: 0;
   font-size: 0.875rem;
+}
+
+.tag-empty-inline {
+  padding: 12px 0;
+}
+.tag-empty-inline p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 /* 响应式设计 */
