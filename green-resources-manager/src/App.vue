@@ -561,7 +561,7 @@ export default {
     prefetchResourceViews() {
       const run = () => {
         const loaders: Array<() => Promise<any>> = [
-          () => import('./pages/resources/GameView.vue'),
+          () => import('./components/ResourceView.vue'),
           () => import('./pages/resources/ImageView.vue'),
           () => import('./pages/resources/VideoView.vue'),
           () => import('./pages/resources/NovelView.vue'),
@@ -752,7 +752,7 @@ export default {
         const sessionDuration = Math.floor((Date.now() - runtimeGameData.startTime) / 1000) // 转换为秒
         console.log(`[DEBUG] ⏱️ 游戏 ${gameId} 本次会话时长: ${sessionDuration} 秒`, '游戏信息:', runtimeGameData)
         
-        // 通知 GameView 更新游戏时长，游戏结束时需要保存
+        // 通知游戏视图（GenericResourceView）更新游戏时长，游戏结束时需要保存
         console.log(`[DEBUG] 💾 调用 updateGamePlayTime，gameId: ${gameId}, sessionDuration: ${sessionDuration}, shouldSave: true`)
         this.updateGamePlayTime(gameId, sessionDuration, true)
       } else {
@@ -765,23 +765,36 @@ export default {
     isGameRunning(gameId) {
       return this.runningGames.has(gameId)
     },
+    // 获取当前游戏页视图（GenericResourceView，与 GameView 兼容的 games/saveGames 接口）
+    getGameView() {
+      if (this.$route?.name !== 'games') return null
+      const rv = this.$refs.routerView
+      return rv?.$refs?.innerView || null
+    },
     // 更新游戏时长（只更新内存，不立即保存）
     updateGamePlayTime(gameId, sessionDuration, shouldSave = false) {
-      const gameView = this.$refs.gameView
+      const gameView = this.getGameView()
       if (!gameView || !gameView.games) {
         console.log('游戏视图不可用，无法更新游戏时长')
         return
       }
       
-      const game = gameView.games.find(g => g.id === gameId)
+      const game = gameView.games.find(g => (g.id?.value ?? g.id) === gameId)
       if (game) {
-        // 累加游戏时长
-        game.playTime = (game.playTime || 0) + sessionDuration
+        // 累加游戏时长（兼容 ResourceField：可能是 .value 或直接值）
+        const prev = (game.playTime?.value ?? game.playTime) || 0
+        const next = prev + sessionDuration
+        if (game.playTime && typeof game.playTime === 'object' && 'value' in game.playTime) {
+          game.playTime.value = next
+        } else {
+          game.playTime = next
+        }
         
         // 只有在 shouldSave 为 true 时才保存（游戏结束时）
         if (shouldSave) {
           this.saveGamesSafely(gameView)
-          console.log(`游戏 ${game.name} 总时长更新为: ${game.playTime} 秒 (本次增加: ${sessionDuration} 秒)，已保存`)
+          const name = game.name?.value ?? game.name
+          console.log(`游戏 ${name} 总时长更新为: ${next} 秒 (本次增加: ${sessionDuration} 秒)，已保存`)
         } else {
           // console.log(`游戏 ${game.name} 总时长更新为: ${game.playTime} 秒 (本次增加: ${sessionDuration} 秒)，暂存内存`)
         }
@@ -901,7 +914,7 @@ export default {
         return
       }
       
-      const gameView = this.$refs.gameView
+      const gameView = this.getGameView()
       if (!gameView || !gameView.games) {
         console.log('游戏视图不可用，跳过状态检查')
         return
@@ -912,7 +925,7 @@ export default {
       console.log(`[DEBUG] 📋 待检查的游戏列表:`, runningGamesToCheck.map(([id, data]) => ({ id, pid: data.pid, gameName: data.gameName })))
       
       for (const [gameId, runtimeGameData] of runningGamesToCheck) {
-        const game = gameView.games.find(g => g.id === gameId)
+        const game = gameView.games.find(g => (g.id?.value ?? g.id) === gameId)
         if (!game) {
           // 游戏不存在，从运行列表中移除
           this.runningGames.delete(gameId)
@@ -920,9 +933,10 @@ export default {
           continue
         }
         
+        const gameName = game.name?.value ?? game.name
         try {
           // 通过 PID 检查游戏进程是否还在运行（尝试获取窗口标题，如果失败说明进程已结束）
-          console.log(`[DEBUG] 🔍 检查游戏 ${game.name} (ID: ${gameId}, PID: ${runtimeGameData.pid}) 的运行状态...`)
+          console.log(`[DEBUG] 🔍 检查游戏 ${gameName} (ID: ${gameId}, PID: ${runtimeGameData.pid}) 的运行状态...`)
           const result = await window.electronAPI.getAllWindowTitlesByPID(runtimeGameData.pid)
           console.log(`[DEBUG] 📋 getAllWindowTitlesByPID 结果:`, { success: result.success, windowTitles: result.windowTitles, error: result.error })
           
@@ -932,16 +946,16 @@ export default {
             console.log(`[DEBUG] ⚠️ 无法获取窗口标题，之前记录的窗口标题:`, runtimeGameData.windowTitles)
             if (runtimeGameData.windowTitles && runtimeGameData.windowTitles.length > 0) {
               // 之前有窗口，现在获取不到，可能是进程结束了
-              console.log(`[DEBUG] 🔴 游戏 ${game.name} 进程已结束（之前有窗口但现在获取不到），从运行列表中移除`)
+              console.log(`[DEBUG] 🔴 游戏 ${gameName} 进程已结束（之前有窗口但现在获取不到），从运行列表中移除`)
               this.removeRunningGame(gameId)
             } else {
-              console.log(`[DEBUG] ⚠️ 游戏 ${game.name} 之前没有窗口标题，无法判断进程是否结束，保留运行状态`)
+              console.log(`[DEBUG] ⚠️ 游戏 ${gameName} 之前没有窗口标题，无法判断进程是否结束，保留运行状态`)
             }
           } else {
-            console.log(`[DEBUG] ✅ 游戏 ${game.name} 进程仍在运行，窗口标题:`, result.windowTitles)
+            console.log(`[DEBUG] ✅ 游戏 ${gameName} 进程仍在运行，窗口标题:`, result.windowTitles)
           }
         } catch (error) {
-          console.error(`[DEBUG] ❌ 检查游戏 ${game.name} 运行状态失败:`, error)
+          console.error(`[DEBUG] ❌ 检查游戏 ${gameName} 运行状态失败:`, error)
           // 出错时保守处理，保留运行状态
         }
       }
@@ -994,7 +1008,7 @@ export default {
     },
     // 保存正在运行游戏的时长（每1分钟执行一次）
     async saveRunningGamesPlaytime() {
-      const gameView = this.$refs.gameView
+      const gameView = this.getGameView()
       if (!gameView || !gameView.games) {
         console.log('游戏视图不可用，无法保存游戏时长')
         return
@@ -1003,7 +1017,7 @@ export default {
       // 检查是否有正在运行的游戏需要保存
       let hasRunningGames = false
       for (const [gameId] of this.runningGames) {
-        const game = gameView.games.find(g => g.id === gameId)
+        const game = gameView.games.find(g => (g.id?.value ?? g.id) === gameId)
         if (game) {
           hasRunningGames = true
           break

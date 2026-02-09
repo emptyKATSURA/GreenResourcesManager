@@ -167,10 +167,11 @@ export function useGameScreenshot(
    * 截图功能
    */
   async function takeScreenshot() {
+    console.log('[useGameScreenshot] takeScreenshot 被调用')
     // 防止重复截图
     const now = Date.now()
     if (isScreenshotInProgress.value || (now - lastScreenshotTime.value < 1000)) {
-      console.log('截图请求被忽略：正在截图或距离上次截图时间太短')
+      console.log('[useGameScreenshot] 截图请求被忽略：正在截图或距离上次截图时间太短')
       return
     }
 
@@ -348,18 +349,21 @@ export function useGameScreenshot(
       const settings = await getScreenshotSettings()
       const screenshotKey = settings.screenshotKey
 
-      console.log('初始化全局快捷键:', screenshotKey)
+      console.log('[useGameScreenshot] 初始化全局快捷键, key:', screenshotKey, ', isElectron:', isElectronEnvironment.value, ', hasUpdateAPI:', !!(window.electronAPI && window.electronAPI.updateGlobalShortcut))
 
       if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.updateGlobalShortcut) {
         const result = await window.electronAPI.updateGlobalShortcut(screenshotKey)
+        console.log('[useGameScreenshot] updateGlobalShortcut 结果:', result)
         if (result.success) {
-          console.log('全局快捷键更新成功:', result.key)
+          console.log('[useGameScreenshot] 全局快捷键注册成功:', result.key)
         } else {
-          console.error('全局快捷键更新失败:', result.error)
+          console.error('[useGameScreenshot] 全局快捷键注册失败:', result.error)
         }
+      } else {
+        console.warn('[useGameScreenshot] 未调用 updateGlobalShortcut（非 Electron 或 API 不可用）')
       }
     } catch (error) {
-      console.error('初始化全局快捷键失败:', error)
+      console.error('[useGameScreenshot] 初始化全局快捷键失败:', error)
     }
   }
 

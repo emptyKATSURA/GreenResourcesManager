@@ -107,6 +107,7 @@
       :is-electron-environment="isElectronEnvironment"
       :available-tags="allTags"
       :available-tags-by-field="availableTagsByField"
+      :enable-screenshot-cover="resourceType === 'Game'"
       add-title="添加资源"
       edit-title="编辑资源"
       add-button-text="添加"
@@ -291,7 +292,7 @@ import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import notify from '../utils/NotificationService.ts'
 import saveManager from '../utils/SaveManager.ts'
 import { calculateAndUpdateResourceSize, calculateResourceSizesBatch } from '../utils/ResourceSizeService.ts'
-import { getGameScreenshotFolderPath } from '../composables/game/useGameScreenshot'
+import { getGameScreenshotFolderPath, useGameScreenshot } from '../composables/game/useGameScreenshot'
 import { useResourceFilter } from '../composables/useResourceFilter'
 import { useImagePages } from '../composables/image/useImagePages'
 import { useImageCache } from '../composables/image/useImageCache'
@@ -450,7 +451,7 @@ export default defineComponent({
 
     // 响应式数据
     const items = ref<any[]>([])
-    const isElectronEnvironment = ref(false)
+    const isElectronEnvironment = ref(!!(typeof window !== 'undefined' && (window as any).electronAPI))
     const searchQuery = ref('')
     const sortBy = ref('name-asc')
     
@@ -700,6 +701,32 @@ export default defineComponent({
       console.log(`[GenericResourceView] 页面 ${pageId} 数据保存成功`)
       return true
     }
+
+    // 游戏截图功能（仅 Game 类型且 Electron 环境）
+    const gameScreenshotComposable =
+      resourceType.value === 'Game' && isElectronEnvironment.value
+        ? useGameScreenshot(
+            isElectronEnvironment,
+            () => gameRunningStore.getRunningGamesMap(),
+            async (result: { gameId?: string; filepath: string }) => {
+              if (!result?.gameId || !result?.filepath) return
+              const item = items.value.find((i: any) => (i.id?.value || i.id) === result.gameId)
+              if (!item) return
+              // 当封面为空（未设置、已清除或仅空白）时，将本次截图设为封面
+              const currentCover = item.coverPath?.value ?? item.coverPath ?? (item as any).image
+              const isCoverEmpty = currentCover == null || String(currentCover).trim() === ''
+              if (!isCoverEmpty) return
+              if (item.coverPath && typeof item.coverPath === 'object' && 'value' in item.coverPath) {
+                item.coverPath.value = result.filepath
+              } else {
+                (item as any).coverPath = result.filepath
+              }
+              await saveData()
+              const name = item.name?.value ?? item.name
+              notify.toast('success', '封面已更新', `已自动将截图设置为 "${name}" 的封面图`)
+            }
+          )
+        : null
 
     // 图片/漫画查看器相关状态（用于 Image/Manga 资源类型）
     const currentAlbum = ref<any>(null)
@@ -2028,6 +2055,34 @@ export default defineComponent({
           handleGameProcessEnded(data)
         })
       }
+
+      // 游戏页：注册全局截图快捷键（与 GameView 一致）
+      console.log('[GenericResourceView] 截图相关检查:', {
+        resourceType: resourceType.value,
+        hasTakeScreenshot: !!gameScreenshotComposable?.takeScreenshot,
+        isElectron: isElectronEnvironment.value,
+        hasOnGlobalScreenshotTrigger: !!(window.electronAPI?.onGlobalScreenshotTrigger),
+        hasInitializeGlobalShortcut: !!gameScreenshotComposable?.initializeGlobalShortcut
+      })
+      if (gameScreenshotComposable?.takeScreenshot && isElectronEnvironment.value && window.electronAPI?.onGlobalScreenshotTrigger) {
+        window.electronAPI.onGlobalScreenshotTrigger(() => {
+          console.log('[GenericResourceView] 收到 global-screenshot-trigger，执行 takeScreenshot')
+          gameScreenshotComposable.takeScreenshot()
+        })
+        // 向主进程注册截图快捷键（否则按键无反应）
+        if (gameScreenshotComposable.initializeGlobalShortcut) {
+          gameScreenshotComposable.initializeGlobalShortcut().then(() => {
+            console.log('[GenericResourceView] initializeGlobalShortcut 调用完成')
+          }).catch((e: any) => {
+            console.warn('[GenericResourceView] initializeGlobalShortcut 失败:', e)
+          })
+          console.log('[GenericResourceView] 已调用 initializeGlobalShortcut')
+        } else {
+          console.warn('[GenericResourceView] 无 initializeGlobalShortcut，截图键将不会注册')
+        }
+      } else {
+        console.warn('[GenericResourceView] 未注册截图监听，条件不满足')
+      }
       
       // 注册游戏时长更新事件监听器（用于实时更新总时长）
       window.addEventListener('game-request-update-playtime', handleRequestUpdatePlaytime as EventListener)
@@ -2069,6 +2124,12 @@ export default defineComponent({
       if (playtimeUpdateTimer) {
         clearInterval(playtimeUpdateTimer)
         playtimeUpdateTimer = null
+      }
+      // 游戏页：移除全局截图监听
+      if (isElectronEnvironment.value && window.electronAPI?.removeGlobalScreenshotListener) {
+        window.electronAPI.removeGlobalScreenshotListener()
+      } else if (isElectronEnvironment.value && window.electronAPI?.removeAllListeners) {
+        window.electronAPI.removeAllListeners('global-screenshot-trigger')
       }
     })
 
@@ -2501,7 +2562,10 @@ export default defineComponent({
       showEditDialog: resourcePage.showEditDialog,
       editForm: resourcePage.editForm,
       closeEdit: resourcePage.closeEdit,
-      handleEditConfirm: resourcePage.handleEditConfirm
+      handleEditConfirm: resourcePage.handleEditConfirm,
+      // 供 App.vue 游戏时长/保存逻辑使用（与 GameView 兼容）：games 即 items，saveGames 即 saveData
+      games: items,
+      saveGames: saveData
     }
     
     // 调试：检查 setup 返回的对象中的筛选方法

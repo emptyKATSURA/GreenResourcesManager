@@ -111,19 +111,22 @@ function updateGlobalShortcut(newKey, getMainWindow) {
     // 注册新的快捷键
     if (newKey) {
       const registered = globalShortcut.register(newKey, () => {
-        console.log('全局快捷键', newKey, '被按下')
+        console.log('[截图] 全局快捷键', newKey, '被按下')
         const mainWindow = getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('global-screenshot-trigger')
+          console.log('[截图] 已向渲染进程发送 global-screenshot-trigger')
+        } else {
+          console.warn('[截图] 主窗口不可用，未发送 global-screenshot-trigger')
         }
       })
 
       if (registered) {
-        console.log('全局快捷键', newKey, '注册成功')
+        console.log('[截图] 全局快捷键', newKey, '注册成功')
         currentGlobalShortcut = newKey
         return { success: true, key: newKey }
       } else {
-        console.log('全局快捷键', newKey, '注册失败，可能被其他应用占用')
+        console.log('[截图] 全局快捷键', newKey, '注册失败，可能被其他应用占用')
         return { success: false, error: '快捷键被其他应用占用' }
       }
     }

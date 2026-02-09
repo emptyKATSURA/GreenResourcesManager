@@ -140,18 +140,6 @@
                   <span class="btn-icon">🖼️</span>
                   选择第一张封面
                 </button>
-                <!-- 游戏封面：从封面文件夹选择（自带） -->
-                <button 
-                  v-if="field instanceof FormField_SelectGameCover"
-                  type="button" 
-                  class="btn-cover-action" 
-                  @click="() => handleSelectFromGameCoverFolder(key)"
-                  :disabled="!canGetGameScreenshotFolderPath"
-                  title="从该游戏的截图文件夹中挑选一张图片作为封面"
-                >
-                  <span class="btn-icon">📂</span>
-                  从封面文件夹选择
-                </button>
                 <!-- 漫画封面：使用第一张图片（自带） -->
                 <button 
                   v-if="field instanceof FormField_SelectMangaCover"
@@ -206,7 +194,8 @@
                   type="button" 
                   class="btn-cover-action btn-clear" 
                   @click="() => handleClearCover(key)"
-                  v-if="formData[key]"
+                  :disabled="!formData[key]"
+                  :title="formData[key] ? '清除当前封面' : '当前无封面'"
                 >
                   <span class="btn-icon">🗑️</span>
                   清除封面
