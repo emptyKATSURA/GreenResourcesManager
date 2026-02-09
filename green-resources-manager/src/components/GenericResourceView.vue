@@ -934,10 +934,9 @@ export default defineComponent({
       const context: ActionHandlerContext = {
         isElectronEnvironment: isElectronEnvironment.value,
         updateResource: async (id: string, updates: any) => {
-          // 更新资源数据
-          const item = items.value.find((i: any) => (i.id?.value || i.id) === id)
+          const idStr = String(id ?? '')
+          const item = items.value.find((i: any) => String(i.id?.value ?? i.id ?? '') === idStr)
           if (item) {
-            // 更新 ResourceField 的值
             Object.keys(updates).forEach(key => {
               if (item[key] && typeof item[key] === 'object' && 'value' in item[key]) {
                 item[key].value = updates[key]
@@ -945,6 +944,7 @@ export default defineComponent({
                 item[key] = updates[key]
               }
             })
+            await saveData()
           }
         },
         isResourceRunning: (resource: any) => {
@@ -1094,26 +1094,14 @@ export default defineComponent({
           return 'txt'
         },
         updateReadingStats: async (novel: any) => {
-          // 更新阅读统计（增加阅读次数、更新最后阅读时间等）
-          const novelId = BaseResources.extractPrimitiveValue(novel.id?.value || novel.id)
-          const item = items.value.find((i: any) => (i.id?.value || i.id) === novelId)
-          if (item) {
-            // 更新最后阅读时间
-            const now = new Date().toISOString()
-            if (item.lastRead && typeof item.lastRead === 'object' && 'value' in item.lastRead) {
-              item.lastRead.value = now
-            } else {
-              item.lastRead = now
-            }
-            
-            // 增加阅读次数
-            const currentReadCount = BaseResources.extractPrimitiveValue(item.readCount?.value || item.readCount) || 0
-            if (item.readCount && typeof item.readCount === 'object' && 'value' in item.readCount) {
-              item.readCount.value = currentReadCount + 1
-            } else {
-              item.readCount = currentReadCount + 1
-            }
-          }
+          const novelId = String(BaseResources.extractPrimitiveValue(novel.id?.value ?? novel.id) ?? '')
+          const item = items.value.find((i: any) => String(i.id?.value ?? i.id ?? '') === novelId)
+          if (!item?.visitedSessions || typeof item.visitedSessions !== 'object' || !('value' in item.visitedSessions)) return
+          const now = new Date().toISOString()
+          const arr = Array.isArray(item.visitedSessions.value) ? [...item.visitedSessions.value] : []
+          arr.push(now)
+          item.visitedSessions.value = arr
+          await saveData()
         }
       }
 

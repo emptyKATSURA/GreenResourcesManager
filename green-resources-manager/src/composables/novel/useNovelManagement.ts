@@ -159,25 +159,21 @@ export function useNovelManagement(pageId: string = 'novels') {
   }
 
   /**
-   * 更新阅读统计
+   * 更新阅读统计：仅通过 visitedSessions 更新（lastRead 由 getter 从 visitedSessions 推导）
    */
-  const updateReadingStats = async (novel: Novel): Promise<void> => {
+  const updateReadingStats = async (novel: any): Promise<void> => {
     try {
-      // 更新最后阅读时间
-      novel.lastRead = new Date().toISOString()
-      
-      // 如果是第一次阅读，记录第一次阅读时间
-      if (!novel.firstRead) {
-        novel.firstRead = new Date().toISOString()
-      }
-      
-      // 保存更新后的数据
-      await novelManager.updateNovel(novel.id, {
-        lastRead: novel.lastRead,
-        firstRead: novel.firstRead
-      })
-      
-      console.log('阅读统计已更新:', novel.name)
+      const now = new Date().toISOString()
+      if (!novel.visitedSessions || typeof novel.visitedSessions !== 'object' || !('value' in novel.visitedSessions)) return
+
+      const arr = Array.isArray(novel.visitedSessions.value) ? [...novel.visitedSessions.value] : []
+      arr.push(now)
+      novel.visitedSessions.value = arr
+
+      const novelId = (novel as any).id?.value ?? (novel as any).id
+      await novelManager.updateNovel(novelId, { visitedSessions: arr })
+
+      console.log('阅读统计已更新:', (novel as any).name)
     } catch (error) {
       console.error('更新阅读统计失败:', error)
     }

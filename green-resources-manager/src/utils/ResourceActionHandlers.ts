@@ -428,6 +428,9 @@ export const openNovelReaderHandler: ActionHandler = async (resource, context) =
         if (context.showEbookReaderV2) {
           context.showEbookReaderV2(true)
         }
+        if (context.updateReadingStats) {
+          await context.updateReadingStats(resource)
+        }
       } else {
         // 其他文件类型使用内部阅读器（PDF/TXT）
         if (context.setCurrentNovel) {
@@ -436,8 +439,6 @@ export const openNovelReaderHandler: ActionHandler = async (resource, context) =
         if (context.showNovelReader) {
           context.showNovelReader(true)
         }
-        
-        // 更新阅读统计
         if (context.updateReadingStats) {
           await context.updateReadingStats(resource)
         }
