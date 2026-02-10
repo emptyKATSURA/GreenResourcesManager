@@ -1,7 +1,7 @@
 /**
  * 游戏引擎检测工具
  * 用于根据游戏目录结构自动识别游戏引擎
- * 
+ *
  * 当前支持识别的游戏引擎类型（共 19 种）：
  * 1. Flash/ActionScript - 通过 .swf 文件识别
  * 2. Unity - 通过 UnityPlayer.dll 和 [GameName]_Data 文件夹识别
@@ -101,12 +101,12 @@ function detectGodot(context: DetectionContext): string | null {
  */
 async function detectRPGMaker(context: DetectionContext): Promise<string | null> {
   const { gameDir, pathSeparator, fileNames, filePaths } = context
-  
+
   // 首先检查项目文件（最准确的方法）
   const hasRpgProject = fileNames.some(f => f.endsWith('.rpgproject')) // MV
   const hasRmmzProject = fileNames.some(f => f.endsWith('.rmmzproject')) // MZ
   const hasRvproj2 = fileNames.some(f => f.endsWith('.rvproj2')) // VX Ace
-  
+
   // 如果找到项目文件，直接返回
   if (hasRvproj2) {
     return 'RPG Maker VX Ace'
@@ -117,43 +117,49 @@ async function detectRPGMaker(context: DetectionContext): Promise<string | null>
   if (hasRpgProject) {
     return 'RPG Maker MV'
   }
-  
+
   // 检查文件夹和文件结构
   const hasWwwFolder = fileNames.some(f => f === 'www' || f === 'www/')
+  const hasJsFolder = fileNames.some(f => f === 'js' || f === 'js/')
   const hasPackageJson = filePaths.some(f => f.endsWith('package.json')) || fileNames.some(f => f === 'package.json')
-  const hasIndexHtml = filePaths.some(f => f.endsWith('index.html')) || fileNames.some(f => f === 'index.html')
+  // const hasIndexHtml = filePaths.some(f => f.endsWith('index.html')) || fileNames.some(f => f === 'index.html')
   const hasGameIni = fileNames.some(f => f === 'game.ini')
   const hasGraphicsFolder = fileNames.some(f => f === 'graphics' || f === 'graphics/')
-  
+
   // VX Ace 特征：Game.ini + Graphics 文件夹 + 没有 www 文件夹
   if (hasGameIni && hasGraphicsFolder && !hasWwwFolder) {
     return 'RPG Maker VX Ace'
   }
-  
-  // MV/MZ 特征：www 文件夹 + package.json + index.html
-  if (hasWwwFolder && hasPackageJson && hasIndexHtml) {
-    // 需要检查 js 文件夹中的核心文件来区分 MV 和 MZ
+
+  /**
+   * 检查js文件夹是否有特定文件
+   * @param path
+   * @param targetFileName
+   */
+  async function checkJsFolder(path, targetFileName) {
     try {
-      const wwwJsPath = `${gameDir}${pathSeparator}www${pathSeparator}js`
-      const jsResult = await window.electronAPI.listFiles(wwwJsPath)
+      const jsResult = await window.electronAPI.listFiles(path)
       if (jsResult.success && Array.isArray(jsResult.files)) {
         const jsFiles = jsResult.files.map((f: any) => typeof f === 'string' ? f : (f?.name || String(f))).map((f: string) => f.toLowerCase())
-        const hasRmmzCore = jsFiles.some(f => f.includes('rmmz_core.js'))
-        const hasRpgCore = jsFiles.some(f => f.includes('rpg_core.js'))
-        if (hasRmmzCore) {
-          return 'RPG Maker MZ'
-        }
-        if (hasRpgCore) {
-          return 'RPG Maker MV'
-        }
+        return jsFiles.some(f => f.includes(targetFileName))
       }
     } catch (error) {
-      console.warn('检查 www/js 文件夹失败:', error)
+      console.warn('检查 js 文件夹失败:', error)
     }
-    // 如果无法检查 js 文件，默认返回 MV（较常见）
-    return 'RPG Maker MV'
   }
-  
+
+  // rpg maker mv 特征：www 文件夹 + package.json (index.html文件可能在根目录也可能在www内）
+  // rpg maker mz 特征：无www文件夹 js文件夹直接在根目录 + package.json + index.html
+  if (hasPackageJson) {
+    if (hasWwwFolder) {
+      const wwwJsPath = `${gameDir}${pathSeparator}www${pathSeparator}js`;
+      return await checkJsFolder(wwwJsPath, 'rpg_core.js') ? 'RPG Maker MV' : null;
+    } else if (!hasWwwFolder && hasJsFolder) {
+      const jsPath = `${gameDir}${pathSeparator}js`
+      return await checkJsFolder(jsPath, 'rmmz_core.js') ? 'RPG Maker MZ' : null;
+    }
+  }
+
   return null
 }
 
@@ -261,22 +267,22 @@ function detectCatSystem2(context: DetectionContext): string | null {
   const hasIntFiles = fileNames.some(f => f.endsWith('.int'))
   const hasDirectDat = fileNames.some(f => f === 'direct.dat')
   const hasKeyDat = fileNames.some(f => f === 'key.dat')
-  
+
   // 如果找到 cs2.exe，直接返回 CatSystem2
   if (hasCs2Exe) {
     return 'CatSystem2'
   }
-  
+
   // 如果同时有 startup.xml 和 .int 文件，很可能是 CatSystem2
   if (hasStartupXml && (hasSceneInt || hasImageInt || hasFesInt || hasIntFiles)) {
     return 'CatSystem2'
   }
-  
+
   // 如果有 .int 文件和 .dat 文件，也可能是 CatSystem2
   if ((hasDirectDat || hasKeyDat) && (hasSceneInt || hasImageInt || hasFesInt || hasIntFiles)) {
     return 'CatSystem2'
   }
-  
+
   return null
 }
 
@@ -285,13 +291,13 @@ function detectCatSystem2(context: DetectionContext): string | null {
  */
 async function detectElectron(context: DetectionContext): Promise<string | null> {
   const { gameDir, pathSeparator, fileNames, filePaths } = context
-  
+
   // 检查文件夹和文件结构（需要排除 RPG Maker MV/MZ）
   const hasWwwFolder = fileNames.some(f => f === 'www' || f === 'www/')
   const hasPackageJson = filePaths.some(f => f.endsWith('package.json')) || fileNames.some(f => f === 'package.json')
   const hasAppAsar = filePaths.some(f => f.includes('resources') && (f.endsWith('app.asar') || f.endsWith('electron.asar')))
   const hasResourcesFolder = fileNames.some(f => f === 'resources' || f === 'resources/')
-  
+
   if (hasAppAsar || (hasResourcesFolder && hasPackageJson && !hasWwwFolder)) {
     // 进一步检查 resources 文件夹中是否有 .asar 文件
     if (hasResourcesFolder) {
@@ -314,7 +320,7 @@ async function detectElectron(context: DetectionContext): Promise<string | null>
       return 'Electron'
     }
   }
-  
+
   return null
 }
 
@@ -326,17 +332,17 @@ function detectEthornell(context: DetectionContext): string | null {
   const hasBgiExe = fileNames.some(f => f === 'bgi.exe')
   const hasBgiGdb = fileNames.some(f => f === 'bgi.gdb')
   const hasArcFiles = fileNames.some(f => f.endsWith('.arc'))
-  
+
   // 如果找到 BGI.exe，直接返回 Ethornell (BGI)
   if (hasBgiExe) {
     return 'Ethornell (BGI)'
   }
-  
+
   // 如果有 BGI.gdb 和 .arc 文件，很可能是 Ethornell (BGI)
   if (hasBgiGdb && hasArcFiles) {
     return 'Ethornell (BGI)'
   }
-  
+
   // 如果有多个 .arc 文件（特别是 data*.arc 或 01xxx.arc 等格式），也可能是 Ethornell
   const arcFileCount = fileNames.filter(f => f.endsWith('.arc')).length
   if (arcFileCount >= 3 && hasArcFiles) {
@@ -349,7 +355,7 @@ function detectEthornell(context: DetectionContext): string | null {
       return 'Ethornell (BGI)'
     }
   }
-  
+
   return null
 }
 
@@ -361,17 +367,17 @@ function detectEntis(context: DetectionContext): string | null {
   const hasNoaFiles = fileNames.some(f => f.endsWith('.noa'))
   const hasEriFiles = fileNames.some(f => f.endsWith('.eri'))
   const hasMioFiles = fileNames.some(f => f.endsWith('.mio'))
-  
+
   // 如果找到 .noa 文件，很可能是 Entis
   if (hasNoaFiles) {
     return 'Entis'
   }
-  
+
   // 如果同时有 .eri 和 .mio 文件，也可能是 Entis
   if (hasEriFiles && hasMioFiles) {
     return 'Entis'
   }
-  
+
   return null
 }
 
@@ -425,7 +431,7 @@ export async function detectGameEngine(gamePath: string): Promise<string | null>
     }
 
     // listFiles 可能返回字符串数组或对象数组
-    const files = Array.isArray(listResult.files) 
+    const files = Array.isArray(listResult.files)
       ? listResult.files.map((f: any) => typeof f === 'string' ? f : (f?.name || String(f)))
       : []
     const fileNames = files.map(f => f.toLowerCase())
