@@ -1,12 +1,16 @@
 export interface ChangelogEntry {
+  // 版本号
   version: string
+  //版本发布日期
   date: string
+  // 重构
   refactor?: string[]
+  // 新功能
   features?: string[]
+  // 体验优化
   experience?: string[]
+  // bug修复
   bugfixes?: string[]
-  items?: string[]
-  note?: string
   /** 开发者配置：该版本的注意事项，发版时在对应版本下填写，留空则不显示 */
   notice?: string
 }
@@ -29,7 +33,8 @@ export const changelogEntries: ChangelogEntry[] = [
       "现在所有资源的每一次访问都会被记录，而不是只录入最后一次的记录",
       "增加贡献者信息",
       "增加赞助信息",
-      "新加多页面的设计，类似浏览器一样，可以打开多个页面"
+      "新加多页面的设计，类似浏览器一样，可以打开多个页面",
+      "侧边栏可以自由调节宽度了"
     ],
     experience: [
       "让游戏的数据可以录入英文名、中文名、日文名、昵称等数据",

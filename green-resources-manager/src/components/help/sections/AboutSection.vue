@@ -8,7 +8,7 @@
         <h2 class="showcase-title">关于社群</h2>
       </div>
       <div class="hat-soft-logo-container">
-        <img src="/hat-soft.png" alt="帽子社" class="hat-soft-logo" />
+        <img :src="baseUrl + 'hat-soft.png'" alt="帽子社" class="hat-soft-logo" />
       </div>
       <div class="hat-soft-content">
         <!-- <h2 class="hat-soft-title">帽子社</h2> -->
@@ -92,16 +92,19 @@ import { useHelpUtils } from '../../../composables/useHelpUtils'
 
 const { openExternalLink } = useHelpUtils()
 
+// 与 vite base: './' 一致，打包后 file:// 下才能正确加载图片
+const baseUrl = './'
+
 // 协作者列表数据
 const collaborators = ref([
   {
     name: '猫猫D菌_NekoD',
-    image: '/imgs/猫猫D菌_NekoD.jpg',
+    image: './imgs/猫猫D菌_NekoD.jpg',
     link: 'https://github.com/CutrelyAlex'
   },
   {
     name: 'blycr',
-    image: '/imgs/blycr.png',
+    image: './imgs/blycr.png',
     link: 'https://github.com/blycr'
   }
 ])

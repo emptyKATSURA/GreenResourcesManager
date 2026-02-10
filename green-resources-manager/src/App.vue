@@ -12,7 +12,7 @@
     <TabBar @tabs-changed="onTabsChanged" v-show="!isLoading" />
 
     <!-- 左侧导航栏 - 只在活动标签页是主页时显示 -->
-    <nav class="sidebar" v-show="!isLoading && activeTabIsHome">
+    <nav class="sidebar" v-show="!isLoading && activeTabIsHome" :class="{ 'sidebar-narrow': sidebarWidth < 200 }" :style="sidebarStyle">
       <div class="sidebar-header">
         <img 
           :src="logoIcon" 
@@ -135,8 +135,16 @@
       </div>
     </nav>
 
+    <!-- 侧边栏拖拽条 - 只在显示侧边栏时出现 -->
+    <div
+      v-show="!isLoading && activeTabIsHome"
+      class="sidebar-resizer"
+      :style="{ left: sidebarWidth + 'px' }"
+      @mousedown.prevent="startSidebarResize"
+    />
+
     <!-- 主内容区域 -->
-    <main class="main-content" :class="{ 'with-tabs': hasTabs && !activeTabIsHome }" v-show="!isLoading">
+    <main class="main-content" :class="{ 'with-tabs': hasTabs && !activeTabIsHome }" :style="mainContentStyle" v-show="!isLoading">
 
       <!-- 主页内容 - 只在活动标签页是主页时显示 -->
       <template v-if="activeTabIsHome">
@@ -200,52 +208,12 @@
       :max-width="'560px'"
     >
       <div class="version-modal-body">
-        <section
+        <ChangelogEntryCard
           v-for="(entry, idx) in changelogEntries"
           :key="idx"
-          :class="['changelog-entry', { 'changelog-entry--latest': idx === 0 }]"
-        >
-          <div class="changelog-entry-header">
-            <span class="changelog-version">{{ entry.version }}</span>
-            <span v-if="entry.date" class="changelog-date">{{ entry.date }}</span>
-          </div>
-          <template v-if="hasVersionBlocks(entry)">
-            <div v-if="entry.refactor?.length" class="changelog-block">
-              <h4 class="changelog-block-title refactor">重构</h4>
-              <ul class="changelog-items">
-                <li v-for="(item, i) in entry.refactor" :key="'r-' + i">{{ item }}</li>
-              </ul>
-            </div>
-            <div v-if="entry.features?.length" class="changelog-block">
-              <h4 class="changelog-block-title features">新功能</h4>
-              <ul class="changelog-items">
-                <li v-for="(item, i) in entry.features" :key="'f-' + i">{{ item }}</li>
-              </ul>
-            </div>
-            <div v-if="entry.experience?.length" class="changelog-block">
-              <h4 class="changelog-block-title experience">体验优化</h4>
-              <ul class="changelog-items">
-                <li v-for="(item, i) in entry.experience" :key="'e-' + i">{{ item }}</li>
-              </ul>
-            </div>
-            <div v-if="entry.bugfixes?.length" class="changelog-block">
-              <h4 class="changelog-block-title bugfixes">bug 修复</h4>
-              <ul class="changelog-items">
-                <li v-for="(item, i) in entry.bugfixes" :key="'b-' + i">{{ item }}</li>
-              </ul>
-            </div>
-          </template>
-          <template v-else>
-            <ul v-if="entry.items && entry.items.length" class="changelog-items">
-              <li v-for="(item, i) in entry.items" :key="i">{{ item }}</li>
-            </ul>
-            <p v-else class="changelog-note">{{ entry.note || '暂无详细说明' }}</p>
-          </template>
-          <div v-if="entry.notice" class="version-notice-block">
-            <h4 class="changelog-block-title notice">注意事项</h4>
-            <p class="version-notice-text">{{ entry.notice }}</p>
-          </div>
-        </section>
+          :entry="entry"
+          :highlight-as-latest="idx === 0"
+        />
       </div>
       <template #footer>
         <button type="button" class="btn-confirm" @click="onVersionModalClose">知道了</button>
@@ -260,6 +228,7 @@ import FilterSidebar from './components/FilterSidebar.vue'
 import TabBar from './components/TabBar.vue'
 import FunLoading from './fun-ui/feedback/Loading/FunLoading.vue'
 import FunModal from './fun-ui/feedback/Modal/FunModal.vue'
+import ChangelogEntryCard from './components/ChangelogEntryCard.vue'
 import { changelogEntries } from './data/changelog'
 import { updateDynamicRoutes } from './router/index'
 
@@ -283,7 +252,8 @@ export default {
     FilterSidebar,
     TabBar,
     FunLoading,
-    FunModal
+    FunModal,
+    ChangelogEntryCard
   },
   data() {
     return {
@@ -415,10 +385,23 @@ export default {
       navItems: [],
       // 标签页相关
       hasTabs: false, // 是否有标签页（不包括主页标签）
-      activeTabIsHome: true // 当前活动标签页是否是主页
+      activeTabIsHome: true, // 当前活动标签页是否是主页
+      // 侧边栏可拖拽宽度
+      sidebarWidth: 280,
+      isSidebarResizing: false,
+      sidebarResizeStartX: 0,
+      sidebarResizeStartWidth: 0
     }
   },
   computed: {
+    sidebarStyle(): Record<string, string> {
+      if (this.isLoading || !this.activeTabIsHome) return {}
+      return { width: this.sidebarWidth + 'px', minWidth: this.sidebarWidth + 'px' }
+    },
+    mainContentStyle(): Record<string, string> {
+      if (!this.activeTabIsHome) return {}
+      return { marginLeft: this.sidebarWidth + 'px' }
+    },
     currentPageConfig() {
       // 从路由 meta 中获取页面配置
       const route = this.$route
@@ -459,8 +442,30 @@ export default {
     },
   },
   methods: {
-    hasVersionBlocks(entry: { refactor?: string[]; features?: string[]; experience?: string[]; bugfixes?: string[] }) {
-      return !!(entry.refactor?.length || entry.features?.length || entry.experience?.length || entry.bugfixes?.length)
+    startSidebarResize(e: MouseEvent) {
+      this.isSidebarResizing = true
+      this.sidebarResizeStartX = e.clientX
+      this.sidebarResizeStartWidth = this.sidebarWidth
+      document.addEventListener('mousemove', this.onSidebarResizeMove)
+      document.addEventListener('mouseup', this.onSidebarResizeEnd)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    },
+    onSidebarResizeMove(e: MouseEvent) {
+      if (!this.isSidebarResizing) return
+      const delta = e.clientX - this.sidebarResizeStartX
+      let w = this.sidebarResizeStartWidth + delta
+      w = Math.max(100, Math.min(480, w))
+      this.sidebarWidth = w
+      this.sidebarResizeStartX = e.clientX
+      this.sidebarResizeStartWidth = w
+    },
+    onSidebarResizeEnd() {
+      this.isSidebarResizing = false
+      document.removeEventListener('mousemove', this.onSidebarResizeMove)
+      document.removeEventListener('mouseup', this.onSidebarResizeEnd)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
     },
     // 点击 logo 的处理方法
     onLogoClick() {
@@ -1721,6 +1726,51 @@ export default {
   transition: all 0.3s ease;
   cursor: pointer;
 }
+
+/* 侧边栏宽度拖拽条 */
+.sidebar-resizer {
+  position: fixed;
+  top: 40px;
+  bottom: 0;
+  width: 6px;
+  z-index: 100;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.sidebar-resizer:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* 侧边栏窄屏模式（< 200px）：只显示图标 */
+.sidebar.sidebar-narrow .sidebar-header h1,
+.sidebar.sidebar-narrow .sidebar-header p {
+  display: none;
+}
+.sidebar.sidebar-narrow .sidebar-header {
+  padding: 12px 8px;
+}
+.sidebar.sidebar-narrow .nav-text {
+  display: none;
+}
+.sidebar.sidebar-narrow .nav-item,
+.sidebar.sidebar-narrow .nav-item-content {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar.sidebar-narrow .nav-item {
+  padding: 12px 8px;
+}
+.sidebar.sidebar-narrow .nav-item-child {
+  padding-left: 0;
+  justify-content: center;
+}
+.sidebar.sidebar-narrow .nav-footer .nav-item {
+  justify-content: center;
+  padding: 12px 8px;
+}
+
 /* 筛选器侧边栏样式 */
 .filter-sidebar-container {
   display: flex;
@@ -1823,104 +1873,17 @@ export default {
   min-height: 0;
 }
 
-/* 启动时版本更新弹窗 */
+/* 启动时版本更新弹窗（条目样式在 ChangelogEntryCard 中统一维护） */
 .version-modal-body {
   padding: 0;
   max-height: 60vh;
   overflow-y: auto;
 }
-.version-modal-body .changelog-entry {
-  padding: var(--spacing-md);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+.version-modal-body > * {
   margin-bottom: var(--spacing-sm);
 }
-.version-modal-body .changelog-entry:last-of-type {
+.version-modal-body > *:last-child {
   margin-bottom: 0;
-}
-.version-modal-body .changelog-entry--latest {
-  border-color: var(--color-primary, #0ea5e9);
-  box-shadow: 0 0 0 1px var(--color-primary, #0ea5e9), 0 0 12px rgba(14, 165, 233, 0.25);
-  animation: version-entry-glow 2.5s ease-in-out infinite;
-}
-@keyframes version-entry-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 1px var(--color-primary, #0ea5e9), 0 0 12px rgba(14, 165, 233, 0.25);
-  }
-  50% {
-    box-shadow: 0 0 0 2px var(--color-primary, #0ea5e9), 0 0 20px rgba(14, 165, 233, 0.4);
-  }
-}
-.version-modal-body .changelog-entry-header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-sm);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-color);
-}
-.version-modal-body .changelog-version {
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: var(--text-primary);
-}
-.version-modal-body .changelog-date {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-.version-modal-body .changelog-block {
-  margin-bottom: var(--spacing-md);
-}
-.version-modal-body .changelog-block:last-child {
-  margin-bottom: 0;
-}
-.version-modal-body .changelog-block-title {
-  margin: 0.75em 0 0.35em 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.version-modal-body .changelog-block-title.refactor {
-  color: var(--changelog-refactor, #8b5cf6);
-}
-.version-modal-body .changelog-block-title.features {
-  color: var(--changelog-features, #22c55e);
-}
-.version-modal-body .changelog-block-title.experience {
-  color: var(--changelog-experience, #0ea5e9);
-}
-.version-modal-body .changelog-block-title.bugfixes {
-  color: var(--changelog-bugfixes, #ef4444);
-}
-.version-modal-body .changelog-block-title.notice {
-  color: var(--text-primary);
-}
-.version-modal-body .changelog-items {
-  margin: 0;
-  padding-left: 1.25rem;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-.version-modal-body .changelog-items li {
-  margin-bottom: 0.25em;
-}
-.version-modal-body .changelog-note {
-  margin: 0;
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-}
-.version-notice-block {
-  margin-top: 1em;
-  padding-top: 0.75em;
-  border-top: 1px solid var(--border-color);
-}
-.version-notice-text {
-  margin: 0.35em 0 0;
-  font-size: 0.95rem;
-  color: var(--text-primary);
-  white-space: pre-wrap;
 }
 :deep(.fun-modal__footer) .btn-confirm {
   padding: 8px 20px;

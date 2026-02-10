@@ -34,7 +34,7 @@
           <p><strong>从存档导入刮削库</strong></p>
           <p>从当前应用的存档中，将各资源表里已有的数据导入到刮削库。导入的是不含 id 的固有数据，方便在其它环境或合并时使用。</p>
           <p><strong>合并其它刮削库</strong></p>
-          <p>选择另一个刮削库文件（如从别处导出的 JSON），与当前刮削库合并。若存在重复项（按 json 或 name 判断），可选择「覆盖」用外部数据替换本地，或「忽略」保留本地数据；其余记录将直接新增。</p>
+          <p>选择另一个刮削库文件（如从其它群友那里得到的scraper-library.db文件），与当前刮削库合并。若存在重复项（按 json 或 name 判断），可选择「覆盖」用外部数据替换本地，或「忽略」保留本地数据；其余记录将直接新增。</p>
         </div>
         <template #footer>
           <button type="button" class="btn-confirm" @click="helpVisible = false">知道了</button>

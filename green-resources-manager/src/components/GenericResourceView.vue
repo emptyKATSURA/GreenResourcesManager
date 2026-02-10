@@ -1005,10 +1005,18 @@ export default defineComponent({
         updateViewInfo: async (album: any) => {
           const albumId = BaseResources.extractPrimitiveValue(album.id?.value || album.id)
           const item = items.value.find((i: any) => (i.id?.value || i.id) === albumId)
-          if (item && item.visitedSessions) {
+          if (!item) return
+          const now = new Date().toISOString()
+          // 兼容 ResourceField 与纯数组两种结构
+          if (item.visitedSessions != null && typeof item.visitedSessions === 'object' && 'value' in item.visitedSessions) {
             const sessions = Array.isArray(item.visitedSessions.value) ? item.visitedSessions.value : []
-            item.visitedSessions.value = [...sessions, new Date().toISOString()]
+            item.visitedSessions.value = [...sessions, now]
+          } else if (Array.isArray(item.visitedSessions)) {
+            item.visitedSessions = [...item.visitedSessions, now]
+          } else {
+            item.visitedSessions = [now]
           }
+          await saveData()
         },
         loadAlbumPages: async () => {
           // 加载专辑的图片文件列表（也支持单图：路径为单个图片文件时直接作为一页）
@@ -2514,9 +2522,17 @@ export default defineComponent({
         try {
           const albumId = BaseResources.extractPrimitiveValue(currentAlbum.value.id?.value || currentAlbum.value.id)
           const item = items.value.find((i: any) => (i.id?.value || i.id) === albumId)
-          if (item && item.visitedSessions) {
-            const sessions = Array.isArray(item.visitedSessions.value) ? item.visitedSessions.value : []
-            item.visitedSessions.value = [...sessions, new Date().toISOString()]
+          if (item) {
+            const now = new Date().toISOString()
+            if (item.visitedSessions != null && typeof item.visitedSessions === 'object' && 'value' in item.visitedSessions) {
+              const sessions = Array.isArray(item.visitedSessions.value) ? item.visitedSessions.value : []
+              item.visitedSessions.value = [...sessions, now]
+            } else if (Array.isArray(item.visitedSessions)) {
+              item.visitedSessions = [...item.visitedSessions, now]
+            } else {
+              item.visitedSessions = [now]
+            }
+            await saveData()
           }
         } catch (error) {
           console.warn('[GenericResourceView] 更新浏览信息失败:', error)
