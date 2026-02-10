@@ -247,13 +247,24 @@ export default {
       }
     },
     
+    /** 校验路径是否为 LEProc.exe（仅允许 LEProc.exe 作为转区工具） */
+    isLEProcExe(filePath: string): boolean {
+      if (!filePath || !filePath.trim()) return false
+      const fileName = filePath.replace(/\\/g, '/').split('/').pop() || ''
+      return fileName.toLowerCase() === 'leproc.exe'
+    },
+    
     async handleLocaleEmulatorBrowse() {
       try {
         if (window.electronAPI && window.electronAPI.selectExecutableFile) {
           const path = await window.electronAPI.selectExecutableFile()
           if (path) {
             if (!path.toLowerCase().endsWith('.exe')) {
-              notify.error('文件格式错误', '请选择.exe格式的可执行文件')
+              notify.error('文件格式错误', '请选择 .exe 格式的可执行文件')
+              return
+            }
+            if (!this.isLEProcExe(path)) {
+              notify.error('请选择 LEProc.exe', '转区工具必须指定为 Locale Emulator 的 LEProc.exe，不能使用 LEInstaller.exe 或其他程序。')
               return
             }
             this.updateSetting('game.localeEmulatorPath', path)
@@ -272,14 +283,18 @@ export default {
         if (window.electronAPI && window.electronAPI.detectLocaleEmulator) {
           const path = await window.electronAPI.detectLocaleEmulator()
           if (path) {
+            if (!this.isLEProcExe(path)) {
+              notify.warning('请选择 LEProc.exe', '自动识别到的不是 LEProc.exe，转区启动需使用 LEProc.exe。请通过「浏览」手动选择 LEProc.exe。')
+              return
+            }
             this.updateSetting('game.localeEmulatorPath', path)
             this.$emit('action', { type: 'save-settings' })
             notify.success('已识别转区工具', path)
           } else {
-            notify.warning('未检测到', '未在常见位置检测到 Locale Emulator，请手动选择路径。')
+            notify.warning('未检测到', '未在常见位置检测到 Locale Emulator，请手动选择 LEProc.exe。')
           }
         } else {
-          notify.warning('不可用', '当前环境不支持自动识别，请使用浏览选择。')
+          notify.warning('不可用', '当前环境不支持自动识别，请使用浏览选择 LEProc.exe。')
         }
       } catch (error: any) {
         console.error('自动识别转区工具失败:', error)
