@@ -22,6 +22,7 @@
  * - 新建: CmdOrCtrl+N
  * - 打开: CmdOrCtrl+O
  * - 退出: Cmd+Q (macOS) 或 Ctrl+Q (Windows/Linux)
+ * - 重新加载: CmdOrCtrl+R 或 F5
  * - 其他菜单项使用 Electron 内置角色的默认快捷键
  */
 
@@ -75,12 +76,26 @@ function createMenu() {
       label: '视图',
       submenu: [
         { role: 'reload', label: '重新加载' },
+        {
+          role: 'reload',
+          label: '重新加载',
+          accelerator: 'F5',
+          visible: false,
+        },
         { role: 'forceReload', label: '强制重新加载' },
         { role: 'toggleDevTools', label: '开发者工具' },
         { type: 'separator' },
         { role: 'resetZoom', label: '实际大小' },
-        { role: 'zoomIn', label: '放大' },
-        { role: 'zoomOut', label: '缩小' },
+        {
+          role: 'zoomIn',
+          label: '放大',
+          accelerator: 'CmdOrCtrl+='
+        },
+        {
+          role: 'zoomOut',
+          label: '缩小',
+          accelerator: 'CmdOrCtrl+-'
+        },
         { type: 'separator' },
         { role: 'togglefullscreen', label: '全屏' }
       ]
