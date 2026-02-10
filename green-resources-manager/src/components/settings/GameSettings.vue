@@ -98,6 +98,26 @@
       
       <div class="setting-item">
         <label class="setting-label">
+          <span class="setting-title">转区工具</span>
+          <span class="setting-desc">指定转区工具可执行文件路径（如 Locale Emulator 的 LEProc.exe），用于以指定区域/语言运行程序</span>
+        </label>
+        <div class="setting-control">
+          <div class="file-input-group">
+            <input
+              type="text"
+              :value="(settings.game && settings.game.localeEmulatorPath) || ''"
+              placeholder="选择转区工具 exe 或点击自动识别"
+              class="setting-input"
+              readonly
+            >
+            <button class="btn-browse" @click="handleLocaleEmulatorBrowse">浏览</button>
+            <button class="btn-detect" @click="handleLocaleEmulatorDetect">自动识别</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="setting-item">
+        <label class="setting-label">
           <span class="setting-title">打开截图文件夹</span>
           <span class="setting-desc">在文件管理器中打开截图保存文件夹</span>
         </label>
@@ -224,6 +244,46 @@ export default {
         this.updateSetting('useBuiltInFlashPlayer', false)
         this.$emit('action', { type: 'save-settings' })
         notify.success('Flash播放器已设置', `已设置自定义Flash播放器: ${path}`)
+      }
+    },
+    
+    async handleLocaleEmulatorBrowse() {
+      try {
+        if (window.electronAPI && window.electronAPI.selectExecutableFile) {
+          const path = await window.electronAPI.selectExecutableFile()
+          if (path) {
+            if (!path.toLowerCase().endsWith('.exe')) {
+              notify.error('文件格式错误', '请选择.exe格式的可执行文件')
+              return
+            }
+            this.updateSetting('game.localeEmulatorPath', path)
+            this.$emit('action', { type: 'save-settings' })
+            notify.success('转区工具已设置', path)
+          }
+        }
+      } catch (error: any) {
+        console.error('选择转区工具失败:', error)
+        notify.error('选择失败', error.message)
+      }
+    },
+    
+    async handleLocaleEmulatorDetect() {
+      try {
+        if (window.electronAPI && window.electronAPI.detectLocaleEmulator) {
+          const path = await window.electronAPI.detectLocaleEmulator()
+          if (path) {
+            this.updateSetting('game.localeEmulatorPath', path)
+            this.$emit('action', { type: 'save-settings' })
+            notify.success('已识别转区工具', path)
+          } else {
+            notify.warning('未检测到', '未在常见位置检测到 Locale Emulator，请手动选择路径。')
+          }
+        } else {
+          notify.warning('不可用', '当前环境不支持自动识别，请使用浏览选择。')
+        }
+      } catch (error: any) {
+        console.error('自动识别转区工具失败:', error)
+        notify.error('识别失败', error.message)
       }
     },
     
@@ -403,6 +463,23 @@ export default {
 .btn-browse:hover {
   background: var(--accent-hover);
   transform: translateY(-1px);
+}
+
+.btn-detect {
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-detect:hover {
+  background: var(--border-color);
 }
 
 .toggle-switch {

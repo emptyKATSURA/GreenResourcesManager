@@ -286,7 +286,7 @@ import { NovelPage } from '../configs/pages/NovelPage.ts'
 import { WebsitePage } from '../configs/pages/WebsitePage.ts'
 import { AudioPage } from '../configs/pages/AudioPage.ts'
 import { OtherPage } from '../configs/pages/OtherPage.ts'
-import { executeActionHandler, type ActionHandlerContext } from '../utils/ResourceActionHandlers'
+import { executeActionHandler, getActionHandler, type ActionHandlerContext } from '../utils/ResourceActionHandlers'
 import { useGameRunningStore } from '../stores/game-running'
 import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
 import notify from '../utils/NotificationService.ts'
@@ -925,8 +925,8 @@ export default defineComponent({
       }
     }
 
-    // 处理资源操作（根据 actionConfig 启动资源）
-    const handleResourceAction = async (resource: any) => {
+    // 处理资源操作（根据 actionConfig 启动资源；可选 options.handlerName 指定要执行的 handler，如 'launchWithLocale'）
+    const handleResourceAction = async (resource: any, options?: { handlerName?: string }) => {
       // 从资源实例获取实际的资源类型
       const actualResourceType = BaseResources.extractPrimitiveValue(
         resource.resourceType?.value || resource.resourceType
@@ -1134,7 +1134,15 @@ export default defineComponent({
         }
       }
 
-      // 执行 handler
+      // 若指定了 handlerName（如右键「转区启动」），则执行该 handler；否则按资源 actionConfig 执行
+      const overrideHandlerName = options?.handlerName
+      if (overrideHandlerName) {
+        const handler = getActionHandler(overrideHandlerName)
+        if (handler) {
+          await handler(resource, context)
+          return
+        }
+      }
       await executeActionHandler(resource, context)
     }
 
@@ -1684,6 +1692,9 @@ export default defineComponent({
         case 'launch':
           handleResourceAction(item)
           break
+        case 'launchWithLocale':
+          handleResourceAction(item, { handlerName: 'launchWithLocale' })
+          break
         case 'terminate':
           showTerminateConfirmDialog.value = true
           resourceToTerminate.value = item
@@ -1818,6 +1829,7 @@ export default defineComponent({
 
     // 右键菜单与详情面板复用同一套逻辑：按 key 派发到 handleDetailActionImpl
     contextMenuHandlers.launch = (item: any) => handleDetailActionImpl('launch', item)
+    contextMenuHandlers.launchWithLocale = (item: any) => handleDetailActionImpl('launchWithLocale', item)
     contextMenuHandlers.folder = (item: any) => handleDetailActionImpl('folder', item)
     contextMenuHandlers['screenshot-folder'] = (item: any) => handleDetailActionImpl('screenshot-folder', item)
     contextMenuHandlers.terminate = (item: any) => handleDetailActionImpl('terminate', item)

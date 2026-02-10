@@ -13,6 +13,7 @@ import { Website } from './website'
 import { SingleImage } from './singleImage'
 import { Other } from './other'
 import { VideoFolder } from './videoFolder'
+import { AudioFolder } from './audioFolder'
 import type { BaseResources } from './base/ResourcesDataBase'
 
 /** 表名 -> 资源类（与 Electron RESOURCE_TABLES 一致） */
@@ -26,7 +27,8 @@ const TABLE_TO_RESOURCE: Record<string, typeof BaseResources> = {
   website: Website,
   singleImage: SingleImage,
   other: Other,
-  videoFolder: VideoFolder
+  videoFolder: VideoFolder,
+  audioFolder: AudioFolder
 }
 
 /**

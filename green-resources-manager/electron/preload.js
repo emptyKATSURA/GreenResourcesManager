@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 文件选择对话框
   selectExecutableFile: () => ipcRenderer.invoke('select-executable-file'),
+  detectLocaleEmulator: () => ipcRenderer.invoke('detect-locale-emulator'),
   selectImageFile: (defaultPath) => ipcRenderer.invoke('select-image-file', defaultPath),
   selectScreenshotImage: (screenshotDir) => ipcRenderer.invoke('select-screenshot-image', screenshotDir),
   selectVideoFile: () => ipcRenderer.invoke('select-video-file'),
@@ -72,6 +73,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 游戏启动
   launchGame: (executablePath, gameName) => ipcRenderer.invoke('launch-game', executablePath, gameName),
+  // 使用转区工具启动游戏（LEProc -run）
+  launchGameWithLocale: (localeEmulatorPath, executablePath, gameName) => ipcRenderer.invoke('launch-game-with-locale', localeEmulatorPath, executablePath, gameName),
   // 强制结束游戏
   terminateGame: (executablePath) => ipcRenderer.invoke('terminate-game', executablePath),
   // 通过 PID 获取所有窗口标题

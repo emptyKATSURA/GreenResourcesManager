@@ -429,6 +429,94 @@ async function launchGame(executablePath, gameName, getMainWindow) {
 }
 
 /**
+ * 使用转区工具（如 Locale Emulator 的 LEProc.exe）启动游戏。
+ * 调用方式：LEProc.exe "C:\Path\To\Your\Application.exe"
+ */
+async function launchGameWithLocale(localeEmulatorPath, executablePath, gameName, getMainWindow) {
+  try {
+    if (!localeEmulatorPath || !localeEmulatorPath.trim()) {
+      return { success: false, error: '未配置转区工具路径' }
+    }
+    if (!fs.existsSync(localeEmulatorPath)) {
+      return { success: false, error: `转区工具不存在: ${localeEmulatorPath}` }
+    }
+    if (!fs.existsSync(executablePath)) {
+      return { success: false, error: '游戏文件不存在' }
+    }
+
+    const fileExt = path.extname(executablePath).toLowerCase()
+    if (fileExt === '.swf') {
+      return { success: false, error: '转区启动不支持 Flash 游戏，请使用普通启动' }
+    }
+
+    const gameDir = path.dirname(executablePath)
+    // 调用方式：LEProc.exe "C:\Path\To\Game.exe"
+    const gameProcess = spawn(localeEmulatorPath, [executablePath], {
+      detached: true,
+      stdio: 'ignore',
+      cwd: gameDir,
+      env: { ...process.env }
+    })
+
+    const startTime = Date.now()
+    const gameInfo = {
+      process: gameProcess,
+      startTime: startTime,
+      executablePath: executablePath,
+      actualExecutablePath: localeEmulatorPath,
+      gameName: gameName || null,
+      isFlashGame: false
+    }
+    gameProcesses.set(gameProcess.pid, gameInfo)
+
+    gameProcess.on('exit', (code, signal) => {
+      const endTime = Date.now()
+      const playTime = Math.floor((endTime - startTime) / 1000)
+      const mainWindow = getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('game-process-ended', {
+          pid: gameProcess.pid,
+          playTime: playTime,
+          executablePath: executablePath
+        })
+      }
+      gameProcesses.delete(gameProcess.pid)
+    })
+
+    gameProcess.on('error', (error) => {
+      console.error('转区启动进程错误:', error)
+      gameProcesses.delete(gameProcess.pid)
+    })
+
+    gameProcess.unref()
+
+    let windowTitles = []
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      for (let i = 0; i < 3; i++) {
+        windowTitles = await windowsUtils.getAllWindowTitlesByPID(gameProcess.pid)
+        if (windowTitles && windowTitles.length > 0) break
+        if (i < 2) await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+      if (windowTitles && windowTitles.length > 0) {
+        gameInfo.windowTitles = windowTitles
+      }
+    } catch (err) {
+      console.warn('获取转区进程窗口标题时出错:', err.message)
+    }
+
+    return {
+      success: true,
+      pid: gameProcess.pid,
+      windowTitles: windowTitles.length > 0 ? windowTitles : undefined
+    }
+  } catch (error) {
+    console.error('转区启动失败:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
  * 强制终止游戏进程。
  * @param {string} executablePath - 游戏可执行文件路径。
  * @param {Function} getMainWindow - 获取主窗口的函数。
@@ -600,6 +688,11 @@ function registerIpcHandlers(ipcMain, getMainWindow) {
   // 启动游戏
   ipcMain.handle('launch-game', async (event, executablePath, gameName) => {
     return await launchGame(executablePath, gameName, getMainWindow)
+  })
+
+  // 使用转区工具启动游戏（LEProc -run）
+  ipcMain.handle('launch-game-with-locale', async (event, localeEmulatorPath, executablePath, gameName) => {
+    return await launchGameWithLocale(localeEmulatorPath, executablePath, gameName, getMainWindow)
   })
 
   // 强制结束游戏

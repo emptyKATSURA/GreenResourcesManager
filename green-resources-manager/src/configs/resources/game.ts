@@ -179,6 +179,7 @@ export class Game extends BaseResources {
   static contextMenuItems = [
     { key: 'detail', icon: '👁️', label: '查看详情' },
     { key: 'launch', icon: '▶️', label: '启动游戏' },
+    { key: 'launchWithLocale', icon: '🌐', label: '转区启动' },
     { key: 'folder', icon: '📁', label: '打开文件夹' },
     { key: 'screenshot-folder', icon: '📸', label: '打开截图文件夹' },
     { key: 'update-folder-size', icon: '📊', label: '更新文件夹大小' },

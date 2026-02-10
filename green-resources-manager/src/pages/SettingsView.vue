@@ -233,7 +233,8 @@ export default {
           listPageSize: 20
         },
         game: {
-          listPageSize: 20
+          listPageSize: 20,
+          localeEmulatorPath: ''
         },
         novel: {
           listPageSize: 20
@@ -397,7 +398,8 @@ export default {
         
         // 构建game对象
         cleanSettings.game = {
-          listPageSize: parseInt(this.settings.game?.listPageSize) || 20
+          listPageSize: parseInt(this.settings.game?.listPageSize) || 20,
+          localeEmulatorPath: (this.settings.game?.localeEmulatorPath || '').trim()
         }
         
         // 构建novel对象（包含分页设置）
@@ -533,7 +535,8 @@ export default {
               listPageSize: 20
             },
             game: {
-              listPageSize: 20
+              listPageSize: 20,
+              localeEmulatorPath: ''
             },
             novel: {
               listPageSize: 20
@@ -985,11 +988,13 @@ export default {
             // 从game对象中读取游戏设置到表单字段
             if (this.settings.game) {
               this.settings.game = {
-                listPageSize: parseInt(this.settings.game.listPageSize) || 20
+                listPageSize: parseInt(this.settings.game.listPageSize) || 20,
+                localeEmulatorPath: this.settings.game.localeEmulatorPath || ''
               }
             } else {
               this.settings.game = {
-                listPageSize: 20
+                listPageSize: 20,
+                localeEmulatorPath: ''
               }
             }
             

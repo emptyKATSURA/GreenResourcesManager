@@ -282,6 +282,75 @@ export const launchExecutableHandler: ActionHandler = async (resource, context) 
 }
 
 /**
+ * 使用转区工具（如 Locale Emulator）启动可执行文件。
+ * 需在设置中配置 game.localeEmulatorPath（LEProc.exe 路径），调用方式：LEProc.exe -run <目标路径>。
+ */
+export const launchWithLocaleHandler: ActionHandler = async (resource, context) => {
+  try {
+    const executablePath = BaseResources.extractPrimitiveValue(
+      resource.resourcePath?.value || resource.executablePath?.value || resource.resourcePath || resource.executablePath
+    )
+    const resourceName = BaseResources.extractPrimitiveValue(resource.name?.value || resource.name)
+    const resourceId = BaseResources.extractPrimitiveValue(resource.id?.value || resource.id)
+    const isArchiveValue = BaseResources.extractPrimitiveValue(resource.isArchive?.value ?? resource.isArchive)
+    const visitedSessionsValue = BaseResources.extractPrimitiveValue(resource.visitedSessions?.value || resource.visitedSessions)
+    const visitedSessions = Array.isArray(visitedSessionsValue) ? visitedSessionsValue : []
+    const playCountValue = BaseResources.extractPrimitiveValue(resource.playCount?.value || resource.playCount) || 0
+    const playTimeValue = BaseResources.extractPrimitiveValue(resource.playTime?.value || resource.playTime) || 0
+
+    const isArchive = Boolean(isArchiveValue) || (executablePath && isArchiveFile(executablePath))
+    if (isArchive) {
+      notify.toast('warning', '无法运行', '压缩包文件无法直接运行。请先解压后再运行。')
+      return
+    }
+
+    if (context.isResourceRunning?.(resource) && context.showTerminateConfirmDialog) {
+      context.showTerminateConfirmDialog(resource)
+      return
+    }
+
+    const settings = await saveManager.loadSettings()
+    const localeEmulatorPath = (settings?.game?.localeEmulatorPath || '').trim()
+    if (!localeEmulatorPath) {
+      notify.toast('warning', '转区启动', '请先在设置 → 游戏中指定转区工具路径（如 Locale Emulator 的 LEProc.exe）。')
+      return
+    }
+
+    const launchTime = new Date().toISOString()
+    const updates: any = {
+      visitedSessions: [...visitedSessions, launchTime],
+      playCount: playCountValue + 1
+    }
+    await context.updateResource(resourceId, updates)
+
+    if (context.isElectronEnvironment && window.electronAPI?.launchGameWithLocale) {
+      const result = await window.electronAPI.launchGameWithLocale(localeEmulatorPath, executablePath, resourceName)
+      if (result.success) {
+        if (context.addRunningResource) {
+          context.addRunningResource({
+            id: resourceId,
+            pid: result.pid,
+            windowTitles: result.windowTitles || [],
+            gameName: resourceName
+          })
+        }
+        if (context.saveInitialPlayTime) {
+          context.saveInitialPlayTime(resourceId, playTimeValue)
+        }
+        notify.toast('success', '启动成功', `已使用转区启动: ${resourceName}`)
+      } else {
+        notify.toast('error', '启动失败', result.error || '未知错误')
+      }
+    } else {
+      notify.toast('error', '启动失败', '当前环境不支持转区启动或未配置转区工具。')
+    }
+  } catch (error: any) {
+    console.error('转区启动失败:', error)
+    notify.toast('error', '启动失败', error.message || '未知错误')
+  }
+}
+
+/**
  * 打开专辑/漫画的通用 Handler
  * 适用于图片专辑、漫画等资源类型
  */
@@ -717,6 +786,7 @@ export const launchDefaultHandler: ActionHandler = async (resource, context) => 
 // 注册默认的 handlers
 registerActionHandler('launchExecutable', launchExecutableHandler)
 registerActionHandler('launchDefault', launchDefaultHandler)
+registerActionHandler('launchWithLocale', launchWithLocaleHandler)
 registerActionHandler('openAlbum', openAlbumHandler)
 registerActionHandler('openNovelReader', openNovelReaderHandler)
 registerActionHandler('openWebsite', openWebsiteHandler)

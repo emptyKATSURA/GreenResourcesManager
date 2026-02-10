@@ -368,6 +368,22 @@ function registerIpcHandlers(ipcMain, getMainWindow, dialog) {
       throw error
     }
   })
+
+  // 自动识别转区工具（如 Locale Emulator）路径
+  ipcMain.handle('detect-locale-emulator', async () => {
+    const candidates = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Locale Emulator', 'LEProc.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Locale Emulator', 'LEProc.exe'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Locale Emulator', 'LEInstaller.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Locale Emulator', 'LEInstaller.exe')
+    ]
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        return p
+      }
+    }
+    return null
+  })
 }
 
 module.exports = {

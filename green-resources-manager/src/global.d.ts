@@ -64,6 +64,7 @@ declare global {
       
       // 文件操作
       selectExecutableFile: () => Promise<string | null>
+      detectLocaleEmulator: () => Promise<string | null>
       selectImageFile: (defaultPath?: string) => Promise<string | null>
       selectScreenshotImage: (screenshotDir?: string) => Promise<string | null>
       selectVideoFile: () => Promise<string | null>
@@ -108,6 +109,8 @@ declare global {
       
       // 游戏启动
       launchGame: (executablePath: string, gameName?: string) => Promise<{ success: boolean; pid?: number; windowTitles?: string[]; error?: string }>
+      // 使用转区工具启动游戏（LEProc -run）
+      launchGameWithLocale: (localeEmulatorPath: string, executablePath: string, gameName?: string) => Promise<{ success: boolean; pid?: number; windowTitles?: string[]; error?: string }>
       // 通过 PID 获取所有窗口标题
       getAllWindowTitlesByPID: (pid: number) => Promise<{ success: boolean; windowTitles?: string[]; error?: string }>
       
