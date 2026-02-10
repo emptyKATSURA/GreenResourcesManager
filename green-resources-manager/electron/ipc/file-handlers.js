@@ -35,8 +35,12 @@
 const fs = require('fs')
 const path = require('path')
 const { shell } = require('electron')
+const AdmZip = require('adm-zip')
 const { SUPPORTED_IMAGE_FORMATS, MAX_BACKUP_FILES } = require('../utils/constants')
 const { normalizePath } = require('../utils/path-utils')
+
+/** CBZ/ZIP 漫画包扩展名 */
+const CBZ_ARCHIVE_EXT = ['.cbz', '.zip']
 
 /**
  * 注册与文件操作相关的 IPC 处理器。
@@ -192,6 +196,34 @@ function registerIpcHandlers(ipcMain, fileUtils, pathUtils) {
       return { success: true, files }
     } catch (error) {
       console.error('列出图片文件失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 列出 CBZ/ZIP 漫画包内的图片条目（返回条目名称，用于 archive:// URL）
+  ipcMain.handle('list-image-files-in-archive', async (event, archivePath) => {
+    try {
+      if (!archivePath || typeof archivePath !== 'string') {
+        return { success: false, error: '未提供压缩包路径' }
+      }
+      const ext = path.extname(archivePath).toLowerCase()
+      if (!CBZ_ARCHIVE_EXT.includes(ext)) {
+        return { success: false, error: '仅支持 .cbz 或 .zip 格式' }
+      }
+      if (!fs.existsSync(archivePath)) {
+        return { success: false, error: '压缩包不存在' }
+      }
+      const supportedExt = new Set(SUPPORTED_IMAGE_FORMATS.map(fmt => `.${fmt.toLowerCase()}`))
+      const zip = new AdmZip(archivePath)
+      const entries = zip.getEntries()
+      const files = entries
+        .filter(e => !e.isDirectory)
+        .map(e => e.entryName)
+        .filter(name => supportedExt.has(path.extname(name).toLowerCase()))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      return { success: true, files }
+    } catch (error) {
+      console.error('列出压缩包内图片失败:', error)
       return { success: false, error: error.message }
     }
   })

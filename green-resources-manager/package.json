@@ -1,6 +1,6 @@
 {
   "name": "green-resources-manager",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "一款全能、免费的文件管理器，可以管理你的游戏、漫画、视频、音频、小说、网站等资源。",
   "main": "electron/main.js",
   "homepage": "./",
@@ -37,6 +37,7 @@
     "wait-on": "^7.2.0"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "better-sqlite3": "^12.6.2",
     "electron-updater": "^6.6.2",
     "epubjs": "^0.3.93",

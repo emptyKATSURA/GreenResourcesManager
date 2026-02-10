@@ -1041,6 +1041,25 @@ export default defineComponent({
             return
           }
           
+          // CBZ/ZIP 漫画包：列出压缩包内图片，使用 archive:// URL 供阅读器加载
+          const cbzExt = /\.(cbz|zip)$/i
+          if (cbzExt.test(resourcePath.trim()) && isElectronEnvironment.value && window.electronAPI?.listImageFilesInArchive) {
+            try {
+              const resp = await window.electronAPI.listImageFilesInArchive(resourcePath)
+              if (resp.success && Array.isArray(resp.files) && resp.files.length > 0) {
+                const base = `archive:///${resourcePath.replace(/\\/g, '/')}`
+                pages.value = resp.files.map((entry: string) => `${base}#${encodeURIComponent(entry)}`)
+              } else {
+                pages.value = resp.success ? [] : []
+                if (!resp.success) console.error('[GenericResourceView] CBZ 加载失败:', resp.error)
+              }
+            } catch (err) {
+              console.error('[GenericResourceView] 加载 CBZ 页面失败:', err)
+              pages.value = []
+            }
+            return
+          }
+          
           try {
             if (isElectronEnvironment.value && window.electronAPI && window.electronAPI.listImageFiles) {
               const resp = await window.electronAPI.listImageFiles(resourcePath)
@@ -1917,7 +1936,10 @@ export default defineComponent({
 
     // 自动计算漫画/图片页数（仅针对配置了 pagesCount 且尚未有数据的资源；有值则不覆盖）
     const calculateMangaPagesCounts = async () => {
-      if (!isElectronEnvironment.value || !window.electronAPI?.listImageFiles) {
+      if (!isElectronEnvironment.value || !window.electronAPI) {
+        return
+      }
+      if (!window.electronAPI.listImageFiles && !window.electronAPI.listImageFilesInArchive) {
         return
       }
 
@@ -1952,9 +1974,14 @@ export default defineComponent({
         )
         if (!resourcePath || typeof resourcePath !== 'string' || !resourcePath.trim()) continue
         try {
-          const resp = await window.electronAPI.listImageFiles(resourcePath)
-          const files = resp?.success ? (resp.files || []) : []
-          const count = files.length
+          let count = 0
+          if (/\.(cbz|zip)$/i.test(resourcePath) && window.electronAPI.listImageFilesInArchive) {
+            const resp = await window.electronAPI.listImageFilesInArchive(resourcePath)
+            count = resp?.success && Array.isArray(resp.files) ? resp.files.length : 0
+          } else {
+            const resp = await window.electronAPI.listImageFiles(resourcePath)
+            count = resp?.success && Array.isArray(resp.files) ? resp.files.length : 0
+          }
           if (item.pagesCount && typeof item.pagesCount === 'object' && 'value' in item.pagesCount) {
             item.pagesCount.value = count
           } else if (item.pagesCount !== undefined) {
@@ -2468,16 +2495,24 @@ export default defineComponent({
               }
               
               let files: string[] = []
-              if (isElectronEnvironment.value && window.electronAPI?.listImageFiles) {
+              if (isElectronEnvironment.value && window.electronAPI) {
                 if (previewArea === 'useSelfFolder') {
                   const resourcePath = BaseResources.extractPrimitiveValue(
                     selectedItem.resourcePath?.value || selectedItem.resourcePath
                   )
                   if (resourcePath) {
-                    const resp = await window.electronAPI.listImageFiles(resourcePath)
-                    if (resp.success) files = resp.files || []
+                    if (/\.(cbz|zip)$/i.test(resourcePath) && window.electronAPI.listImageFilesInArchive) {
+                      const resp = await window.electronAPI.listImageFilesInArchive(resourcePath)
+                      if (resp.success && Array.isArray(resp.files) && resp.files.length > 0) {
+                        const base = `archive:///${resourcePath.replace(/\\/g, '/')}`
+                        files = resp.files.map((entry: string) => `${base}#${encodeURIComponent(entry)}`)
+                      }
+                    } else if (window.electronAPI.listImageFiles) {
+                      const resp = await window.electronAPI.listImageFiles(resourcePath)
+                      if (resp.success) files = resp.files || []
+                    }
                   }
-                } else if (previewArea === 'useScreenshotFolder') {
+                } else if (previewArea === 'useScreenshotFolder' && window.electronAPI?.listImageFiles) {
                   const gameId = BaseResources.extractPrimitiveValue(selectedItem.id?.value ?? selectedItem.id)
                   const gameName = BaseResources.extractPrimitiveValue(selectedItem.name?.value ?? selectedItem.name) ?? ''
                   if (gameId) {

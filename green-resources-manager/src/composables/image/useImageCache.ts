@@ -132,6 +132,13 @@ export function useImageCache(options: ImageCacheOptions = {}) {
   }
 
   /**
+   * 检查是否为 CBZ/压缩包内图片的 archive 协议 URL
+   */
+  function isArchiveUrl(imagePath: string): boolean {
+    return typeof imagePath === 'string' && imagePath.startsWith('archive://')
+  }
+
+  /**
    * 添加缓存条目
    */
   function addToCache(imagePath: string, url: string, size: number) {
@@ -267,7 +274,7 @@ export function useImageCache(options: ImageCacheOptions = {}) {
    * 解析缩略图 - 用于预览和列表显示
    */
   function resolveThumbnailImage(imagePath: string): string {
-    // 使用 buildFileUrl 函数正确处理 Windows 路径和中文
+    if (isArchiveUrl(imagePath)) return imagePath
     const fileUrl = buildFileUrl(imagePath)
     
     // 缓存文件 URL
@@ -352,6 +359,10 @@ export function useImageCache(options: ImageCacheOptions = {}) {
       return imagePath
     }
     
+    if (isArchiveUrl(imagePath)) {
+      return imagePath
+    }
+    
     // 对于阅读器，强制使用原图，忽略所有缓存
     if (isComicViewer.value) {
       // 使用 buildFileUrl 函数正确处理 Windows 路径和中文
@@ -391,6 +402,10 @@ export function useImageCache(options: ImageCacheOptions = {}) {
     }
     
     if (isDataOrFileUrl(imagePath)) {
+      return imagePath
+    }
+    
+    if (isArchiveUrl(imagePath)) {
       return imagePath
     }
     
@@ -445,16 +460,16 @@ export function useImageCache(options: ImageCacheOptions = {}) {
    */
   async function preloadImage(imagePath: string): Promise<HTMLImageElement | null> {
     try {
-      // 使用 buildFileUrl 函数正确处理 Windows 路径和中文
-      const fileUrl = buildFileUrl(imagePath)
-      addToCache(imagePath, fileUrl, 0)
+      const srcUrl = isArchiveUrl(imagePath) ? imagePath : buildFileUrl(imagePath)
+      if (!isArchiveUrl(imagePath)) {
+        addToCache(imagePath, srcUrl, 0)
+      }
       
-      // 创建 Image 对象预加载
       return new Promise((resolve, reject) => {
         const img = new Image()
         img.onload = () => resolve(img)
         img.onerror = reject
-        img.src = fileUrl
+        img.src = srcUrl
       })
     } catch (error) {
       console.error('预加载单张图片失败:', imagePath, error)
@@ -493,7 +508,17 @@ export function useImageCache(options: ImageCacheOptions = {}) {
    */
   function getImageFileName(imagePath: string): string {
     if (!imagePath) return ''
-    // 从完整路径中提取文件名
+    // archive:// 协议 URL：取 # 后的条目名
+    if (isArchiveUrl(imagePath)) {
+      const hashIndex = imagePath.indexOf('#')
+      if (hashIndex >= 0) {
+        try {
+          return decodeURIComponent(imagePath.slice(hashIndex + 1)).split(/[/\\]/).pop() || imagePath
+        } catch {
+          return imagePath.slice(hashIndex + 1)
+        }
+      }
+    }
     const fileName = imagePath.split(/[\\/]/).pop()
     return fileName || imagePath
   }

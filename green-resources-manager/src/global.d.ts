@@ -96,6 +96,7 @@ declare global {
       getFileStats: (filePath: string) => Promise<{ success: boolean; size?: number; isFile?: boolean; isDirectory?: boolean; mtime?: Date; ctime?: Date; atime?: Date; birthtime?: Date; error?: string }>
       listFiles: (dirPath: string) => Promise<{ success: boolean; files?: string[]; error?: string }>
       listImageFiles: (folderPath: string) => Promise<{ success: boolean; files?: string[]; error?: string }>
+      listImageFilesInArchive: (archivePath: string) => Promise<{ success: boolean; files?: string[]; error?: string }>
       
       // 文件URL处理
       getFileUrl: (filePath: string) => Promise<{ success: boolean; url?: string; error?: string }>

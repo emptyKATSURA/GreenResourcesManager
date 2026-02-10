@@ -382,6 +382,10 @@ export default {
       if (typeof imagePath === 'string' && (imagePath.startsWith('data:') || imagePath.startsWith('file:'))) {
         return imagePath
       }
+      // CBZ/压缩包内图片：archive:// 协议 URL 直接返回，由主进程协议提供图片
+      if (typeof imagePath === 'string' && imagePath.startsWith('archive://')) {
+        return imagePath
+      }
       
       // 对于阅读器，强制使用原图，忽略缩略图缓存
       const normalizedPath = String(imagePath).replace(/\\/g, '/')
@@ -456,16 +460,17 @@ export default {
 
     async preloadImage(imagePath) {
       try {
-        const normalizedPath = String(imagePath).replace(/\\/g, '/')
-        const fileUrl = `file:///${normalizedPath}`
-        this.addToCache(imagePath, fileUrl, 0)
+        const isArchive = typeof imagePath === 'string' && imagePath.startsWith('archive://')
+        const srcUrl = isArchive ? imagePath : `file:///${String(imagePath).replace(/\\/g, '/')}`
+        if (!isArchive) {
+          this.addToCache(imagePath, srcUrl, 0)
+        }
         
-        // 创建Image对象预加载
         return new Promise((resolve, reject) => {
           const img = new Image()
           img.onload = () => resolve(img)
           img.onerror = reject
-          img.src = fileUrl
+          img.src = srcUrl
         })
       } catch (error) {
         console.error('预加载单张图片失败:', imagePath, error)
@@ -475,6 +480,10 @@ export default {
     // 获取文件大小（异步）
     async getFileSize(filePath) {
       try {
+        // archive:// 协议为 CBZ 内图片，暂无单独大小接口，返回 0 不影响显示
+        if (typeof filePath === 'string' && filePath.startsWith('archive://')) {
+          return 0
+        }
         console.log('尝试获取文件大小:', filePath)
         if (window.electronAPI && window.electronAPI.getFileStats) {
           const result = await window.electronAPI.getFileStats(filePath)
@@ -487,7 +496,6 @@ export default {
           }
         } else {
           console.log('Electron API 不可用，尝试使用 fetch 获取文件大小')
-          // 降级方案：尝试通过 fetch 获取文件大小
           try {
             const response = await fetch(filePath, { method: 'HEAD' })
             const contentLength = response.headers.get('content-length')
@@ -517,7 +525,18 @@ export default {
     // 获取图片文件名
     getImageFileName(imagePath) {
       if (!imagePath) return ''
-      // 从完整路径中提取文件名
+      // archive:// 协议 URL：取 # 后的条目名作为文件名
+      if (typeof imagePath === 'string' && imagePath.startsWith('archive://')) {
+        const hashIndex = imagePath.indexOf('#')
+        if (hashIndex >= 0) {
+          try {
+            const entry = decodeURIComponent(imagePath.slice(hashIndex + 1))
+            return entry.split(/[/\\]/).pop() || entry
+          } catch {
+            return imagePath.slice(hashIndex + 1)
+          }
+        }
+      }
       const fileName = imagePath.split(/[\\/]/).pop()
       return fileName || imagePath
     },

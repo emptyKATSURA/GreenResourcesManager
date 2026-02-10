@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, screen, nativeImage } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, shell, screen, nativeImage, protocol } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const { spawn } = require('child_process')
@@ -119,6 +119,36 @@ if (!gotTheLock) {
   
   // 当 Electron 完成初始化并准备创建浏览器窗口时调用此方法
   app.whenReady().then(() => {
+    // 注册 archive 协议，用于 CBZ 漫画包内图片（archive:///path/to/file.cbz#entryName）
+    const AdmZip = require('adm-zip')
+    protocol.interceptBufferProtocol('archive', (request, callback) => {
+      try {
+        const u = new URL(request.url)
+        let archivePath = decodeURIComponent(u.pathname || '')
+        if (process.platform === 'win32' && archivePath.startsWith('/') && archivePath.length > 2 && archivePath[2] === ':') {
+          archivePath = path.normalize(archivePath.slice(1))
+        } else if (archivePath.startsWith('/')) {
+          archivePath = path.normalize(archivePath.slice(1))
+        }
+        const entryName = u.hash ? decodeURIComponent(u.hash.slice(1)) : ''
+        if (!archivePath || !entryName) {
+          callback(Buffer.alloc(0))
+          return
+        }
+        const zip = new AdmZip(archivePath)
+        const entry = zip.getEntry(entryName)
+        if (!entry) {
+          callback(Buffer.alloc(0))
+          return
+        }
+        const buffer = entry.getData()
+        callback(buffer)
+      } catch (e) {
+        console.error('archive protocol error:', e)
+        callback(Buffer.alloc(0))
+      }
+    })
+
     createWindow()
     appMenu.createMenu()
     

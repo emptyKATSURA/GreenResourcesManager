@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 根据过滤器数组选择文件（统一入口）
   selectFileWithExtensions: (filters, defaultPath, title) => ipcRenderer.invoke('select-file-with-extensions', filters, defaultPath, title),
   listImageFiles: (folderPath) => ipcRenderer.invoke('list-image-files', folderPath),
+  listImageFilesInArchive: (archivePath) => ipcRenderer.invoke('list-image-files-in-archive', archivePath),
   getFolderSize: (filePath) => ipcRenderer.invoke('get-folder-size', filePath),
   checkFileExists: (filePath) => ipcRenderer.invoke('check-file-exists', filePath),
   
