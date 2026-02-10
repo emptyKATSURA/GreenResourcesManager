@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   zoomIn: () => ipcRenderer.invoke('zoom-in'),
   zoomOut: () => ipcRenderer.invoke('zoom-out'),
   resetZoom: () => ipcRenderer.invoke('reset-zoom'),
+  // 监听应用缩放变化（菜单/快捷键触发时由主进程发送，用于显示“缩放至 XX%”提示）
+  onAppZoomChanged: (callback) => {
+    const fn = (event, data) => callback(data)
+    ipcRenderer.on('app-zoom-changed', fn)
+    return () => ipcRenderer.removeListener('app-zoom-changed', fn)
+  },
   
   // 文件操作（已移除 openFile 和 saveFile，因为 electron.js 中没有对应的 IPC 处理程序）
   

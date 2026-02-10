@@ -30,9 +30,9 @@ const { Menu, app } = require('electron')
 
 /**
  * 创建并设置应用程序菜单栏。
- * 构建菜单模板，并将其设置为应用程序的菜单栏。
+ * @param {Function} getMainWindow - 获取主窗口的函数，用于缩放时向渲染进程发送当前缩放比例
  */
-function createMenu() {
+function createMenu(getMainWindow) {
   const template = [
     {
       label: '文件',
@@ -85,16 +85,42 @@ function createMenu() {
         { role: 'forceReload', label: '强制重新加载' },
         { role: 'toggleDevTools', label: '开发者工具' },
         { type: 'separator' },
-        { role: 'resetZoom', label: '实际大小' },
         {
-          role: 'zoomIn',
-          label: '放大',
-          accelerator: 'CmdOrCtrl+='
+          label: '实际大小',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => {
+            const win = getMainWindow && getMainWindow()
+            if (win && !win.isDestroyed() && win.webContents) {
+              win.webContents.setZoomLevel(0)
+              win.webContents.send('app-zoom-changed', { zoomLevel: 0 })
+            }
+          }
         },
         {
-          role: 'zoomOut',
+          label: '放大',
+          accelerator: 'CmdOrCtrl+=',
+          click: () => {
+            const win = getMainWindow && getMainWindow()
+            if (win && !win.isDestroyed() && win.webContents) {
+              const current = win.webContents.getZoomLevel()
+              const next = current + 0.1
+              win.webContents.setZoomLevel(next)
+              win.webContents.send('app-zoom-changed', { zoomLevel: next })
+            }
+          }
+        },
+        {
           label: '缩小',
-          accelerator: 'CmdOrCtrl+-'
+          accelerator: 'CmdOrCtrl+-',
+          click: () => {
+            const win = getMainWindow && getMainWindow()
+            if (win && !win.isDestroyed() && win.webContents) {
+              const current = win.webContents.getZoomLevel()
+              const next = current - 0.1
+              win.webContents.setZoomLevel(next)
+              win.webContents.send('app-zoom-changed', { zoomLevel: next })
+            }
+          }
         },
         { type: 'separator' },
         { role: 'togglefullscreen', label: '全屏' }

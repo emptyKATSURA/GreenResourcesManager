@@ -60,6 +60,7 @@ declare global {
       zoomIn: () => Promise<void>
       zoomOut: () => Promise<void>
       resetZoom: () => Promise<void>
+      onAppZoomChanged: (callback: (data: { zoomLevel: number }) => void) => () => void
       
       // 文件操作
       selectExecutableFile: () => Promise<string | null>

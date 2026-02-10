@@ -150,7 +150,7 @@ if (!gotTheLock) {
     })
 
     createWindow()
-    appMenu.createMenu()
+    appMenu.createMenu(() => mainWindowModule.getMainWindow())
     
     // 获取主窗口实例
     const mainWindow = mainWindowModule.getMainWindow()

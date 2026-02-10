@@ -1,5 +1,10 @@
 <template>
   <div id="app">
+    <!-- 应用缩放提示（菜单/快捷键改变整体缩放时显示） -->
+    <div v-if="appZoomHintVisible" class="app-zoom-hint" role="status" aria-live="polite">
+      缩放至 {{ appZoomHintPercent }}%
+    </div>
+
     <!-- 加载中提示 -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-content">
@@ -290,6 +295,11 @@ export default {
       // 安全键相关
       safetyKeyEnabled: false,
       safetyKeyUrl: '',
+      // 应用缩放提示（菜单放大/缩小/实际大小时顶部中央短暂显示）
+      appZoomHintVisible: false,
+      appZoomHintPercent: 100,
+      appZoomHintTimer: null,
+      removeAppZoomChanged: null,
       // 自动备份相关
       autoBackupInterval: 0, // 自动备份时间间隔（分钟），0表示禁用
       autoBackupTimer: null, // 自动备份定时器
@@ -1343,6 +1353,21 @@ export default {
     }
   },
   async mounted() {
+    // 监听应用整体缩放变化（菜单/快捷键），显示“缩放至 XX%”提示
+    if (window.electronAPI && typeof window.electronAPI.onAppZoomChanged === 'function') {
+      this.removeAppZoomChanged = window.electronAPI.onAppZoomChanged((data) => {
+        const zoomLevel = data && typeof data.zoomLevel === 'number' ? data.zoomLevel : 0
+        const percent = Math.round(Math.pow(2, zoomLevel) * 100)
+        this.appZoomHintPercent = percent
+        this.appZoomHintVisible = true
+        if (this.appZoomHintTimer) clearTimeout(this.appZoomHintTimer)
+        this.appZoomHintTimer = window.setTimeout(() => {
+          this.appZoomHintVisible = false
+          this.appZoomHintTimer = null
+        }, 1500)
+      })
+    }
+
     // 初始化标签页状态（确保默认显示主页）
     if (window.electronAPI && window.electronAPI.tabGetAll) {
       try {
@@ -1665,11 +1690,42 @@ export default {
         console.error('禁用安全键失败:', error)
       })
     }
+
+    // 移除应用缩放变化监听
+    if (this.removeAppZoomChanged && typeof this.removeAppZoomChanged === 'function') {
+      this.removeAppZoomChanged()
+      this.removeAppZoomChanged = null
+    }
+    if (this.appZoomHintTimer) {
+      clearTimeout(this.appZoomHintTimer)
+      this.appZoomHintTimer = null
+    }
   }
 }
 </script>
 
 <style scoped>
+/* 应用缩放提示：屏幕上方中央，菜单/快捷键改变整体缩放时短暂显示 */
+.app-zoom-hint {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  pointer-events: none;
+  animation: app-zoom-hint-fade 0.2s ease-out;
+}
+@keyframes app-zoom-hint-fade {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* 内容区域布局 */
 .content-body {
   display: flex;
