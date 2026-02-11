@@ -15,7 +15,7 @@
  * 10. RPG Maker MZ - 通过 .rmmzproject 文件或 js 文件夹中 rmmz_cors.js 识别
  * 11. Wolf RPG - 通过 config.exe + data.wolf 或 data文件夹内 .wolf文件识别
  * 12. SRPG Studio - 通过 data.dts + environment.evs + runtime.rts 文件识别
- * 13. detectPixelGameMakerMv - 暂未实现
+ * 13. Pixel Game Maker MV - 暂未实现
  * 14. RPG Developer Bakin - 通过data文件夹 bakinplayer.exe 和 bakinplayer.exe.config 文件识别
  * 15. GameMaker Studio - 通过 data.win 或 options.ini 文件识别
  * 16. TyranoBuilder - 通过 *_tyrano_data.* 文件识别
