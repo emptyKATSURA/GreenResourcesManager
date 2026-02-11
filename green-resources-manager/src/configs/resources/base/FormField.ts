@@ -99,10 +99,16 @@ export class FormField_SelectEngine extends FormField {
 		'Godot + VN Plugin',
 
 		// RPG 系
+		'RPG Maker 2000/2003',
+		'RPG Maker XP',
+		'Rpg Maker VX',
 		'RPG Maker VX Ace',
 		'RPG Maker MV',
 		'RPG Maker MZ',
-		'Wolf RPG Editor',
+		'Wolf RPG',
+		'SRPG Studio',
+		'Pixel Game Maker MV',
+		'RPG Developer Bakin',
 
 		// 交互叙事 / 非传统游戏
 		'Twine',
@@ -147,7 +153,7 @@ abstract class FormField_SelectCover extends FormField {
  * 游戏封面选择字段
  */
 export class FormField_SelectGameCover extends FormField_SelectCover {
-	
+
 	constructor(fieldName: string, required?: boolean) {
 		super(fieldName, required)
 	}

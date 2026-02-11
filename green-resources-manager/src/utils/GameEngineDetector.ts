@@ -2,26 +2,33 @@
  * 游戏引擎检测工具
  * 用于根据游戏目录结构自动识别游戏引擎
  *
- * 当前支持识别的游戏引擎类型（共 19 种）：
+ * 当前支持识别的游戏引擎类型（共 25 种，1种未实现）：
  * 1. Flash/ActionScript - 通过 .swf 文件识别
  * 2. Unity - 通过 UnityPlayer.dll 和 [GameName]_Data 文件夹识别
  * 3. Unreal Engine - 通过 Engine 文件夹或 .uproject 文件识别
  * 4. Godot - 通过 .pck 文件或 godot 可执行文件识别
- * 5. RPG Maker VX Ace - 通过 .rvproj2 文件或 Game.ini + Graphics 文件夹识别
- * 6. RPG Maker MV - 通过 .rpgproject 文件或 www 文件夹结构识别
- * 7. RPG Maker MZ - 通过 .rmmzproject 文件或 www 文件夹结构识别
- * 8. GameMaker Studio - 通过 data.win 或 options.ini 文件识别
- * 9. TyranoBuilder - 通过 *_tyrano_data.* 文件识别
- * 10. Ren'Py - 通过 renpy 文件夹和 game 文件夹识别
- * 11. Construct - 通过 construct 相关文件或 data.js + main.js 识别
- * 12. Love2D - 通过 main.lua 文件识别
- * 13. Python/Pygame - 通过 .py 文件和 pygame 相关文件识别
- * 14. Java - 通过 .jar 文件识别
- * 15. Kirikiri / 吉里吉里 - 通过 .xp3 文件或 data.xp3 文件识别
- * 16. CatSystem2 - 通过 cs2.exe、.int 文件（scene.int/image.int）、startup.xml 或 .dat 文件识别
- * 17. Ethornell (BGI) - 通过 BGI.exe、.arc 文件或 BGI.gdb 文件识别
- * 18. Entis - 通过 .noa 文件、.eri 文件或 .mio 文件识别
- * 19. Electron - 通过 resources/app.asar 或 resources/electron.asar 文件识别
+ * 5. RPG Maker 2000/2003 - 通过.ini文件 + .ldb文件 + .lmt文件识别
+ * 6. RPG Maker XP - 通过 .rxproj 文件或 .rgssad 文件识别
+ * 7. RPG Maker VX - 通过 .rvproj 文件或 .rgss2a 文件识别
+ * 8. RPG Maker VX Ace - 通过 .rvproj2 文件或 .rgss3a 文件识别
+ * 9. RPG Maker MV - 通过 .rpgproject 文件或 www 文件夹内js文件夹中 rpg_cors.js 识别
+ * 10. RPG Maker MZ - 通过 .rmmzproject 文件或 js 文件夹中 rmmz_cors.js 识别
+ * 11. Wolf RPG - 通过 config.exe + data.wolf 或 data文件夹内 .wolf文件识别
+ * 12. SRPG Studio - 通过 data.dts + environment.evs + runtime.rts 文件识别
+ * 13. detectPixelGameMakerMv - 暂未实现
+ * 14. RPG Developer Bakin - 通过data文件夹 bakinplayer.exe 和 bakinplayer.exe.config 文件识别
+ * 15. GameMaker Studio - 通过 data.win 或 options.ini 文件识别
+ * 16. TyranoBuilder - 通过 *_tyrano_data.* 文件识别
+ * 17. Ren'Py - 通过 renpy 文件夹和 game 文件夹识别
+ * 18. Construct - 通过 construct 相关文件或 data.js + main.js 识别
+ * 19. Love2D - 通过 main.lua 文件识别
+ * 20. Python/Pygame - 通过 .py 文件和 pygame 相关文件识别
+ * 21. Java - 通过 .jar 文件识别
+ * 22. Kirikiri / 吉里吉里 - 通过 .xp3 文件或 data.xp3 文件识别
+ * 23. CatSystem2 - 通过 cs2.exe、.int 文件（scene.int/image.int）、startup.xml 或 .dat 文件识别
+ * 24. Ethornell (BGI) - 通过 BGI.exe、.arc 文件或 BGI.gdb 文件识别
+ * 25. Entis - 通过 .noa 文件、.eri 文件或 .mio 文件识别
+ * 26. Electron - 通过 resources/app.asar 或 resources/electron.asar 文件识别
  */
 
 /**
@@ -96,21 +103,48 @@ function detectGodot(context: DetectionContext): string | null {
   return null
 }
 
+
 /**
- * 检测 RPG Maker 引擎（需要区分不同版本）
+ * 检测Wolf RPG 引擎
+ * 检查游戏目录下是否存在data.wolf 或 游戏目录下data文件夹中存在.wolf为扩展名的文件
+ * 同时游戏目录下应该有config.exe
+ */
+async function detectWolfRPG(context: DetectionContext): Promise<string | null> {
+  const { gameDir, pathSeparator, fileNames } = context
+
+  const hasConfigExe = fileNames.some(f => f === 'config.exe');
+  const hasDataDir = fileNames.some(f => f === 'data' || f === 'data/');
+  const hasDataWolf = fileNames.some(f => f === 'data.wolf')
+
+  if (hasConfigExe) {
+    if (hasDataDir) {
+      const dataDirPath = `${gameDir}${pathSeparator}data`
+      const result = await window.electronAPI.listFiles(dataDirPath);
+      if (result.success && Array.isArray(result.files)) {
+        const dataDirFiles = result.files.map((f: any) => typeof f === 'string' ? f : (f?.name || String(f))).map((f: string) => f.toLowerCase())
+        if (dataDirFiles.some(f => f.endsWith('.wolf'))) {
+          return 'Wolf RPG';
+        }
+      }
+    } else if (hasDataWolf) {
+      return 'Wolf RPG';
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 检测RPG Maker MV/MZ
  */
 async function detectRPGMaker(context: DetectionContext): Promise<string | null> {
   const { gameDir, pathSeparator, fileNames, filePaths } = context
 
-  // 首先检查项目文件（最准确的方法）
+  // 首先检查项目文件（最准确的方法，不常见）
   const hasRpgProject = fileNames.some(f => f.endsWith('.rpgproject')) // MV
   const hasRmmzProject = fileNames.some(f => f.endsWith('.rmmzproject')) // MZ
-  const hasRvproj2 = fileNames.some(f => f.endsWith('.rvproj2')) // VX Ace
 
   // 如果找到项目文件，直接返回
-  if (hasRvproj2) {
-    return 'RPG Maker VX Ace'
-  }
   if (hasRmmzProject) {
     return 'RPG Maker MZ'
   }
@@ -123,13 +157,6 @@ async function detectRPGMaker(context: DetectionContext): Promise<string | null>
   const hasJsFolder = fileNames.some(f => f === 'js' || f === 'js/')
   const hasPackageJson = filePaths.some(f => f.endsWith('package.json')) || fileNames.some(f => f === 'package.json')
   // const hasIndexHtml = filePaths.some(f => f.endsWith('index.html')) || fileNames.some(f => f === 'index.html')
-  const hasGameIni = fileNames.some(f => f === 'game.ini')
-  const hasGraphicsFolder = fileNames.some(f => f === 'graphics' || f === 'graphics/')
-
-  // VX Ace 特征：Game.ini + Graphics 文件夹 + 没有 www 文件夹
-  if (hasGameIni && hasGraphicsFolder && !hasWwwFolder) {
-    return 'RPG Maker VX Ace'
-  }
 
   /**
    * 检查js文件夹是否有特定文件
@@ -145,22 +172,106 @@ async function detectRPGMaker(context: DetectionContext): Promise<string | null>
       }
     } catch (error) {
       console.warn('检查 js 文件夹失败:', error)
+      return false;
     }
   }
 
-  // rpg maker mv 特征：www 文件夹 + package.json (index.html文件可能在根目录也可能在www内）
-  // rpg maker mz 特征：无www文件夹 js文件夹直接在根目录 + package.json + index.html
+  // index.html文件可能在根目录也可能在www内，由package.json文件中main决定
+  // rpg maker mv 特征：www 文件夹 + package.json + www/js包含rpg_core.js
+  // rpg maker mz 特征：无www文件夹 + package.json + js包含rmmz_core.js
   if (hasPackageJson) {
     if (hasWwwFolder) {
       const wwwJsPath = `${gameDir}${pathSeparator}www${pathSeparator}js`;
-      return await checkJsFolder(wwwJsPath, 'rpg_core.js') ? 'RPG Maker MV' : null;
+      if (await checkJsFolder(wwwJsPath, 'rpg_core.js')) {
+        return 'RPG Maker MV'
+      }
     } else if (!hasWwwFolder && hasJsFolder) {
       const jsPath = `${gameDir}${pathSeparator}js`
-      return await checkJsFolder(jsPath, 'rmmz_core.js') ? 'RPG Maker MZ' : null;
+      if (await checkJsFolder(jsPath, 'rmmz_core.js')) {
+        return 'RPG Maker MZ'
+      }
     }
   }
 
   return null
+}
+
+/**
+ * 检测RPG Maker 2000/2003/XP/VX/VX Ace
+ * RMXP（太阳）：.rxproj .rgssad
+ * RMVX（马头）：.rvproj .rgss2a
+ * RMVA（龙头）：.rvproj2 .rgss3a
+ * RM2K/RM2K3：.ini + .ldb + .lmt
+ */
+function detectRPGMakerOldVersions(context: DetectionContext): string | null {
+  if (context.fileNames.some(f => {f.endsWith('.rxproj') || f.endsWith('.rgssad')})) {
+    return 'RPG Maker XP'
+  }
+
+  if (context.fileNames.some(f => {f.endsWith('.rvproj') || f.endsWith('.rgss2a')})) {
+    return 'RPG Maker VX'
+   }
+
+  if (context.fileNames.some(f => {f.endsWith('.rvproj2') || f.endsWith('.rgss3a')})) {
+    return 'RPG Maker VX Ace'
+  }
+
+  const hasIni = context.fileNames.some(f => f.endsWith('.ini'))
+  const hasLdb = context.fileNames.some(f => f.endsWith('.ldb'))
+  const hasLmt = context.fileNames.some(f => f.endsWith('.lmt'))
+  if (hasIni && hasLdb && hasLmt) {
+    return 'RPG Maker 2000/2003'
+  }
+
+  return null
+}
+
+/**
+ * 检测 SRPG Studio
+ * 游戏目录包含data.dts environment.evs runtime.rts
+ * 可能存在system.dat 文件
+ */
+function detectSRPGStudio(context: DetectionContext): string | null {
+  const hasDataDts = context.fileNames.some(f => f === 'data.dts')
+  const hasEnvironmentEvs = context.fileNames.some(f => f === 'environment.evs')
+  const hasRuntimeRts = context.fileNames.some(f => f === 'runtime.rts')
+  if (hasDataDts && hasEnvironmentEvs && hasRuntimeRts) {
+    return 'SRPG Studio'
+  }
+
+  return null
+}
+
+/**
+ * 检测 Pixel Game Maker MV
+ * todo: 未发现PGMMV游戏文件特征
+ */
+function detectPixelGameMakerMv(context: DetectionContext): string | null {
+  return null;
+}
+
+/**
+ * 检测 RPG Developer Bakin
+ * 游戏目录下包含data文件夹，其中包含bakinplayer.exe和bakinplayer.exe.config
+ */
+async function detectRPGDeveloperBakin(context: DetectionContext): Promise<string | null> {
+  const { gameDir, pathSeparator, fileNames } = context
+
+  const hasDataDir = fileNames.some(f => f === 'data' || f === 'data/')
+  if (hasDataDir) {
+    const dataDirPath = `${gameDir}${pathSeparator}data`
+    const result = await window.electronAPI.listFiles(dataDirPath)
+    if (result.success && Array.isArray(result.files)) {
+      const dataDirFiles = result.files.map((f: any) => typeof f === 'string' ? f : (f?.name || String(f))).map((f: string) => f.toLowerCase())
+      const hasBakinPlayer = dataDirFiles.some(f => f.includes('bakinplayer.exe'))
+      const hasBakinPlayerConfig = dataDirFiles.some(f => f.includes('bakinplayer.exe.config'))
+      if (hasBakinPlayer && hasBakinPlayerConfig) {
+        return 'RPG Developer Bakin'
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -389,7 +500,12 @@ const engineDetectors: EngineDetectorConfig[] = [
   { name: 'Unity', detector: detectUnity },
   { name: 'Unreal Engine', detector: detectUnrealEngine },
   { name: 'Godot', detector: detectGodot },
-  { name: 'RPG Maker', detector: detectRPGMaker },
+  { name: 'RPG Maker MV/MZ', detector: detectRPGMaker },
+  { name: 'RPG Maker XP/VX/VA', detector: detectRPGMakerOldVersions},
+  { name: 'Wolf RPG', detector: detectWolfRPG},
+  { name: 'SRPG studio', detector: detectSRPGStudio},
+  { name: 'Pixel Game Maker MV', detector: detectPixelGameMakerMv},
+  { name: 'RPG Developer Bakin', detector: detectRPGDeveloperBakin},
   { name: 'GameMaker Studio', detector: detectGameMaker },
   { name: 'TyranoBuilder', detector: detectTyranoBuilder },
   { name: "Ren'Py", detector: detectRenpy },
