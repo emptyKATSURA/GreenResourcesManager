@@ -204,15 +204,15 @@ async function detectRPGMaker(context: DetectionContext): Promise<string | null>
  * RM2K/RM2K3：.ini + .ldb + .lmt
  */
 function detectRPGMakerOldVersions(context: DetectionContext): string | null {
-  if (context.fileNames.some(f => {f.endsWith('.rxproj') || f.endsWith('.rgssad')})) {
+  if (context.fileNames.some(f => f.endsWith('.rxproj') || f.endsWith('.rgssad'))) {
     return 'RPG Maker XP'
   }
 
-  if (context.fileNames.some(f => {f.endsWith('.rvproj') || f.endsWith('.rgss2a')})) {
+  if (context.fileNames.some(f => f.endsWith('.rvproj') || f.endsWith('.rgss2a'))) {
     return 'RPG Maker VX'
    }
 
-  if (context.fileNames.some(f => {f.endsWith('.rvproj2') || f.endsWith('.rgss3a')})) {
+  if (context.fileNames.some(f => f.endsWith('.rvproj2') || f.endsWith('.rgss3a'))) {
     return 'RPG Maker VX Ace'
   }
 
