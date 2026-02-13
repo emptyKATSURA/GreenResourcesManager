@@ -65,30 +65,40 @@ function registerGamesRoutes(router) {
       if (!req.body.name) {
         return res.status(400).json({ error: '游戏名称不能为空' })
       }
+      if (typeof req.body.name !== 'string') {
+        return res.status(400).json({ error: '游戏名称必须是字符串' })
+      }
 
       // 生成ID并构建游戏对象
       const newGame = {
         id: generateGameId(),
+        resourceType: 'game',
         name: req.body.name,
-        description: req.body.description || '',
-        developer: req.body.developer || '',
-        publisher: req.body.publisher || '',
-        tags: req.body.tags || [],
-        engine: req.body.engine || '',
-        executablePath: req.body.executablePath || '',
-        coverPath: req.body.coverPath || '',
-        folderSize: req.body.folderSize || 0,
-        playTime: req.body.playTime || 0,
-        playCount: req.body.playCount || 0,
-        lastPlayed: req.body.lastPlayed || null,
-        firstPlayed: req.body.firstPlayed || null,
+        nickname: typeof req.body.nickname === 'string' ? req.body.nickname : '',
+        nameZh: typeof req.body.nameZh === 'string' ? req.body.nameZh : '',
+        nameEn: typeof req.body.nameEn === 'string' ? req.body.nameEn : '',
+        nameJa: typeof req.body.nameJa === 'string' ? req.body.nameJa : '',
+        description: typeof req.body.description === 'string' ? req.body.description : '',
+        developers: Array.isArray(req.body.developers) ? req.body.developers : [],
+        publisher: typeof req.body.publisher === 'string' ? req.body.publisher : '',
+        tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+        engine: typeof req.body.engine === 'string' ? req.body.engine : '',
+        coverPath: typeof req.body.coverPath === 'string' ? req.body.coverPath : '',
+        resourcePath: typeof req.body.resourcePath === 'string' ? req.body.resourcePath : '',
+        playTime: typeof req.body.playTime === 'number' ? req.body.playTime : 0,
+        playCount: typeof req.body.playCount === 'number' ? req.body.playCount : 0,
+        visitedSessions: typeof req.body.visitedSessions === 'number' ? req.body.visitedSessions : 0,
         addedDate: new Date().toISOString(),
-        fileExists: req.body.fileExists !== undefined ? req.body.fileExists : true,
-        isArchive: req.body.isArchive || false,
-        rating: req.body.rating,
-        comment: req.body.comment,
-        isFavorite: req.body.isFavorite || false,
-        resourceType: 'game'
+        rating: typeof req.body.rating === 'number' ? req.body.rating : null,
+        comment: typeof req.body.comment === 'string' ? req.body.comment : '',
+        isFavorite: typeof req.body.isFavorite === 'boolean' ? req.body.isFavorite : false,
+
+        // 神秘字段→_→
+        folderSize: typeof req.body.folderSize === 'number' ? req.body.folderSize : 0,
+        lastPlayed: req.body.lastPlayed instanceof Date || typeof req.body.lastPlayed === 'string' ? req.body.lastPlayed : null,
+        firstPlayed: req.body.firstPlayed instanceof Date || typeof req.body.firstPlayed === 'string' ? req.body.firstPlayed : null,
+        fileExists: typeof req.body.fileExists === 'boolean' ? req.body.fileExists : true,
+        isArchive: typeof req.body.isArchive === 'boolean' ? req.body.isArchive : false
       }
 
       // 保存到 games 表
