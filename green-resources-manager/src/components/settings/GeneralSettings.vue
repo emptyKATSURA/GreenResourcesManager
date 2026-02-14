@@ -37,25 +37,20 @@
         @update:model-value="onSafetyKeyChange"
       />
       
-      <SettingToggle
-        title="F1快捷键"
-        description="按下F1键时显示'你好'提示框"
-        :model-value="settings.f1ShortcutEnabled || false"
-        @update:model-value="onF1ShortcutChange"
-      />
-      
-      <div class="setting-item">
+      <div class="setting-item" v-if="settings.safetyKeyEnabled">
         <label class="setting-label">
-          <span class="setting-title">自定义快捷键</span>
-          <span class="setting-desc">输入自定义的快捷键（如: Ctrl+Shift+F）</span>
+          <span class="setting-title">安全键快捷键</span>
+          <span class="setting-desc">输入自定义的安全键快捷键（如: Esc, Ctrl+Q）</span>
         </label>
         <div class="setting-control">
           <FunShortcutInput
-            v-model="settings.f1ShortcutKey"
-            :default-shortcut="'F1'"
+            v-model="settings.safetyKeyShortcut"
+            :default-shortcut="'Esc'"
           />
         </div>
       </div>
+      
+
       
       <SettingInput
         v-if="settings.safetyKeyEnabled"
@@ -198,56 +193,9 @@ export default {
       return this.settings.maxBackupCount ?? 5
     }
   },
-  mounted() {
-    // 监听F1键按下事件
-    document.addEventListener('keydown', this.handleKeyDown)
-  },
-  
-  beforeUnmount() {
-    // 移除事件监听
-    document.removeEventListener('keydown', this.handleKeyDown)
-  },
+
   
   methods: {
-    handleKeyDown(event: KeyboardEvent) {
-      // 检查是否按下F1键且功能已启用
-      if (!this.settings.f1ShortcutEnabled) return
-      
-      // 当快捷键为空时，不触发任何操作
-      if (!this.settings.f1ShortcutKey || this.settings.f1ShortcutKey.trim() === '') return
-      
-      const shortcutKey = this.settings.f1ShortcutKey
-      const keyParts = shortcutKey.split('+').map(part => part.trim())
-      
-      // 检查组合键
-      let isMatch = true
-      
-      // 检查修饰键
-      const hasCtrl = keyParts.some(part => part.toLowerCase() === 'ctrl')
-      const hasShift = keyParts.some(part => part.toLowerCase() === 'shift')
-      const hasAlt = keyParts.some(part => part.toLowerCase() === 'alt')
-      
-      if (hasCtrl && !event.ctrlKey) isMatch = false
-      if (hasShift && !event.shiftKey) isMatch = false
-      if (hasAlt && !event.altKey) isMatch = false
-      
-      // 检查主按键
-      const mainKey = keyParts.find(part => !['Ctrl', 'Shift', 'Alt', 'ctrl', 'shift', 'alt'].includes(part))
-      if (mainKey && event.key.toLowerCase() !== mainKey.toLowerCase()) isMatch = false
-      
-      if (isMatch) {
-        event.preventDefault() // 阻止默认的F1帮助行为
-        alert('你好')
-      }
-    },
-    
-    onF1ShortcutChange(enabled: boolean) {
-      this.updateSetting('f1ShortcutEnabled', enabled)
-    },
-    
-    onF1ShortcutKeyChange(key: string) {
-      this.updateSetting('f1ShortcutKey', key)
-    },
     
     updateSetting(key: string, value: any) {
       this.$emit('update:settings', { key, value })
@@ -379,10 +327,11 @@ export default {
       // 直接更新全局快捷键
       if (window.electronAPI && window.electronAPI.setSafetyKey) {
         try {
-          const result = await window.electronAPI.setSafetyKey(
-            newValue, 
-            this.settings.safetyKeyUrl
-          )
+        const result = await window.electronAPI.setSafetyKey(
+          newValue, 
+          this.settings.safetyKeyUrl,
+          this.settings.safetyKeyShortcut
+        )
           if (result.success) {
             console.log('✅ 安全键全局快捷键已', newValue ? '启用' : '禁用')
           } else {
@@ -429,7 +378,7 @@ export default {
       // 当安全键URL变化时，更新全局快捷键设置
       if (this.settings.safetyKeyEnabled && window.electronAPI && window.electronAPI.setSafetyKey) {
         try {
-          const result = await window.electronAPI.setSafetyKey(true, newUrl)
+          const result = await window.electronAPI.setSafetyKey(true, newUrl, this.settings.safetyKeyShortcut)
           if (result.success) {
             console.log('✅ 安全键URL已更新')
           } else {

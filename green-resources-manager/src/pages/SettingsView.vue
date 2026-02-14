@@ -183,8 +183,7 @@ export default {
         disguiseMode: false,
         safetyKeyEnabled: false,
         safetyKeyUrl: 'https://www.bilibili.com/video/BV1jR4y1M78W/?p=17&share_source=copy_web&vd_source=7de8c277f16e8e03b48a5328dddfe2ce&t=466',
-        f1ShortcutEnabled: false,
-        f1ShortcutKey: 'F1',
+        safetyKeyShortcut: 'Esc',
         // 个性化设置
         customAppTitle: '',
         customAppSubtitle: '',
@@ -428,9 +427,8 @@ export default {
         delete cleanSettings.novelTextColor
         delete cleanSettings.novelWordsPerPage
         delete cleanSettings.novelShowProgress
-        // 保留f1ShortcutEnabled设置
-        cleanSettings.f1ShortcutEnabled = this.settings.f1ShortcutEnabled || false
-        cleanSettings.f1ShortcutKey = this.settings.f1ShortcutKey || 'F1'
+        // 保留安全键快捷键设置
+        cleanSettings.safetyKeyShortcut = this.settings.safetyKeyShortcut || 'Esc'
         
         // 保存设置
         const success = await saveManager.saveSettings(cleanSettings)
@@ -495,7 +493,7 @@ export default {
             disguiseMode: false,
             safetyKeyEnabled: false,
             safetyKeyUrl: 'https://www.bilibili.com/video/BV1jR4y1M78W/?p=17&share_source=copy_web&vd_source=7de8c277f16e8e03b48a5328dddfe2ce&t=466',
-            f1ShortcutEnabled: false,
+            safetyKeyShortcut: 'Esc',
             // 存档设置
             saveDataLocation: 'default',
             saveDataPath: '',
