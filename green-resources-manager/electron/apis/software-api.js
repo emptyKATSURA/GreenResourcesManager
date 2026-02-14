@@ -63,7 +63,7 @@ function registerSoftwareRoutes(router) {
         tags: req.body.tags || [],
         resourcePath: req.body.resourcePath || '',
         coverPath: req.body.coverPath || '',
-        folderSize: req.body.folderSize || 0,
+        folderSize: typeof req.body.folderSize === 'number' ? req.body.folderSize : null,
         playTime: req.body.playTime || 0,
         playCount: req.body.playCount || 0,
         visitedSessions: req.body.visitedSessions || [],

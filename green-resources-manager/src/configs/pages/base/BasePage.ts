@@ -33,11 +33,91 @@ export interface EmptyStateConfig {
 }
 
 /**
- * 工具栏配置接口
+ * 工具栏项基础接口
  */
-export interface ToolbarConfig {
+export interface ToolbarItemBase {
+	type: string
+}
+
+/**
+ * 按钮类型工具栏项
+ */
+export interface ToolbarButtonItem extends ToolbarItemBase {
+	type: 'button'
+	label: string
+	action: string
+	icon?: string
+	buttonType?: 'primary' | 'secondary'
+}
+
+/**
+ * 搜索框类型工具栏项
+ */
+export interface ToolbarSearchItem extends ToolbarItemBase {
+	type: 'search'
+	placeholder: string
+	action: string
+}
+
+/**
+ * 排序选择器类型工具栏项
+ */
+export interface ToolbarSortItem extends ToolbarItemBase {
+	type: 'sort'
+}
+
+/**
+ * 布局控制类型工具栏项
+ */
+export interface ToolbarLayoutItem extends ToolbarItemBase {
+	type: 'layout'
+}
+
+/**
+ * 工具栏项类型
+ */
+export type ToolbarItem = ToolbarButtonItem | ToolbarSearchItem | ToolbarSortItem | ToolbarLayoutItem
+
+/**
+ * 工具栏配置接口（旧版兼容）
+ */
+export interface LegacyToolbarConfig {
 	addButtonText: string
 	searchPlaceholder: string
+	sortOptions?: Array<{ value: string; label: string }>
+	pageType?: string
+	scale?: number
+	showLayoutControl?: boolean
+	addFolderButtonText?: string
+	importBookmarkButtonText?: string
+}
+
+/**
+ * 工具栏配置接口（新版 - 灵活配置）
+ */
+export interface FlexibleToolbarConfig {
+	items: ToolbarItem[]
+	sortOptions?: Array<{ value: string; label: string }>
+	pageType?: string
+	scale?: number
+	showLayoutControl?: boolean
+}
+
+/**
+ * 工具栏配置类型（兼容新旧两种格式）
+ */
+export type ToolbarConfig = LegacyToolbarConfig | FlexibleToolbarConfig
+
+/**
+ * 对话框配置接口
+ */
+export interface DialogConfig {
+	addTitle: string
+	editTitle: string
+	addButtonText: string
+	editButtonText: string
+	enableEngineAutoDetect?: boolean
+	enableScreenshotCover?: boolean
 }
 
 /**
@@ -109,6 +189,20 @@ export abstract class BasePage {
 	 * @returns 工具栏配置对象
 	 */
 	abstract getToolbarConfig(): ToolbarConfig
+	
+	/**
+	 * 获取对话框配置
+	 * 子类可以重写此方法，返回该页面的对话框配置
+	 * @returns 对话框配置对象
+	 */
+	getDialogConfig(): DialogConfig {
+		return {
+			addTitle: '添加资源',
+			editTitle: '编辑资源',
+			addButtonText: '添加',
+			editButtonText: '保存修改'
+		}
+	}
 	
 	/**
 	 * 获取筛选配置

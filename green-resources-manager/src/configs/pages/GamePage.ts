@@ -1,4 +1,4 @@
-import { BasePage } from './base/BasePage.ts'
+import { BasePage, type DialogConfig } from './base/BasePage.ts'
 import type { SortOption } from '../../types/sort'
 import type { SortConfig } from '../../utils/sortBy'
 import type { FilterConfig, FilterItem } from '../../types/filter'
@@ -11,14 +11,14 @@ type Game = InstanceType<typeof GameClass>
  * 游戏排序方式类型
  * 定义在 GamePage 类所在的文件中
  */
-export type GameSortBy = 
-	| 'name-asc' 
-	| 'name-desc' 
-	| 'lastPlayed-asc' 
-	| 'lastPlayed-desc' 
-	| 'playTime-asc' 
-	| 'playTime-desc' 
-	| 'added-asc' 
+export type GameSortBy =
+	| 'name-asc'
+	| 'name-desc'
+	| 'lastPlayed-asc'
+	| 'lastPlayed-desc'
+	| 'playTime-asc'
+	| 'playTime-desc'
+	| 'added-asc'
 	| 'added-desc'
 
 /**
@@ -46,7 +46,7 @@ export class GamePage extends BasePage {
 		minWidth: 80,
 		maxWidth: 400
 	}
-	
+
 	/**
 	 * 获取空状态配置
 	 */
@@ -59,14 +59,48 @@ export class GamePage extends BasePage {
 			buttonAction: 'showAddGameDialog'
 		}
 	}
-	
+
 	/**
 	 * 获取工具栏配置
 	 */
 	getToolbarConfig() {
 		return {
+			items: [
+				{
+					type: 'button',
+					label: '添加游戏',
+					action: 'showAddGameDialog',
+					icon: '➕',
+					buttonType: 'primary'
+				},
+				{
+					type: 'search',
+					placeholder: '搜索游戏...',
+					action: 'filterBySearch'
+				},
+				{
+					type: 'layout'
+				},
+				{
+					type: 'sort'
+				}
+			],
+			sortOptions: this.getSortOptions(),
+			pageType: this.id
+		}
+	}
+
+	/**
+	 * 获取对话框配置
+	 */
+	getDialogConfig(): DialogConfig {
+		return {
+			addTitle: '添加游戏',
+			editTitle: '编辑游戏',
 			addButtonText: '添加游戏',
-			searchPlaceholder: '搜索游戏...'
+			editButtonText: '保存修改',
+			enableEngineAutoDetect: true,
+			enableScreenshotCover: true
 		}
 	}
 
@@ -141,13 +175,13 @@ export class GamePage extends BasePage {
 		if (parts.length !== 2) {
 			return null
 		}
-		
+
 		const [dbField, order] = parts
 		const config = this.getSortConfig().find(c => c.dbField === dbField && c.order === order)
 		if (!config) {
 			return null
 		}
-		
+
 		// 根据数据库字段名创建字段访问器
 		const fieldAccessor = (game: Game) => {
 			const value = getFieldValue<any>((game as any)[dbField])
@@ -157,7 +191,7 @@ export class GamePage extends BasePage {
 			}
 			return value != null ? value : null
 		}
-		
+
 		return {
 			fieldAccessor,
 			order: config.order,
@@ -173,7 +207,7 @@ export class GamePage extends BasePage {
 	getFilterConfig<T = Game>(): FilterConfig<T>[] {
 		// 获取基类的筛选配置（包含"丢失的资源"）
 		const baseFilters = super.getFilterConfig<T>()
-		
+
 		// 游戏特有的筛选器
 		const gameFilters: FilterConfig<T>[] = [
 			{
@@ -252,7 +286,7 @@ export class GamePage extends BasePage {
 					// 检查选中条件
 					if (selected.length > 0) {
 						const isRunning = additionalData?.isGameRunning ? additionalData.isGameRunning(game) : false
-						
+
 						return selected.some(sel => {
 							if (sel === '正在游玩') {
 								return isRunning
@@ -265,7 +299,7 @@ export class GamePage extends BasePage {
 				}
 			}
 		] as FilterConfig<T>[]
-		
+
 		// 合并基类配置和游戏特有配置
 		return [...baseFilters, ...gameFilters]
 	}

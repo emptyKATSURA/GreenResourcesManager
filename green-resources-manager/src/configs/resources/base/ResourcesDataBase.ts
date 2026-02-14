@@ -219,19 +219,19 @@ export abstract class BaseResources {
 			const constructorName = value.constructor?.name
 			const hasProxyIndicator = constructorName !== (isArray ? 'Array' : 'Object')
 			
-			if (hasProxyIndicator || valueType === 'array') {
-				console.log(`[BaseResources.extractPrimitiveValue] 检测到 ${valueType}，constructor: ${constructorName}，尝试序列化检查:`, {
-					canStringify: (() => {
-						try {
-							JSON.stringify(value)
-							return true
-						} catch (e) {
-							return `失败: ${e.message}`
-						}
-					})(),
-					length: isArray ? value.length : Object.keys(value).length
-				})
-			}
+			// if (hasProxyIndicator || valueType === 'array') {
+			// 	console.log(`[BaseResources.extractPrimitiveValue] 检测到 ${valueType}，constructor: ${constructorName}，尝试序列化检查:`, {
+			// 		canStringify: (() => {
+			// 			try {
+			// 				JSON.stringify(value)
+			// 				return true
+			// 			} catch (e) {
+			// 				return `失败: ${e.message}`
+			// 			}
+			// 		})(),
+			// 		length: isArray ? value.length : Object.keys(value).length
+			// 	})
+			// }
 		}
 		// 否则直接返回（原始类型或数组）
 		return value

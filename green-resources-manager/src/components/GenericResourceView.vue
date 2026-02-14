@@ -15,6 +15,7 @@
       @update:scale="updateScale"
       @empty-state-action="handleEmptyStateAction" 
       @add-item="showAddDialogHandler" 
+      @button-click="handleButtonClick"
       @sort-changed="handleSortChanged"
       @search-query-changed="handleSearchQueryChanged" 
       @sort-by-changed="handleSortByChanged"
@@ -98,6 +99,24 @@
       </template>
     </DetailPanel>
     
+    <!-- 添加资源对话框 -->
+    <ResourcesEditDialog
+      :visible="showAddDialog"
+      mode="add"
+      :resource-class="ResourceClass"
+      :is-electron-environment="isElectronEnvironment"
+      :available-tags="allTags"
+      :available-tags-by-field="availableTagsByField"
+      :enable-engine-auto-detect="dialogConfig.enableEngineAutoDetect"
+      :enable-screenshot-cover="dialogConfig.enableScreenshotCover"
+      :add-title="dialogConfig.addTitle"
+      :edit-title="dialogConfig.editTitle"
+      :add-button-text="dialogConfig.addButtonText"
+      :edit-button-text="dialogConfig.editButtonText"
+      @close="closeAddDialog"
+      @confirm="handleAddConfirm"
+    />
+    
     <!-- 编辑资源对话框 -->
     <ResourcesEditDialog
       :visible="showEditDialog"
@@ -107,11 +126,12 @@
       :is-electron-environment="isElectronEnvironment"
       :available-tags="allTags"
       :available-tags-by-field="availableTagsByField"
-      :enable-screenshot-cover="resourceType === 'Game'"
-      add-title="添加资源"
-      edit-title="编辑资源"
-      add-button-text="添加"
-      edit-button-text="保存修改"
+      :enable-engine-auto-detect="dialogConfig.enableEngineAutoDetect"
+      :enable-screenshot-cover="dialogConfig.enableScreenshotCover"
+      :add-title="dialogConfig.addTitle"
+      :edit-title="dialogConfig.editTitle"
+      :add-button-text="dialogConfig.addButtonText"
+      :edit-button-text="dialogConfig.editButtonText"
       @close="closeEdit"
       @confirm="handleEditConfirm"
     />
@@ -444,6 +464,14 @@ export default defineComponent({
       : resourceConfig.pageClass
     
     const pageConfig = new PageClass()
+
+    // 获取对话框配置
+    const dialogConfig = pageConfig.getDialogConfig?.() || {
+      addTitle: '添加资源',
+      editTitle: '编辑资源',
+      addButtonText: '添加',
+      editButtonText: '保存修改'
+    }
 
     // 当前资源类型是否使用 launchExecutable（游戏、软件等可执行程序），用于运行状态与时长追踪
     const supportsRunningTracking = computed(() =>
@@ -1591,7 +1619,7 @@ export default defineComponent({
                                  : null)
               if (cardConfig?.badge?.field === 'folderSize') {
                 const folderSize = BaseResources.extractPrimitiveValue(item.folderSize?.value ?? item.folderSize)
-                if (folderSize === undefined || folderSize === null || folderSize === 0) {
+                if (folderSize === undefined || folderSize === null) {
                   await calculateAndUpdateResourceSize(item, isElectronEnvironment.value)
                 }
               }
@@ -1921,7 +1949,7 @@ export default defineComponent({
         return
       }
       
-      // 筛选：有 resourcePath，且 folderSize 为空（undefined、null 或 0）才计算
+      // 筛选：有 resourcePath，且 folderSize 为 undefined 或 null 才计算（0 是有效值，不重新计算）
       const resourcesToCalculate = items.value.filter((item: any) => {
         const resourcePath = BaseResources.extractPrimitiveValue(
           item.resourcePath?.value || item.resourcePath || item.executablePath?.value || item.executablePath
@@ -1930,7 +1958,7 @@ export default defineComponent({
           return false
         }
         const folderSize = BaseResources.extractPrimitiveValue(item.folderSize?.value ?? item.folderSize)
-        return folderSize === undefined || folderSize === null || folderSize === 0
+        return folderSize === undefined || folderSize === null
       })
       
       if (resourcesToCalculate.length === 0) {
@@ -2628,6 +2656,18 @@ export default defineComponent({
       return Object.keys(custom).length > 0 ? custom : undefined
     })
 
+    // 处理灵活工具栏按钮点击
+    const handleButtonClick = (item: any) => {
+      console.log('🔘 GenericResourceView 收到按钮点击:', item)
+      
+      // 支持直接调用 showAddDialogHandler 和其他预设方法
+      if (item.action === 'showAddGameDialog' || item.action === 'showAddDialogHandler') {
+        resourcePage.showAddDialogHandler()
+      } else if (item.action === 'filterBySearch') {
+        // 搜索操作不需要额外处理，搜索框已经绑定了 searchQuery
+      }
+    }
+
     return {
       resourceType, // 返回 computed，保持响应式
       isElectronEnvironment,
@@ -2669,6 +2709,10 @@ export default defineComponent({
       displayLayoutMinWidth,
       displayLayoutMaxWidth,
       customLayoutStyle,
+      // 灵活工具栏按钮处理
+      handleButtonClick,
+      // 对话框配置
+      dialogConfig,
       // 详情面板相关（从 resourcePage 获取）
       showDetailDialog: resourcePage.showDetailDialog,
       selectedItem: resourcePage.selectedItem,

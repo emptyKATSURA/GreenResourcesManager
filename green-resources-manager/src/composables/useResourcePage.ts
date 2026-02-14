@@ -32,7 +32,43 @@ export interface EmptyStateConfig {
   noPageDataDescription: string
 }
 
-export interface ToolbarConfig {
+export interface ToolbarItemBase {
+  type: string
+}
+
+export interface ToolbarButtonItem extends ToolbarItemBase {
+  type: 'button'
+  label: string
+  action: string
+  icon?: string
+  buttonType?: 'primary' | 'secondary'
+}
+
+export interface ToolbarSearchItem extends ToolbarItemBase {
+  type: 'search'
+  placeholder: string
+  action: string
+}
+
+export interface ToolbarSortItem extends ToolbarItemBase {
+  type: 'sort'
+}
+
+export interface ToolbarLayoutItem extends ToolbarItemBase {
+  type: 'layout'
+}
+
+export type ToolbarItem = ToolbarButtonItem | ToolbarSearchItem | ToolbarSortItem | ToolbarLayoutItem
+
+export interface FlexibleToolbarConfig {
+  items: ToolbarItem[]
+  sortOptions?: Array<{ value: string; label: string }>
+  pageType?: string
+  scale?: number
+  showLayoutControl?: boolean
+}
+
+export interface LegacyToolbarConfig {
   addButtonText: string
   addFolderButtonText?: string
   importBookmarkButtonText?: string
@@ -40,6 +76,8 @@ export interface ToolbarConfig {
   sortOptions: Array<{ value: string; label: string }>
   pageType: string
 }
+
+export type ToolbarConfig = LegacyToolbarConfig | FlexibleToolbarConfig
 
 export interface PathUpdateInfo {
   existingItem: any | null

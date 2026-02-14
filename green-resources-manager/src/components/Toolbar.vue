@@ -1,58 +1,52 @@
 <template>
   <div class="game-toolbar">
     <div class="toolbar-left">
-      <fun-button
-        v-if="addButtonText"
-        type="primary"
-        icon="➕"
-        @click="$emit('add-item')"
-      >
-        {{ addButtonText }}
-      </fun-button>
-      <fun-button
-        v-if="addFolderButtonText"
-        type="secondary"
-        icon="📁"
-        @click="handleAddFolderClick"
-      >
-        {{ addFolderButtonText }}
-      </fun-button>
-      <fun-button
-        v-if="importBookmarkButtonText"
-        type="secondary"
-        icon="📑"
-        @click="handleImportBookmarkClick"
-      >
-        {{ importBookmarkButtonText }}
-      </fun-button>
-      <div class="search-box">
-        <input 
-          type="text" 
-          :value="searchQuery" 
-          @input="$emit('update:searchQuery', $event.target.value)"
-          :placeholder="searchPlaceholder"
-          class="search-input"
+      <template v-for="item in leftItems" :key="getItemKey(item)">
+        <!-- 按钮 -->
+        <fun-button
+          v-if="item.type === 'button'"
+          :type="item.buttonType || 'primary'"
+          :icon="item.icon"
+          @click="handleButtonClick(item)"
         >
-        <span class="search-icon">🔍</span>
-      </div>
+          {{ item.label }}
+        </fun-button>
+
+        <!-- 搜索框 -->
+        <div v-else-if="item.type === 'search'" class="search-box">
+          <input 
+            type="text" 
+            :value="searchQuery" 
+            @input="handleSearchInput($event, item)"
+            :placeholder="item.placeholder"
+            class="search-input"
+          >
+          <span class="search-icon">🔍</span>
+        </div>
+      </template>
     </div>
     
     <div class="toolbar-right">
-      <LayoutControl
-        v-if="showLayoutControl"
-        :scale="scale"
-        @update:scale="handleScaleUpdate"
-        @scale-changed="handleScaleChanged"
-      />
-      <select :value="sortBy" @change="handleSortChange" class="sort-select">
-        <option 
-          v-for="option in sortOptions" 
-          :key="option.value" 
-          :value="option.value"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+      <template v-for="item in rightItems" :key="getItemKey(item)">
+        <!-- 布局控制 -->
+        <LayoutControl
+          v-if="item.type === 'layout'"
+          :scale="scale"
+          @update:scale="handleScaleUpdate"
+          @scale-changed="handleScaleChanged"
+        />
+
+        <!-- 排序选择器 -->
+        <select v-else-if="item.type === 'sort'" :value="sortBy" @change="handleSortChange" class="sort-select">
+          <option 
+            v-for="option in sortOptions" 
+            :key="option.value" 
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select>
+      </template>
     </div>
   </div>
 </template>
@@ -75,21 +69,9 @@ export default {
       type: String,
       default: 'name-asc'
     },
-    addButtonText: {
-      type: String,
-      default: '添加游戏'
-    },
-    addFolderButtonText: {
-      type: String,
-      default: ''
-    },
-    importBookmarkButtonText: {
-      type: String,
-      default: ''
-    },
-    searchPlaceholder: {
-      type: String,
-      default: '搜索游戏...'
+    items: {
+      type: Array,
+      default: () => []
     },
     sortOptions: {
       type: Array,
@@ -115,6 +97,22 @@ export default {
     pageType: {
       type: String,
       default: ''
+    },
+    addButtonText: {
+      type: String,
+      default: ''
+    },
+    addFolderButtonText: {
+      type: String,
+      default: ''
+    },
+    importBookmarkButtonText: {
+      type: String,
+      default: ''
+    },
+    searchPlaceholder: {
+      type: String,
+      default: ''
     }
   },
   emits: [
@@ -125,15 +123,77 @@ export default {
     'update:sortBy',
     'sort-changed',
     'update:scale',
-    'layout-changed'
+    'layout-changed',
+    'button-click',
+    'search'
   ],
+  computed: {
+    leftItems() {
+      if (this.items && this.items.length > 0) {
+        return this.items.filter(item => {
+          return item.type === 'button' || item.type === 'search'
+        })
+      }
+      
+      const result = []
+      if (this.addButtonText) {
+        result.push({
+          type: 'button',
+          label: this.addButtonText,
+          action: 'add-item',
+          icon: '➕',
+          buttonType: 'primary'
+        })
+      }
+      if (this.addFolderButtonText) {
+        result.push({
+          type: 'button',
+          label: this.addFolderButtonText,
+          action: 'add-folder',
+          icon: '📁',
+          buttonType: 'secondary'
+        })
+      }
+      if (this.importBookmarkButtonText) {
+        result.push({
+          type: 'button',
+          label: this.importBookmarkButtonText,
+          action: 'import-bookmark',
+          icon: '📑',
+          buttonType: 'secondary'
+        })
+      }
+      if (this.searchPlaceholder) {
+        result.push({
+          type: 'search',
+          placeholder: this.searchPlaceholder,
+          action: 'search'
+        })
+      }
+      return result
+    },
+    rightItems() {
+      if (this.items && this.items.length > 0) {
+        return this.items.filter(item => {
+          return item.type === 'layout' || item.type === 'sort'
+        })
+      }
+      
+      const result = []
+      if (this.showLayoutControl) {
+        result.push({ type: 'layout' })
+      }
+      if (this.sortOptions && this.sortOptions.length > 0) {
+        result.push({ type: 'sort' })
+      }
+      return result
+    }
+  },
   async mounted() {
     console.log('🔍 Toolbar mounted, 初始 sortBy:', this.sortBy)
-    // 加载保存的布局设置
     if (this.showLayoutControl && this.pageType) {
       await this.loadLayoutSetting()
     } else {
-      // 如果没有布局控制，直接解除初始化标记
       this.isInitializing = false
     }
   },
@@ -144,10 +204,35 @@ export default {
   },
   data() {
     return {
-      isInitializing: true // 标记是否正在初始化
+      isInitializing: true
     }
   },
   methods: {
+    getItemKey(item) {
+      if (item.type === 'button') {
+        return `button-${item.action}`
+      }
+      if (item.type === 'search') {
+        return `search-${item.action}`
+      }
+      return item.type
+    },
+    handleButtonClick(item) {
+      console.log(`🔘 Toolbar 按钮被点击: ${item.label}, action: ${item.action}`)
+      this.$emit('button-click', item)
+      
+      if (item.action === 'add-item') {
+        this.$emit('add-item')
+      } else if (item.action === 'add-folder') {
+        this.$emit('add-folder')
+      } else if (item.action === 'import-bookmark') {
+        this.$emit('import-bookmark')
+      }
+    },
+    handleSearchInput(event, item) {
+      this.$emit('update:searchQuery', event.target.value)
+      this.$emit('search', { value: event.target.value, item })
+    },
     handleSortChange(event) {
       const newSortBy = event.target.value
       console.log('🔍 Toolbar 用户选择排序:', newSortBy)
@@ -155,11 +240,9 @@ export default {
       this.$emit('sort-changed', { pageType: this.pageType, sortBy: newSortBy })
     },
     handleScaleUpdate(newScale) {
-      // 拖动过程中只更新 UI，不保存
       this.$emit('update:scale', newScale)
     },
     async handleScaleChanged(newScale) {
-      // 拖动结束时才保存布局设置
       if (!this.isInitializing && this.pageType) {
         try {
           await saveManager.saveLayoutSetting(this.pageType, newScale)
@@ -181,24 +264,14 @@ export default {
         const savedScale = await saveManager.getLayoutSetting(this.pageType)
         if (savedScale !== undefined && savedScale !== null && savedScale !== this.scale) {
           console.log(`✅ 已加载${this.pageType}页面布局缩放:`, savedScale)
-          // 通过事件更新父组件的 scale（不触发保存）
           this.$emit('update:scale', savedScale)
         }
       } catch (error) {
         console.warn('加载布局缩放失败:', error)
       } finally {
-        // 确保在加载完成后解除初始化标记
         await this.$nextTick()
         this.isInitializing = false
       }
-    },
-    handleAddFolderClick() {
-      console.log('📁 添加文件夹按钮被点击')
-      this.$emit('add-folder')
-    },
-    handleImportBookmarkClick() {
-      console.log('📑 导入书签按钮被点击')
-      this.$emit('import-bookmark')
     }
   }
 }

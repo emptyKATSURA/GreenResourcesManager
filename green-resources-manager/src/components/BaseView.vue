@@ -3,9 +3,10 @@
         <!-- 基础视图内容 -->
         <div class="base-view-content">
             <!-- 工具栏 -->
-            <GameToolbar ref="toolbar" 
+        <GameToolbar ref="toolbar" 
                 :search-query="searchQuery" 
                 :sort-by="sortBy"
+                :items="toolbarConfig.items"
                 :add-button-text="toolbarConfig.addButtonText" 
                 :add-folder-button-text="toolbarConfig.addFolderButtonText"
                 :import-bookmark-button-text="toolbarConfig.importBookmarkButtonText"
@@ -17,6 +18,8 @@
                 @add-item="handleAddItem"
                 @add-folder="handleAddFolder"
                 @import-bookmark="handleImportBookmark"
+                @button-click="handleButtonClick"
+                @search="handleSearch"
                 @update:searchQuery="handleSearchQueryUpdate"
                 @update:sortBy="handleSortByUpdate"
                 @sort-changed="handleSortChanged"
@@ -144,7 +147,9 @@ export default {
         'sort-by-changed',
         'context-menu-click',
         'page-change',
-        'update:scale'
+        'update:scale',
+        'button-click',
+        'search'
     ],
     computed: {
         currentEmptyState() {
@@ -210,6 +215,18 @@ export default {
         // 处理导入书签按钮点击
         handleImportBookmark() {
             this.$emit('import-bookmark')
+        },
+
+        // 处理灵活工具栏按钮点击
+        handleButtonClick(item) {
+            console.log('🔘 BaseView 收到按钮点击:', item)
+            this.$emit('button-click', item)
+        },
+
+        // 处理灵活工具栏搜索
+        handleSearch(data) {
+            console.log('🔍 BaseView 收到搜索:', data)
+            this.$emit('search', data)
         },
 
         // 处理搜索查询更新（避免直接转发 v-model 事件导致递归）

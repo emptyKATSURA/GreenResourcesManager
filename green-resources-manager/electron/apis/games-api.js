@@ -94,7 +94,7 @@ function registerGamesRoutes(router) {
         isFavorite: typeof req.body.isFavorite === 'boolean' ? req.body.isFavorite : false,
 
         // 神秘字段→_→
-        folderSize: typeof req.body.folderSize === 'number' ? req.body.folderSize : 0,
+        folderSize: typeof req.body.folderSize === 'number' ? req.body.folderSize : null,
         lastPlayed: req.body.lastPlayed instanceof Date || typeof req.body.lastPlayed === 'string' ? req.body.lastPlayed : null,
         firstPlayed: req.body.firstPlayed instanceof Date || typeof req.body.firstPlayed === 'string' ? req.body.firstPlayed : null,
         fileExists: typeof req.body.fileExists === 'boolean' ? req.body.fileExists : true,

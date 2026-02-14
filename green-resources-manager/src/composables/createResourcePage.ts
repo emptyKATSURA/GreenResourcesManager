@@ -105,17 +105,27 @@ export function createResourcePage<T>(options: ResourcePageOptions<T>) {
     emptyState.buttonAction
   )
 
-  const toolbarConfig = createToolbarConfig(
-    pageConfig.pageType,
-    pageConfig.itemType,
-    toolbar.addButtonText,
-    toolbar.searchPlaceholder,
-    toolbar.sortOptions,
-    {
-      addFolderButtonText: toolbar.addFolderButtonText,
-      importBookmarkButtonText: toolbar.importBookmarkButtonText
+  // 检查是否是灵活工具栏配置（包含 items 字段）
+  let toolbarConfig: any
+  if (toolbar && 'items' in toolbar) {
+    // 使用灵活工具栏配置
+    toolbarConfig = {
+      ...toolbar
     }
-  )
+  } else {
+    // 使用旧版工具栏配置
+    toolbarConfig = createToolbarConfig(
+      pageConfig.pageType,
+      pageConfig.itemType,
+      toolbar.addButtonText,
+      toolbar.searchPlaceholder,
+      toolbar.sortOptions,
+      {
+        addFolderButtonText: toolbar.addFolderButtonText,
+        importBookmarkButtonText: toolbar.importBookmarkButtonText
+      }
+    )
+  }
 
   // ========== 计算属性 ==========
   const itemStats = computed(() => {
