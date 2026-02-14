@@ -1,3 +1,5 @@
+import notificationStore from '../fun-ui/feedback/Notification/NotificationStore'
+
 /**
  * 全局通知服务
  * 提供统一的 Toast 通知和消息中心功能
@@ -31,31 +33,51 @@ class NotificationService {
   // 显示成功通知
   success(title, message, options = {}) {
     if (!this.checkInitialized()) return null
-    return this.toastComponent.success(title, message, options)
+    const result = this.toastComponent.success(title, message, options)
+    if (!options.silent) {
+      notificationStore.addMessage({ type: 'success', title, content: message })
+    }
+    return result
   }
 
   // 显示错误通知
   error(title, message, options = {}) {
     if (!this.checkInitialized()) return null
-    return this.toastComponent.error(title, message, options)
+    const result = this.toastComponent.error(title, message, options)
+    if (!options.silent) {
+      notificationStore.addMessage({ type: 'error', title, content: message })
+    }
+    return result
   }
 
   // 显示警告通知
   warning(title, message, options = {}) {
     if (!this.checkInitialized()) return null
-    return this.toastComponent.warning(title, message, options)
+    const result = this.toastComponent.warning(title, message, options)
+    if (!options.silent) {
+      notificationStore.addMessage({ type: 'warning', title, content: message })
+    }
+    return result
   }
 
   // 显示信息通知
   info(title, message, options = {}) {
     if (!this.checkInitialized()) return null
-    return this.toastComponent.info(title, message, options)
+    const result = this.toastComponent.info(title, message, options)
+    if (!options.silent) {
+      notificationStore.addMessage({ type: 'info', title, content: message })
+    }
+    return result
   }
 
   // 显示自定义通知
   show(type: string, title: string, message: string, options: any = {}) {
     if (!this.checkInitialized()) return null
-    return this.toastComponent.showToast({ type, title, message, ...options })
+    const result = this.toastComponent.showToast({ type, title, message, ...options })
+    if (!options.silent) {
+      notificationStore.addMessage({ type: type as any, title, content: message })
+    }
+    return result
   }
 
   // 批量操作结果通知

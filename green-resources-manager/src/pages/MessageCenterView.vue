@@ -50,7 +50,7 @@
 
     <!-- 消息列表 -->
     <div class="messages-container">
-      <div v-if="filteredMessages.length === 0" class="empty-state">
+      <div v-if="paginatedMessages.length === 0" class="empty-state">
         <div class="empty-icon">📭</div>
         <h4>暂无消息</h4>
         <p>{{ getEmptyMessage() }}</p>
@@ -58,7 +58,7 @@
       
       <div v-else class="message-list">
         <div 
-          v-for="message in filteredMessages" 
+          v-for="message in paginatedMessages" 
           :key="message.id"
           :class="['message-item', `message-${message.type}`]"
         >
@@ -76,18 +76,7 @@
               <span class="message-time">{{ formatTime(message.timestamp) }}</span>
             </div>
             
-            <div class="message-text" v-if="message.message">{{ message.message }}</div>
-            
-            <div class="message-meta" v-if="message.folderPath || message.originalError">
-              <div v-if="message.folderPath" class="meta-item">
-                <span class="meta-label">路径:</span>
-                <span class="meta-value">{{ message.folderPath }}</span>
-              </div>
-              <div v-if="message.originalError" class="meta-item">
-                <span class="meta-label">原始错误:</span>
-                <span class="meta-value">{{ message.originalError }}</span>
-              </div>
-            </div>
+            <div class="message-text" v-if="message.content">{{ message.content }}</div>
           </div>
           
           <div class="message-actions">
@@ -142,6 +131,9 @@
 </template>
 
 <script lang="ts">
+import notificationService from '../utils/NotificationService.ts'
+import notificationStore from '../fun-ui/feedback/Notification/NotificationStore'
+
 export default {
   name: 'MessageCenterView',
   data() {
@@ -156,13 +148,15 @@ export default {
         { type: 'error', label: '错误', icon: '❌' },
         { type: 'warning', label: '警告', icon: '⚠️' },
         { type: 'info', label: '信息', icon: 'ℹ️' }
-      ]
+      ],
+      unsubscribe: null,
+      localMessages: []
     }
   },
   computed: {
-    // 从 FunNotification 组件获取消息
+    // 使用本地消息副本
     messages() {
-      return this.$parent.$refs.toastNotification?.messages || []
+      return this.localMessages
     },
     
     // 根据类型筛选消息
@@ -178,13 +172,12 @@ export default {
         const query = this.searchQuery.toLowerCase()
         messages = messages.filter(message => 
           message.title.toLowerCase().includes(query) ||
-          (message.message && message.message.toLowerCase().includes(query)) ||
-          (message.folderName && message.folderName.toLowerCase().includes(query))
+          (message.content && message.content.toLowerCase().includes(query))
         )
       }
       
       // 按时间倒序排列
-      messages.sort((a, b) => b.timestamp - a.timestamp)
+      messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       
       return messages
     },
@@ -224,7 +217,8 @@ export default {
     // 格式化时间
     formatTime(timestamp) {
       const now = Date.now()
-      const diff = now - timestamp
+      const msgTime = new Date(timestamp).getTime()
+      const diff = now - msgTime
       
       if (diff < 60000) { // 1分钟内
         return '刚刚'
@@ -240,49 +234,65 @@ export default {
     
     // 删除消息
     removeMessage(id) {
-      if (this.$parent.$refs.toastNotification) {
-        this.$parent.$refs.toastNotification.removeMessage(id)
+      try {
+        console.log('=== 删除消息 ===')
+        console.log('Message ID:', id)
+        notificationStore.removeMessage(id)
+        console.log('消息删除成功')
+        console.log('=== 删除消息结束 ===')
+      } catch (error) {
+        console.error('删除消息失败:', error)
       }
     },
     
     // 清空所有消息
     clearAllMessages() {
-      if (this.$parent.$refs.toastNotification) {
-        this.$parent.$refs.toastNotification.clearAllMessages()
+      try {
+        console.log('=== 清空所有消息 ===')
+        notificationStore.clearAllMessages()
+        console.log('消息清空成功')
+        console.log('=== 清空所有消息结束 ===')
+      } catch (error) {
+        console.error('清空消息失败:', error)
       }
     },
     
     // 复制消息
     async copyMessage(message) {
-      const text = `${message.title}\n${message.message || ''}\n时间: ${this.formatTime(message.timestamp)}`
+      const text = `${message.title}\n${message.content || ''}\n时间: ${this.formatTime(message.timestamp)}`
       try {
         await navigator.clipboard.writeText(text)
         // 显示复制成功提示
-        if (this.$parent.$refs.toastNotification) {
-          this.$parent.$refs.toastNotification.success('复制成功', '消息已复制到剪贴板')
-        }
+        console.log('=== 复制消息 ===')
+        console.log('Message:', message)
+        notificationService.success('复制成功', '消息已复制到剪贴板', { silent: true })
+        console.log('复制成功提示已发送')
       } catch (error) {
         console.error('复制失败:', error)
-        if (this.$parent.$refs.toastNotification) {
-          this.$parent.$refs.toastNotification.error('复制失败', '无法复制到剪贴板')
-        }
+        notificationService.error('复制失败', '无法复制到剪贴板')
       }
     },
     
     // 刷新消息
     refreshMessages() {
-      // 触发重新计算
-      this.$forceUpdate()
-      if (this.$parent.$refs.toastNotification) {
-        this.$parent.$refs.toastNotification.info('刷新完成', '消息列表已更新')
+      try {
+        console.log('=== 刷新消息 ===')
+        this.$forceUpdate()
+        notificationService.info('刷新完成', '消息列表已更新', { silent: true })
+        console.log('刷新完成提示已发送')
+      } catch (error) {
+        console.error('刷新消息失败:', error)
+        notificationService.error('刷新失败', '无法刷新消息列表')
       }
     },
     
     // 测试通知
     async testNotifications() {
       try {
-        const notificationService = (await import('../utils/NotificationService.ts')).default
+        console.log('=== 测试通知 ===')
+        console.log('NotificationService:', notificationService)
         notificationService.testNotifications()
+        console.log('测试通知已发送')
       } catch (error) {
         console.error('测试通知失败:', error)
       }
@@ -296,6 +306,23 @@ export default {
     },
     activeTab() {
       this.currentPage = 1
+    }
+  },
+
+  mounted() {
+    // 初始化本地消息
+    this.localMessages = [...notificationStore.getMessages()]
+    // 订阅消息变化
+    this.unsubscribe = notificationStore.subscribe(() => {
+      console.log('=== 收到消息更新通知 ===')
+      this.localMessages = [...notificationStore.getMessages()]
+      console.log('本地消息已更新:', this.localMessages)
+    })
+  },
+
+  beforeDestroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe()
     }
   }
 }
