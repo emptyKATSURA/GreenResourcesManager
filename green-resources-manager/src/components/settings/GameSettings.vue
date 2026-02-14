@@ -12,13 +12,18 @@
         @update:model-value="updateSetting('game.listPageSize', $event)"
       />
       
-      <SettingSelect
-        title="截图快捷键"
-        description="设置截图功能的快捷键"
-        :model-value="settings.screenshotKey"
-        :options="screenshotKeyOptions"
-        @update:model-value="onScreenshotKeyChange"
-      />
+      <div class="setting-item">
+        <label class="setting-label">
+          <span class="setting-title">截图快捷键</span>
+          <span class="setting-desc">设置截图功能的快捷键（如: Ctrl+Shift+S）</span>
+        </label>
+        <div class="setting-control">
+          <FunShortcutInput
+            v-model="settings.screenshotKey"
+            :default-shortcut="'Ctrl+F12'"
+          />
+        </div>
+      </div>
       
       <SettingSelect
         title="截图保存位置"
@@ -139,6 +144,7 @@ import SettingToggle from './SettingToggle.vue'
 import SettingSelect from './SettingSelect.vue'
 import SettingSlider from './SettingSlider.vue'
 import SettingFilePicker from './SettingFilePicker.vue'
+import FunShortcutInput from '../../fun-ui/data-input/ShortcutInput/FunShortcutInput.vue'
 
 export default {
   name: 'GameSettings',
@@ -146,7 +152,8 @@ export default {
     SettingToggle,
     SettingSelect,
     SettingSlider,
-    SettingFilePicker
+    SettingFilePicker,
+    FunShortcutInput
   },
   props: {
     settings: {
@@ -157,16 +164,6 @@ export default {
   emits: ['update:settings', 'action'],
   data() {
     return {
-      screenshotKeyOptions: [
-        { value: 'F12', label: 'F12' },
-        { value: 'F9', label: 'F9' },
-        { value: 'F10', label: 'F10' },
-        { value: 'F11', label: 'F11' },
-        { value: 'Ctrl+F12', label: 'Ctrl+F12' },
-        { value: 'Ctrl+F9', label: 'Ctrl+F9' },
-        { value: 'Ctrl+F10', label: 'Ctrl+F10' },
-        { value: 'Ctrl+F11', label: 'Ctrl+F11' }
-      ],
       screenshotLocationOptions: [
         { value: 'default', label: '默认目录 (SaveData/Game/Screenshots)' },
         { value: 'custom', label: '自定义目录' }

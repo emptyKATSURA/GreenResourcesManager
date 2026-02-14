@@ -17,8 +17,18 @@ export interface ChangelogEntry {
 
 export const changelogEntries: ChangelogEntry[] = [
   {
+    version: 'v0.7.1',
+    date: '2026-02-13',
+    features: [
+      "游戏现在可以加载转区工具，右键就可以转区启动",
+      "漫画支持了cbz格式的预览和浏览",
+      "增加了更多的游戏引擎的类型识别",
+    ],
+  },
+
+  {
     version: 'v0.7.0',
-    date: '2026-02-01',
+    date: '2026-02-10',
     refactor: [
       "超大规模重构！几乎重新了所有资源的页面逻辑，现在可以用配置表直接生成页面和资源！",
       "存档数据改用sqlite存储，不再使用json文件（旧存档需要手动转换为新存档）",
@@ -44,7 +54,7 @@ export const changelogEntries: ChangelogEntry[] = [
   },
   {
     version: 'v0.6.8',
-    date: '',
+    date: '2026-01-04',
     bugfixes: [
       "优化截图算法，现在不会截图到其它窗口了",
     ],
@@ -59,7 +69,7 @@ export const changelogEntries: ChangelogEntry[] = [
 
   {
     version: 'v0.6.7',
-    date: '',
+    date: '2025-12-28',
     bugfixes: [
       "详情页的显示的各种样式问题",
     ],

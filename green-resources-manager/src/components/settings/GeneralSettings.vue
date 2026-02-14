@@ -37,6 +37,26 @@
         @update:model-value="onSafetyKeyChange"
       />
       
+      <SettingToggle
+        title="F1快捷键"
+        description="按下F1键时显示'你好'提示框"
+        :model-value="settings.f1ShortcutEnabled || false"
+        @update:model-value="onF1ShortcutChange"
+      />
+      
+      <div class="setting-item">
+        <label class="setting-label">
+          <span class="setting-title">自定义快捷键</span>
+          <span class="setting-desc">输入自定义的快捷键（如: Ctrl+Shift+F）</span>
+        </label>
+        <div class="setting-control">
+          <FunShortcutInput
+            v-model="settings.f1ShortcutKey"
+            :default-shortcut="'F1'"
+          />
+        </div>
+      </div>
+      
       <SettingInput
         v-if="settings.safetyKeyEnabled"
         title="安全网页URL"
@@ -136,6 +156,7 @@ import SettingSelect from './SettingSelect.vue'
 import SettingInput from './SettingInput.vue'
 import SettingSlider from './SettingSlider.vue'
 import SettingFilePicker from './SettingFilePicker.vue'
+import FunShortcutInput from '../../fun-ui/data-input/ShortcutInput/FunShortcutInput.vue'
 
 export default {
   name: 'GeneralSettings',
@@ -144,7 +165,8 @@ export default {
     SettingSelect,
     SettingInput,
     SettingSlider,
-    SettingFilePicker
+    SettingFilePicker,
+    FunShortcutInput
   },
   props: {
     settings: {
@@ -176,7 +198,57 @@ export default {
       return this.settings.maxBackupCount ?? 5
     }
   },
+  mounted() {
+    // 监听F1键按下事件
+    document.addEventListener('keydown', this.handleKeyDown)
+  },
+  
+  beforeUnmount() {
+    // 移除事件监听
+    document.removeEventListener('keydown', this.handleKeyDown)
+  },
+  
   methods: {
+    handleKeyDown(event: KeyboardEvent) {
+      // 检查是否按下F1键且功能已启用
+      if (!this.settings.f1ShortcutEnabled) return
+      
+      // 当快捷键为空时，不触发任何操作
+      if (!this.settings.f1ShortcutKey || this.settings.f1ShortcutKey.trim() === '') return
+      
+      const shortcutKey = this.settings.f1ShortcutKey
+      const keyParts = shortcutKey.split('+').map(part => part.trim())
+      
+      // 检查组合键
+      let isMatch = true
+      
+      // 检查修饰键
+      const hasCtrl = keyParts.some(part => part.toLowerCase() === 'ctrl')
+      const hasShift = keyParts.some(part => part.toLowerCase() === 'shift')
+      const hasAlt = keyParts.some(part => part.toLowerCase() === 'alt')
+      
+      if (hasCtrl && !event.ctrlKey) isMatch = false
+      if (hasShift && !event.shiftKey) isMatch = false
+      if (hasAlt && !event.altKey) isMatch = false
+      
+      // 检查主按键
+      const mainKey = keyParts.find(part => !['Ctrl', 'Shift', 'Alt', 'ctrl', 'shift', 'alt'].includes(part))
+      if (mainKey && event.key.toLowerCase() !== mainKey.toLowerCase()) isMatch = false
+      
+      if (isMatch) {
+        event.preventDefault() // 阻止默认的F1帮助行为
+        alert('你好')
+      }
+    },
+    
+    onF1ShortcutChange(enabled: boolean) {
+      this.updateSetting('f1ShortcutEnabled', enabled)
+    },
+    
+    onF1ShortcutKeyChange(key: string) {
+      this.updateSetting('f1ShortcutKey', key)
+    },
+    
     updateSetting(key: string, value: any) {
       this.$emit('update:settings', { key, value })
     },
@@ -806,5 +878,13 @@ input:checked + .toggle-slider:before {
 .btn-icon {
   font-size: 1rem;
 }
+
+.shortcut-display {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+
 </style>
 
