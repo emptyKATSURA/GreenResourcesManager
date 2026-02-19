@@ -28,6 +28,7 @@ import ApiMangaSection from '../components/help/sections/api-pages/ApiMangaSecti
 import ApiVideosSection from '../components/help/sections/api-pages/ApiVideosSection.vue'
 import ApiNovelsSection from '../components/help/sections/api-pages/ApiNovelsSection.vue'
 import ApiWebsitesSection from '../components/help/sections/api-pages/ApiWebsitesSection.vue'
+import ApiAudioSection from '../components/help/sections/api-pages/ApiAudioSection.vue'
 import FaqSection from '../components/help/sections/FaqSection.vue'
 import WorkshopSection from '../components/help/sections/WorkshopSection.vue'
 import SupportSection from '../components/help/sections/SupportSection.vue'
@@ -51,6 +52,7 @@ export default defineComponent({
     ApiVideosSection,
     ApiNovelsSection,
     ApiWebsitesSection,
+    ApiAudioSection,
     FaqSection,
     SupportSection,
     AboutSection,
@@ -74,6 +76,7 @@ export default defineComponent({
       'api-videos': ApiVideosSection,
       'api-novels': ApiNovelsSection,
       'api-websites': ApiWebsitesSection,
+      'api-audio': ApiAudioSection,
       faq: FaqSection,
       support: SupportSection,
       about: AboutSection,
