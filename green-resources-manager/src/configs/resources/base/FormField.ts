@@ -54,80 +54,80 @@ export class FormField_Select extends FormField {
 
 export class FormField_SelectEngine extends FormField {
 
-	options: string[] = [
+	options: object[] = [
 		// 主流通用引擎
-		'Unity',
-		'Unreal Engine',
-		'Godot',
-		'CryEngine',
-		'Source Engine',
+		{name: 'Unity', icon: 'unity.png'},
+		{name: 'Unreal Engine', icon: 'unreal.png'},
+		{name: 'Godot', icon: 'godot.png'},
+		{name: 'CryEngine', icon: 'default.png'},
+		{name: 'Source Engine', icon: 'default.png'},
 
 		// Web / 桌面壳 / 跨平台（独立游戏常用）
-		'Electron',
-		'NW.js',
-		'Tauri',
+		{name: 'Electron', icon: 'default.png'},
+		{name: 'NW.js', icon: 'rmmz.png'},
+		{name: 'Tauri', icon: 'default.png'},
 
 		// 独立 / 轻量游戏引擎
-		'GameMaker Studio',
-		'Defold',
-		'Cocos2d',
-		'Cocos Creator',
-		'Phaser',
-		'Love2D',
-		'MonoGame',
-		'XNA',
-		'libGDX',
-		'Bevy',
-		'HaxeFlixel',
-		'GDevelop',
+		{name: 'GameMaker Studio', icon: 'default.png'},
+		{name: 'Defold', icon: 'default.png'},
+		{name: 'Cocos2d', icon: 'default.png'},
+		{name: 'Cocos Creator', icon: 'default.png'},
+		{name: 'Phaser', icon: 'default.png'},
+		{name: 'Love2D', icon: 'default.png'},
+		{name: 'MonoGame', icon: 'default.png'},
+		{name: 'XNA', icon: 'default.png'},
+		{name: 'libGDX', icon: 'default.png'},
+		{name: 'Bevy', icon: 'default.png'},
+		{name: 'HaxeFlixel', icon: 'default.png'},
+		{name: 'GDevelop', icon: 'default.png'},
 
 		// Galgame / 视觉小说引擎
-		"Ren'Py",
-		'TyranoBuilder',
-		'TyranoScript',
-		'Kirikiri / 吉里吉里',
-		'Kirikiri Z',
-		'CatSystem2',
-		'Ethornell (BGI)',
-		'Entis',
-		'NScripter',
-		'ONScripter',
-		'Artemis Engine',
-		'Visual Novel Maker',
-		'MondayOFF VN Engine',
-		'Unity + VN Framework',
-		'Godot + VN Plugin',
+		{name: "Ren'Py", icon: 'renpy.png'},
+		{name: 'TyranoBuilder', icon: 'tybuilder.png'},
+		{name: 'TyranoScript', icon: 'tyscript.png'},
+		{name: 'Kirikiri / 吉里吉里', icon: 'krkr.png'},
+		{name: 'Kirikiri Z', icon: 'krkr.png'},
+		{name: 'CatSystem2', icon: 'default.png'},
+		{name: 'Ethornell (BGI)', icon: 'default.png'},
+		{name: 'Entis', icon: 'default.png'},
+		{name: 'NScripter', icon: 'default.png'},
+		{name: 'ONScripter', icon: 'default.png'},
+		{name: 'Artemis Engine', icon: 'default.png'},
+		{name: 'Visual Novel Maker', icon: 'default.png'},
+		{name: 'MondayOFF VN Engine', icon: 'default.png'},
+		{name: 'Unity + VN Framework', icon: 'default.png'},
+		{name: 'Godot + VN Plugin', icon: 'default.png'},
 
 		// RPG 系
-		'RPG Maker 2000/2003',
-		'RPG Maker XP',
-		'Rpg Maker VX',
-		'RPG Maker VX Ace',
-		'RPG Maker MV',
-		'RPG Maker MZ',
-		'Wolf RPG',
-		'SRPG Studio',
-		'Pixel Game Maker MV',
-		'RPG Developer Bakin',
+		{name: 'RPG Maker 2000/2003', icon: 'rm2k.png'},
+		{name: 'RPG Maker XP', icon: 'rmxp.png'},
+		{name: 'Rpg Maker VX', icon: 'rmvx.png'},
+		{name: 'RPG Maker VX Ace', icon: 'rmva.png'},
+		{name: 'RPG Maker MV', icon: 'rmmv.png'},
+		{name: 'RPG Maker MZ', icon: 'rmmz.png'},
+		{name: 'Wolf RPG', icon: 'wolf.png'},
+		{name: 'SRPG Studio', icon: 'srpg.png'},
+		{name: 'Pixel Game Maker MV', icon: 'pixel.png'},
+		{name: 'RPG Developer Bakin', icon: 'bakin.png'},
 
 		// 交互叙事 / 非传统游戏
-		'Twine',
-		'Ink',
-		'Yarn Spinner',
+		{name: 'Twine', icon: 'default.png'},
+		{name: 'Ink', icon: 'default.png'},
+		{name: 'Yarn Spinner', icon: 'default.png'},
 
 		// 可视化 / 教育
-		'Scratch',
-		'Construct',
-		'Clickteam Fusion',
+		{name: 'Scratch', icon: 'default.png'},
+		{name: 'Construct', icon: 'default.png'},
+		{name: 'Clickteam Fusion', icon: 'default.png'},
 
 		// 底层 / 语言级
-		'Flash / ActionScript',
-		'Java',
-		'Python / Pygame',
-		'C++ 自研引擎',
+		{name: 'Flash / ActionScript', icon: 'flash.png'},
+		{name: 'Java', icon: 'java.png'},
+		{name: 'Python / Pygame', icon: 'python.png'},
+		{name: 'C++ 自研引擎', icon: 'default.png'},
 
 		// 兜底
-		'其他'
+		{name: '其他', icon: 'default.png'}
 	]
 
 	constructor(fieldName: string, required?: boolean) {

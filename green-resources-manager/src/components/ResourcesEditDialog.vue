@@ -51,12 +51,23 @@
           
           <!-- 选择字段（引擎类型，自带检测引擎按钮） -->
           <template v-else-if="field instanceof FormField_SelectEngine">
-            <fun-select
+            <fun-select-slot
               :id="key"
               v-model="formData[key]"
-              :options="getSelectOptions(key, field)"
               :placeholder="getFieldPlaceholder(key, field)"
-            />
+            >
+              <fun-option
+                v-for="option in getSelectOptions(key, field)"
+                :key="option.value"
+                :value="option.value"
+                :label="option.label"
+              >
+                <div>
+                  <img :src="getOptionIcon(option.icon)" alt="icon" style="width: 16px; height: 16px">&nbsp;
+                  <span>{{option.label}}</span>
+                </div>
+              </fun-option>
+            </fun-select-slot>
             <div class="engine-auto-detect">
               <button 
                 type="button" 
@@ -287,34 +298,43 @@
 </template>
 
 <script lang="ts">
-import { computed, PropType, nextTick } from 'vue'
+import {computed, nextTick, PropType} from 'vue'
 import TagSelectionPanel from './TagSelectionPanel.vue'
 import saveManager from '../utils/SaveManager.ts'
 import notify from '../utils/NotificationService.ts'
 import alertService from '../utils/AlertService.ts'
-import { detectGameEngine } from '../utils/GameEngineDetector.ts'
+import {detectGameEngine} from '../utils/GameEngineDetector.ts'
 import {
   FormField as FormFieldType,
-  FormField_Text,
-  FormField_Textarea,
+  FormField_Checkbox,
   FormField_Number,
   FormField_Select,
-  FormField_Tags,
-  FormField_Checkbox,
   FormField_SelectEngine,
   FormField_SelectFile,
   FormField_SelectFolder,
   FormField_SelectGameCover,
   FormField_SelectMangaCover,
+  FormField_SelectSingleImageFile,
   FormField_SelectVideoThumbnail,
-  FormField_SelectSingleImageFile
+  FormField_Tags,
+  FormField_Text,
+  FormField_Textarea
 } from '@resources/base/FormField.ts'
-import { ResourceField } from '@resources/base/ResourceField.ts'
-import { BaseResources } from '@resources/base/ResourcesDataBase.ts'
+import {ResourceField} from '@resources/base/ResourceField.ts'
+import {BaseResources} from '@resources/base/ResourcesDataBase.ts'
+import {FunInput, FunSelect, FunTagInput, FunTextarea} from "../fun-ui";
+import FunOption from "../fun-ui/data-input/Select/FunOption.vue";
+import FunSelectSlot from "../fun-ui/data-input/Select/FunSelectSlot.vue";
 
 export default {
   name: 'ResourcesEditDialog',
   components: {
+    FunSelectSlot,
+    FunOption,
+    FunTagInput,
+    FunTextarea,
+    FunInput,
+    FunSelect,
     TagSelectionPanel
   },
   props: {
@@ -801,14 +821,31 @@ export default {
       return `请输入${field.fieldName}`
     },
     // 获取选择字段的选项（用于 SELECT 类型）
-    getSelectOptions(key: string, field: FormFieldType): Array<{ value: string; label: string }> {
+    getSelectOptions(key: string, field: FormFieldType): Array<{ value: string; label: string; icon: string | null }> {
       if ('options' in field && Array.isArray((field as any).options)) {
-        return (field as any).options.map((option: string) => ({
-          value: option,
-          label: option
-        }))
+        if ((field as any).options.every((element: any) => typeof element === 'string')) {
+          return (field as any).options.map((option: string) => ({
+            value: option,
+            label: option
+          }))
+        } else if ((field as any).options.every((element: any) => typeof element === 'object')) {
+          return (field as any).options.map((option: any) => ({
+            value: option.name,
+            label: option.name,
+            icon: option.icon
+          }))
+        }
       }
       return []
+    },
+    getOptionIcon(icon: string) {
+      const defaultIcon = '/src/assets/icon/engine/default.png';
+      if (!icon) {
+        return defaultIcon;
+      }
+
+      // todo: 检查文件是否存在
+      return '/src/assets/icon/engine/' + icon;
     },
     resetForm() {
       // 确保 resourceClass 存在
