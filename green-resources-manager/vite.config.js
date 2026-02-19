@@ -14,11 +14,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         pet: resolve(__dirname, 'pet.html'),
         'video-player': resolve(__dirname, 'public/html/video-player.html')
+      },
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          'pdf-vendor': ['pdfjs-dist'],
+          'epub-vendor': ['epubjs'],
+          'prism-vendor': ['prismjs', 'prism-themes'],
+          'ui-vendor': ['vue-json-pretty']
+        }
       }
     }
   },

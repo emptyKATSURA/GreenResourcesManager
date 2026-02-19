@@ -98,7 +98,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "artifactName": "${productName}_Setup_${version}.${ext}",
-      "useZip": true,
+      "useZip": false,
       "warningsAsErrors": false
     },
     "mac": {
