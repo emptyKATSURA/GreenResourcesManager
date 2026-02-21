@@ -839,13 +839,14 @@ export default {
       return []
     },
     getOptionIcon(icon: string) {
-      const defaultIcon = '/src/assets/icon/engine/default.png';
+      // 使用public目录下的图标路径，确保打包后仍然有效
+      const defaultIcon = './icon/engine/default.png';
       if (!icon) {
         return defaultIcon;
       }
 
       // todo: 检查文件是否存在
-      return '/src/assets/icon/engine/' + icon;
+      return './icon/engine/' + icon;
     },
     resetForm() {
       // 确保 resourceClass 存在

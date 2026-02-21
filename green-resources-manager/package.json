@@ -10,7 +10,8 @@
     "test:run": "vitest run",
     "build": "vite build",
     "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron-build": "npm run build && electron-builder"
+    "electron-build": "npm run build && electron-builder --win",
+    "build-help": "vite build --config vite.config.help.js && node scripts/post-build-help.js"
   },
   "keywords": [
     "vue",
@@ -98,7 +99,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "artifactName": "${productName}_Setup_${version}.${ext}",
-      "useZip": false,
+      "useZip": true,
       "warningsAsErrors": false
     },
     "mac": {

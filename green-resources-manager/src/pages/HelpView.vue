@@ -106,7 +106,7 @@ export default defineComponent({
 // ============================================
 .help-view {
   display: flex;
-  height: 100vh;
+  min-height: 100vh;
   background: var(--bg-primary);
 }
 </style>

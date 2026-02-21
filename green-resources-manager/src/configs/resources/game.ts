@@ -143,28 +143,30 @@ export class Game extends BaseResources {
 	}
 
 	getSaveData(): any {
+		// 确保id不为空
+		const idValue = this.id.value || this.generateId();
 		return {
-			id: this.id.value,
-			resourceType: this.resourceType.value,
-			name: this.name.value,
-			nickname: this.nickname.value,
-			nameZh: this.nameZh.value,
-			nameEn: this.nameEn.value,
-			nameJa: this.nameJa.value,
-			description: this.description.value,
-			developers: Array.isArray(this.developers.value) ? [...this.developers.value] : this.developers.value,
-			publisher: this.publisher.value,
-			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : this.tags.value,
-			engine: this.engine.value,
-			coverPath: this.coverPath.value,
-			resourcePath: this.resourcePath.value,
-			playTime: this.playTime.value,
-			playCount: this.playCount.value,
+			id: idValue,
+			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'game',
+			name: this.name.value || '',
+			nickname: this.nickname.value || '',
+			nameZh: this.nameZh.value || '',
+			nameEn: this.nameEn.value || '',
+			nameJa: this.nameJa.value || '',
+			description: this.description.value || '',
+			developers: Array.isArray(this.developers.value) ? [...this.developers.value] : [],
+			publisher: this.publisher.value || '',
+			tags: Array.isArray(this.tags.value) ? [...this.tags.value] : [],
+			engine: this.engine.value || '',
+			coverPath: this.coverPath.value || '',
+			resourcePath: this.resourcePath.value || '',
+			playTime: this.playTime.value || 0,
+			playCount: this.playCount.value || 0,
 			visitedSessions: Array.isArray(this.visitedSessions.value) ? [...this.visitedSessions.value] : [],
-			addedDate: this.addedDate.value,
-			rating: this.rating.value,
-			comment: this.comment.value,
-			isFavorite: this.isFavorite.value
+			addedDate: this.addedDate.value || '',
+			rating: this.rating.value || 0,
+			comment: this.comment.value || '',
+			isFavorite: this.isFavorite.value || false
 		}
 	}
 

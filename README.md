@@ -12,6 +12,8 @@
 
 QQ客服群：853149421
 
+📖 [**帮助手册**](./green-resources-manager/help-site/index.html)
+
 ## 📑 目录
 
 * [📖 产品介绍](#-产品介绍)
