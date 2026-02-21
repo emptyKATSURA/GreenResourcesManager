@@ -164,7 +164,12 @@ function getResourcesFromJsonTable(db, tableName, conditions) {
     // 基础sql
     let sql = `SELECT games.id, games.jsonData, games.timestamp, games.version FROM games`
     let condition_sql = []
-    condition_sql.push(`EXISTS (SELECT 1 FROM games_page as page WHERE page.resourceId = games.id)`)
+    
+    // 检查 games_page 表是否存在
+    const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get('games_page')
+    if (tableExists) {
+      condition_sql.push(`EXISTS (SELECT 1 FROM games_page as page WHERE page.resourceId = games.id)`)
+    }
 
     if (conditions) {
       // 条件包含开发商
@@ -731,7 +736,7 @@ function mapResourceTypeToTableName(resourceType) {
  */
 async function savePageResources(pageId, resources) {
   try {
-    if (!resources || !Array.isArray(resources) || resources.length === 0) {
+    if (!resources || !Array.isArray(resources)) {
       return { ok: false, message: '未收到任何资源数据' }
     }
     const Database = require('better-sqlite3')
@@ -760,34 +765,41 @@ async function savePageResources(pageId, resources) {
       // 存储每个资源对应的数据库表名（用于后续插入页面索引）
       const resourceTableMap = new Map()
 
-      // 1. 保存所有资源到对应的资源表
-      for (const resource of resources) {
-        if (!resource.id) {
-          console.warn(`[SQLite] 资源缺少 id 字段，跳过保存:`, resource)
-          continue
+      // 1. 保存所有资源到对应的资源表（如果有资源的话）
+      if (resources.length > 0) {
+        for (const resource of resources) {
+          console.log(`[SQLite] 处理资源，resource:`, resource)
+          
+          if (!resource.id) {
+            console.warn(`[SQLite] 资源缺少 id 字段，跳过保存:`, resource)
+            continue
+          }
+
+          // 从资源数据中获取资源类型
+          let resourceType = resource.resourceType || resource.resource_type
+
+          console.log(`[SQLite] 资源原始类型 - resourceType: ${resourceType}, resource.resourceType: ${resource.resourceType}, resource.resource_type: ${resource.resource_type}`)
+
+          // 如果资源类型不存在，尝试从页面ID推断
+          if (!resourceType) {
+            resourceType = pageIdToResourceType[pageId] || pageId
+            console.log(`[SQLite] 从页面ID推断资源类型: ${pageId} -> ${resourceType}`)
+          }
+
+          // 映射到数据库表名
+          const tableName = mapResourceTypeToTableName(resourceType)
+          console.log(`[SQLite] 保存资源到表 ${tableName}, resourceType: ${resourceType}, id: ${resource.id}`)
+
+          // 保存映射关系
+          resourceTableMap.set(resource.id, tableName)
+
+          const timestamp = resource.timestamp != null ? resource.timestamp : new Date().toISOString()
+          const version = resource.version != null ? resource.version : null
+          const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${tableName}" (id, jsonData, timestamp, version) VALUES (?, ?, ?, ?)`)
+          insertStmt.run(resource.id, JSON.stringify(resource), timestamp, version)
+          insertedCount++
+          console.log(`[SQLite] 资源保存成功，insertedCount 现在为: ${insertedCount}`)
         }
-
-        // 从资源数据中获取资源类型
-        let resourceType = resource.resourceType || resource.resource_type
-
-        // 如果资源类型不存在，尝试从页面ID推断
-        if (!resourceType) {
-          resourceType = pageIdToResourceType[pageId] || pageId
-          console.log(`[SQLite] 从页面ID推断资源类型: ${pageId} -> ${resourceType}`)
-        }
-
-        // 映射到数据库表名
-        const tableName = mapResourceTypeToTableName(resourceType)
-        console.log(`[SQLite] 保存资源到表 ${tableName}, resourceType: ${resourceType}, id: ${resource.id}`)
-
-        // 保存映射关系
-        resourceTableMap.set(resource.id, tableName)
-
-        const timestamp = resource.timestamp != null ? resource.timestamp : new Date().toISOString()
-        const version = resource.version != null ? resource.version : null
-        const insertStmt = db.prepare(`INSERT OR REPLACE INTO "${tableName}" (id, jsonData, timestamp, version) VALUES (?, ?, ?, ?)`)
-        insertStmt.run(resource.id, JSON.stringify(resource), timestamp, version)
-        insertedCount++
       }
 
       // 2. 清空页面表
@@ -806,34 +818,36 @@ async function savePageResources(pageId, resources) {
       // 清空页面表
       db.exec(`DELETE FROM ${quotedTableName}`)
 
-      // 3. 重新插入页面索引（使用之前保存的映射关系）
-      for (let i = 0; i < resources.length; i++) {
-        const resource = resources[i]
-        if (!resource.id) {
-          console.warn(`[SQLite] 资源缺少 id 字段，跳过页面索引:`, resource)
-          continue
+      // 3. 重新插入页面索引（使用之前保存的映射关系，如果有资源的话）
+      if (resources.length > 0) {
+        for (let i = 0; i < resources.length; i++) {
+          const resource = resources[i]
+          if (!resource.id) {
+            console.warn(`[SQLite] 资源缺少 id 字段，跳过页面索引:`, resource)
+            continue
+          }
+
+          // 从映射中获取数据库表名
+          const dbTableName = resourceTableMap.get(resource.id)
+          if (!dbTableName) {
+            console.warn(`[SQLite] 资源 ${resource.id} 没有对应的表名映射，跳过页面索引`)
+            continue
+          }
+
+          const resourceId = resource.id
+
+          // 生成唯一ID
+          const id = `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`
+
+          console.log(`[SQLite] 添加页面索引: ${quotedTableName}, resourceType: ${dbTableName}, resourceId: ${resourceId}`)
+
+          // 插入页面索引
+          const insertPageStmt = db.prepare(`
+            INSERT INTO ${quotedTableName} (id, resourceType, resourceId) 
+            VALUES (?, ?, ?)
+          `)
+          insertPageStmt.run(id, dbTableName, resourceId)
         }
-
-        // 从映射中获取数据库表名
-        const dbTableName = resourceTableMap.get(resource.id)
-        if (!dbTableName) {
-          console.warn(`[SQLite] 资源 ${resource.id} 没有对应的表名映射，跳过页面索引`)
-          continue
-        }
-
-        const resourceId = resource.id
-
-        // 生成唯一ID
-        const id = `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`
-
-        console.log(`[SQLite] 添加页面索引: ${quotedTableName}, resourceType: ${dbTableName}, resourceId: ${resourceId}`)
-
-        // 插入页面索引
-        const insertPageStmt = db.prepare(`
-          INSERT INTO ${quotedTableName} (id, resourceType, resourceId) 
-          VALUES (?, ?, ?)
-        `)
-        insertPageStmt.run(id, dbTableName, resourceId)
       }
 
       console.log(`[SQLite] 页面 ${pageId} 资源保存完成，共 ${resources.length} 条记录`)
@@ -842,6 +856,10 @@ async function savePageResources(pageId, resources) {
     transaction()
     db.close()
 
+    // 允许空数组的情况（清空页面）
+    if (resources.length === 0) {
+      return { ok: true }
+    }
     if (insertedCount === 0) {
       return { ok: false, message: '所有资源均被跳过，未写入任何数据（请检查资源 id、resourceType 及表结构）' }
     }

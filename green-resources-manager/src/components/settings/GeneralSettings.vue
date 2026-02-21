@@ -49,9 +49,21 @@
           />
         </div>
       </div>
-      
 
-      
+      <div class="setting-item">
+        <label class="setting-label">
+          <span class="setting-title">打开软件快捷键</span>
+          <span class="setting-desc">按下该快捷键可将软件从托盘恢复显示</span>
+        </label>
+        <div class="setting-control">
+          <FunShortcutInput
+            v-model="settings.showWindowShortcut"
+            :default-shortcut="'F2'"
+            @shortcut-changed="onShowWindowShortcutChange"
+          />
+        </div>
+      </div>
+
       <SettingInput
         v-if="settings.safetyKeyEnabled"
         title="安全网页URL"
@@ -401,6 +413,30 @@ export default {
           window.dispatchEvent(event)
         } catch (error) {
           console.error('触发安全键URL变化事件失败:', error)
+        }
+      }
+    },
+
+    async onShowWindowShortcutChange(newKey: string) {
+      this.updateSetting('showWindowShortcut', newKey)
+      // 当打开软件快捷键变化时，更新全局快捷键
+      if (window.electronAPI && window.electronAPI.updateShowWindowShortcut) {
+        try {
+          const result = await window.electronAPI.updateShowWindowShortcut(newKey)
+          if (result.success) {
+            console.log('✅ 打开软件快捷键已更新为:', newKey)
+            notify.success('快捷键已更新', `打开软件快捷键已设置为 ${newKey}`)
+          } else {
+            console.warn('更新打开软件快捷键失败:', result.error)
+            notify.error('设置失败', result.error || '无法注册该快捷键，可能被其他应用占用')
+            // 恢复旧的快捷键
+            this.updateSetting('showWindowShortcut', this.settings.showWindowShortcut)
+          }
+        } catch (error: any) {
+          console.error('更新打开软件快捷键失败:', error)
+          notify.error('设置失败', error.message)
+          // 恢复旧的快捷键
+          this.updateSetting('showWindowShortcut', this.settings.showWindowShortcut)
         }
       }
     },

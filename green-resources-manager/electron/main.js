@@ -257,7 +257,15 @@ if (!gotTheLock) {
     shortcuts.registerIpcHandlers(
       ipcMain,
       () => mainWindowModule.getMainWindow(),
-      () => gameProcess
+      () => gameProcess,
+      () => mainWindowModule.showAndFocusMainWindow()
+    )
+
+    // 注册默认的 F2 快捷键用于打开软件
+    shortcuts.updateShowWindowShortcut(
+      'F2',
+      () => mainWindowModule.getMainWindow(),
+      () => mainWindowModule.showAndFocusMainWindow()
     )
     
     // 初始化自动更新

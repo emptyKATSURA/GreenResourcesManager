@@ -37,6 +37,8 @@ let currentGlobalShortcut = null
 // 存储安全键相关设置
 let safetyKeyEnabled = false
 let safetyKeyUrl = ''
+// 存储打开软件快捷键相关设置
+let currentShowWindowShortcut = null
 
 /**
  * 处理安全键触发事件。
@@ -200,6 +202,52 @@ function checkShortcutAvailable(key) {
 }
 
 /**
+ * 更新打开软件快捷键。
+ * @param {string|null} newKey - 新的快捷键字符串（如 'F2'）或 null 表示注销。
+ * @param {Function} getMainWindow - 获取主窗口的函数。
+ * @param {Function} showAndFocusMainWindow - 显示并聚焦主窗口的函数。
+ * @returns {{success: boolean, key?: string, error?: string}} 更新结果。
+ */
+function updateShowWindowShortcut(newKey, getMainWindow, showAndFocusMainWindow) {
+  try {
+    // 注销之前的快捷键
+    if (currentShowWindowShortcut) {
+      globalShortcut.unregister(currentShowWindowShortcut)
+    }
+    currentShowWindowShortcut = null
+
+    // 注册新的快捷键
+    if (newKey) {
+      const registered = globalShortcut.register(newKey, () => {
+        console.log('[显示窗口] 全局快捷键', newKey, '被按下')
+        const mainWindow = getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          // 无论窗口是否可见，都强制显示并聚焦到最上层
+          showAndFocusMainWindow()
+          console.log('[显示窗口] 已显示并聚焦主窗口到最上层')
+        } else {
+          console.warn('[显示窗口] 主窗口不可用')
+        }
+      })
+
+      if (registered) {
+        console.log('[显示窗口] 全局快捷键', newKey, '注册成功')
+        currentShowWindowShortcut = newKey
+        return { success: true, key: newKey }
+      } else {
+        console.log('[显示窗口] 全局快捷键', newKey, '注册失败，可能被其他应用占用')
+        return { success: false, error: '快捷键被其他应用占用' }
+      }
+    }
+
+    return { success: true, key: null }
+  } catch (error) {
+    console.error('更新显示窗口快捷键失败:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
  * 注销所有全局快捷键（用于应用退出时清理）。
  */
 function unregisterAllShortcuts() {
@@ -213,6 +261,11 @@ function unregisterAllShortcuts() {
     if (safetyKeyEnabled) {
       globalShortcut.unregister('Escape')
     }
+    // 注销显示窗口快捷键
+    if (currentShowWindowShortcut) {
+      globalShortcut.unregister(currentShowWindowShortcut)
+      currentShowWindowShortcut = null
+    }
     console.log('所有全局快捷键已注销')
   } catch (error) {
     console.error('注销全局快捷键失败:', error)
@@ -224,8 +277,9 @@ function unregisterAllShortcuts() {
  * @param {Object} ipcMain - Electron 的 ipcMain 对象。
  * @param {Function} getMainWindow - 获取主窗口的函数。
  * @param {Function} getGameProcess - 获取游戏进程模块的函数。
+ * @param {Function} showAndFocusMainWindow - 显示并聚焦主窗口的函数。
  */
-function registerIpcHandlers(ipcMain, getMainWindow, getGameProcess) {
+function registerIpcHandlers(ipcMain, getMainWindow, getGameProcess, showAndFocusMainWindow) {
   // 更新全局快捷键
   ipcMain.handle('update-global-shortcut', async (event, newKey) => {
     try {
@@ -252,10 +306,22 @@ function registerIpcHandlers(ipcMain, getMainWindow, getGameProcess) {
       return { success: false, error: error.message }
     }
   })
+
+  // 更新显示窗口快捷键
+  ipcMain.handle('update-show-window-shortcut', async (event, newKey) => {
+    try {
+      const result = updateShowWindowShortcut(newKey, getMainWindow, showAndFocusMainWindow)
+      return result
+    } catch (error) {
+      console.error('更新显示窗口快捷键失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
 }
 
 module.exports = {
   registerIpcHandlers,
-  unregisterAllShortcuts
+  unregisterAllShortcuts,
+  updateShowWindowShortcut
 }
 

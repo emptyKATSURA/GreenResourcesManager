@@ -66,15 +66,15 @@ function createTray(mainWindow, getMinimizeToTrayEnabled, setMinimizeToTrayEnabl
     }
 
     // 创建托盘图标
-    const iconPath = path.join(__dirname, '../../butter-icon.ico')
+    const iconPath = path.join(__dirname, '../../public/butter-icon.ico')
     const trayIcon = nativeImage.createFromPath(iconPath)
     
-    // 如果ICO图标创建失败，尝试使用SVG图标
+    // 如果ICO图标创建失败，尝试使用PNG图标
     if (trayIcon.isEmpty()) {
-      const svgIconPath = path.join(__dirname, '../../icon.svg')
-      const svgTrayIcon = nativeImage.createFromPath(svgIconPath)
-      if (!svgTrayIcon.isEmpty()) {
-        tray = new Tray(svgTrayIcon)
+      const pngIconPath = path.join(__dirname, '../../public/butter-icon.png')
+      const pngTrayIcon = nativeImage.createFromPath(pngIconPath)
+      if (!pngTrayIcon.isEmpty()) {
+        tray = new Tray(pngTrayIcon)
       } else {
         console.warn('无法创建托盘图标，使用默认图标')
         // 创建一个简单的默认图标
@@ -196,7 +196,7 @@ function displayBalloon(options = {}) {
     tray.displayBalloon({
       title: title || 'Green Resource Manager',
       content: content || '',
-      icon: nativeImage.createFromPath(path.join(__dirname, '../../butter-icon.ico'))
+      icon: nativeImage.createFromPath(path.join(__dirname, '../../public/butter-icon.ico'))
     })
   }
 }

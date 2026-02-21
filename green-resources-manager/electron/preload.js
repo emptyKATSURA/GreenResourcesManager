@@ -163,6 +163,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getActiveWindow: () => ipcRenderer.invoke('get-active-window'),
   updateGlobalShortcut: (newKey) => ipcRenderer.invoke('update-global-shortcut', newKey),
   checkGlobalShortcutAvailable: (key) => ipcRenderer.invoke('check-global-shortcut-available', key),
+  updateShowWindowShortcut: (newKey) => ipcRenderer.invoke('update-show-window-shortcut', newKey),
   
   // 选择音频文件
   selectAudioFile: () => ipcRenderer.invoke('select-audio-file'),

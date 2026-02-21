@@ -93,8 +93,12 @@ export class Manga extends BaseResources {
 	 * @returns {any} 可保存的纯 JSON 对象
 	 */
 	getSaveData(): any {
+		const id = this.id.value || this.id.defaultValue
+		if (!id) {
+			console.warn('[Manga.getSaveData] id 为空，生成新 id')
+		}
 		return {
-			id: this.id.value || this.id.defaultValue || '',
+			id: id || '',
 			resourceType: this.resourceType.value || this.resourceType.defaultValue || 'manga',
 			name: this.name.value || '',
 			description: this.description.value || '',

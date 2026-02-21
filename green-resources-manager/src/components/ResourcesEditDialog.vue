@@ -1577,6 +1577,13 @@ export default {
           fileExists: true
         }
 
+        // 添加 resourceType 字段（从资源实例获取默认值）
+        if (resourceInstance && resourceInstance.resourceType) {
+          if (resourceInstance.resourceType instanceof ResourceField) {
+            resource.resourceType = resourceInstance.resourceType.defaultValue
+          }
+        }
+        
         // 遍历资源类的字段定义，从 formData 中提取对应的值
         for (const key in resourceInstance) {
           const value = (resourceInstance as any)[key]
@@ -1617,6 +1624,9 @@ export default {
         }
 
         console.log('[ResourcesEditDialog] 准备触发 confirm 事件，resource:', resource)
+        console.log('[ResourcesEditDialog] resource 所有字段:', Object.keys(resource))
+        console.log('[ResourcesEditDialog] resourceType 字段:', resource.resourceType)
+        console.log('[ResourcesEditDialog] id 字段:', resource.id)
         this.$emit('confirm', resource)
       } catch (error) {
         console.error('[ResourcesEditDialog] handleConfirm 执行出错:', error)

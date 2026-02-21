@@ -724,6 +724,11 @@ export default defineComponent({
       }
       const saveableData = items.value.map(item => (item as any).getSaveData())
       console.log(`[GenericResourceView] 保存页面 ${pageId} 数据到数据库，共 ${saveableData.length} 条记录`)
+      console.log('[GenericResourceView] saveableData 完整内容:', saveableData)
+      saveableData.forEach((item, index) => {
+        console.log(`[GenericResourceView] 第 ${index} 条记录 - id: ${item.id}, resourceType: ${item.resourceType}`)
+        console.log(`[GenericResourceView] 第 ${index} 条记录 所有字段:`, Object.keys(item))
+      })
       const result = await window.electronAPI.sqliteSavePageResources(pageId, saveableData)
       if (!result || !result.ok) {
         throw new Error((result && result.message) ? result.message : '保存页面数据到数据库失败')
@@ -1579,7 +1584,21 @@ export default defineComponent({
         items: items,
         onAdd: async (data: any) => {
           const newItem = new ResourceClass()
-          Object.assign(newItem, data)
+          console.log('[GenericResourceView] onAdd 开始 - data:', data)
+          console.log('[GenericResourceView] onAdd 开始 - newItem 初始 id:', newItem.id?.value)
+          
+          for (const key in data) {
+            if (key in newItem) {
+              const field = (newItem as any)[key]
+              if (field && typeof field === 'object' && 'value' in field) {
+                field.value = BaseResources.extractPrimitiveValue(data[key])
+              } else {
+                (newItem as any)[key] = data[key]
+              }
+            }
+          }
+          
+          console.log('[GenericResourceView] onAdd 处理后 - newItem.id.value:', newItem.id?.value)
           
           // 如果资源有 folderSize 字段配置，自动计算大小
           const cardConfig = newItem.constructor?.cardDisplayConfig || 
